@@ -34,6 +34,8 @@ import ExportPdfButton from "@/components/common/ExportPdfButton";
 import ChangeDurationDialog from "./training/ChangeDurationDialog";
 import CopyPhaseToMasterDialog from "./training/CopyPhaseToMasterDialog";
 import CopyPhaseToClientDialog from "./training/CopyPhaseToClientDialog";
+import DuplicatePhaseDialog from "@/components/training/DuplicatePhaseDialog";
+
 import { copyPhaseToMasterProgram, copyPhaseToClientProgram, restorePreviousProgramPhases } from "@/lib/copyPhaseHelpers";
 import AICreateProgramModal from "@/components/training/AICreateProgramModal";
 import { derivePhaseDates } from "@/lib/phaseDates";
@@ -219,6 +221,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [changeDurationPhase, setChangeDurationPhase] = useState<Phase | null>(null);
   const [copyToMasterPhase, setCopyToMasterPhase] = useState<Phase | null>(null);
   const [copyToClientPhase, setCopyToClientPhase] = useState<Phase | null>(null);
+  const [duplicatePhaseTarget, setDuplicatePhaseTarget] = useState<Phase | null>(null);
+
   const [deletePhaseTarget, setDeletePhaseTarget] = useState<Phase | null>(null);
   const [aiCreateOpen, setAiCreateOpen] = useState(false);
   const [clientDisplayName, setClientDisplayName] = useState<string>("Client");
@@ -616,20 +620,40 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     const nextOrder = phases.length > 0
       ? Math.max(...phases.map(p => p.phase_order || 0)) + 1
       : 1;
-    const { data, error } = await supabase.from("program_phases").insert({
-      program_id: program.id,
+
+    // Optimistic append — placeholder shows instantly, replaced on reload.
+    const tempId = `temp-${Date.now()}`;
+    const tempPhase: Phase = {
+      id: tempId,
       name: `Phase ${nextOrder}`,
+      description: null,
       phase_order: nextOrder,
       duration_weeks: 4,
-    }).select("id").single();
-    if (error || !data) {
+      training_style: null,
+      intensity_system: null,
+      progression_rule: null,
+      directWorkouts: [],
+    };
+    setPhases(prev => [...prev, tempPhase]);
+    toast({ title: "Phase added" });
+
+    // Background insert; on failure roll back and toast.
+    const { error } = await supabase.from("program_phases").insert({
+      program_id: program.id,
+      name: tempPhase.name,
+      phase_order: nextOrder,
+      duration_weeks: 4,
+    });
+    if (error) {
       console.error("[TrainingTab.handleAddPhase] insert failed:", error);
+      setPhases(prev => prev.filter(p => p.id !== tempId));
       toast({ title: "Could not add phase", description: error?.message || "Unknown error", variant: "destructive" });
       return;
     }
-    toast({ title: "Phase added" });
-    await loadClientProgram();
+    // Reconcile from DB in the background.
+    loadClientProgram();
   };
+
 
   const handleCopyPhaseToMaster = async (phase: Phase, targetMasterProgramId: string) => {
     if (!user) return;
@@ -685,10 +709,17 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     loadClientProgram();
   };
 
-  const duplicatePhase = async (phase: Phase) => {
+  const duplicatePhase = async (
+    phase: Phase,
+    overrides?: { nameOverride?: string; durationWeeksOverride?: number },
+  ) => {
     if (!program || !user) return;
     const { duplicatePhaseInPlace } = await import("@/lib/copyPhaseHelpers");
-    const result = await duplicatePhaseInPlace({
+
+    // Fire the deep clone in the background with a promise toast so the
+    // dialog closes instantly (Trainerize-style feel).
+    const { toast: sonnerToast } = await import("sonner");
+    const promise = duplicatePhaseInPlace({
       coachId: user.id,
       clientId: clientId!,
       programId: program.id,
@@ -701,18 +732,20 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         intensity_system: phase.intensity_system,
         progression_rule: phase.progression_rule,
       },
+      nameOverride: overrides?.nameOverride,
+      durationWeeksOverride: overrides?.durationWeeksOverride,
     });
-    if (!result.ok) {
-      toast({ title: "Duplicate failed", description: result.error || "Unknown error", variant: "destructive" });
-      return;
-    }
-    toast({
-      title: result.message.title,
-      description: result.message.description,
-      variant: result.message.isWarning ? "destructive" : undefined,
+
+    sonnerToast.promise(promise, {
+      loading: "Duplicating phase…",
+      success: (result) => {
+        loadClientProgram();
+        return result.ok ? "Phase duplicated" : (result.error || "Duplicate failed");
+      },
+      error: (err) => (err as any)?.message || "Duplicate failed",
     });
-    await loadClientProgram();
   };
+
 
   const deletePhase = async (phaseId: string) => {
     const phaseWeekIds = weeks.filter(w => w.phase_id === phaseId).map(w => w.id);
@@ -1107,7 +1140,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           const target = phases.find(p => p.id === phaseId);
           if (target) setChangeDurationPhase(target);
         }}
-        onDuplicatePhase={(phase) => guardEdit(() => duplicatePhase(phase))}
+        onDuplicatePhase={(phase) => guardEdit(() => setDuplicatePhaseTarget(phase))}
         onDeletePhase={(phase) => guardEdit(() => setDeletePhaseTarget(phase))}
         onCopyPhaseToMaster={(phase) => setCopyToMasterPhase(phase)}
         onCopyPhaseToClient={(phase) => setCopyToClientPhase(phase)}
@@ -1550,6 +1583,23 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           }}
         />
       )}
+
+      {/* Save Training Phase As — Trainerize-style duplicate dialog */}
+      {duplicatePhaseTarget && (
+        <DuplicatePhaseDialog
+          open={!!duplicatePhaseTarget}
+          onOpenChange={(o) => { if (!o) setDuplicatePhaseTarget(null); }}
+          sourceName={duplicatePhaseTarget.name}
+          sourceDurationWeeks={duplicatePhaseTarget.duration_weeks}
+          onConfirm={({ name, durationWeeks }) => {
+            const target = duplicatePhaseTarget;
+            setDuplicatePhaseTarget(null);
+            if (target) duplicatePhase(target, { nameOverride: name, durationWeeksOverride: durationWeeks });
+          }}
+        />
+      )}
+
+
 
       {/* AI Create New Phase */}
       {aiCreateOpen && program && (

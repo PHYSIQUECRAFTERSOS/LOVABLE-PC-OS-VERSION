@@ -126,6 +126,55 @@ const MasterLibraries = () => {
     await ensurePhasesLoaded(programId);
   };
 
+  /**
+   * Add a new empty phase to a master program. Fires instantly, refetches
+   * the overview + sidebar accordion on success. Shows a toast either way.
+   */
+  const handleAddMasterPhase = async (programId: string) => {
+    // Compute next phase_order using cached list if we have it; otherwise query.
+    let nextOrder = 1;
+    const cached = phasesByProgram[programId];
+    if (cached && cached.length > 0) {
+      nextOrder = Math.max(...cached.map(p => p.phase_order || 0)) + 1;
+    } else {
+      const { data } = await supabase
+        .from("program_phases")
+        .select("phase_order")
+        .eq("program_id", programId)
+        .order("phase_order", { ascending: false })
+        .limit(1);
+      nextOrder = ((data?.[0]?.phase_order as number) || 0) + 1;
+    }
+
+    toast({ title: "Adding phase…" });
+    const { data: created, error } = await supabase
+      .from("program_phases")
+      .insert({
+        program_id: programId,
+        name: `Phase ${nextOrder}`,
+        phase_order: nextOrder,
+        duration_weeks: 4,
+      })
+      .select("id, name, phase_order, duration_weeks")
+      .single();
+
+    if (error || !created) {
+      console.error("[MasterLibraries.handleAddMasterPhase] insert failed:", error);
+      toast({ title: "Could not add phase", description: error?.message || "Unknown error", variant: "destructive" });
+      return;
+    }
+
+    // Optimistically merge into local caches so UI updates instantly.
+    setPhasesByProgram(prev => ({
+      ...prev,
+      [programId]: [...(prev[programId] || []), created as any],
+    }));
+    setPhaseCounts(prev => ({ ...prev, [programId]: (prev[programId] || 0) + 1 }));
+    setOverviewRefreshKey(k => k + 1);
+    toast({ title: "Phase added" });
+  };
+
+
 
   const activeTabMeta = TAB_CONFIG.find(t => t.value === activeTab) ?? TAB_CONFIG[0];
 
@@ -579,10 +628,16 @@ const MasterLibraries = () => {
                   <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
                 </DropdownMenuItem>
                 {canEditProgram(program) && (
+                  <DropdownMenuItem onClick={() => handleAddMasterPhase(program.id)}>
+                    <Plus className="h-3.5 w-3.5 mr-2" /> Add Phase
+                  </DropdownMenuItem>
+                )}
+                {canEditProgram(program) && (
                   <DropdownMenuItem onClick={() => setAiImportTarget({ programId: program.id })}>
                     <Sparkles className="h-3.5 w-3.5 mr-2 text-primary" /> AI Import (new phase)
                   </DropdownMenuItem>
                 )}
+
                 {canDeleteProgram(program) && (
                   <>
                     <DropdownMenuSeparator />
@@ -869,7 +924,16 @@ const MasterLibraries = () => {
                           setAssignPhaseId(phaseId);
                           setShowAssignDialog(true);
                         }}
+                        onAddPhase={
+                          (() => {
+                            const prog = programs.find(p => p.id === selectedProgramId);
+                            return prog && canEditProgram(prog)
+                              ? () => handleAddMasterPhase(selectedProgramId)
+                              : undefined;
+                          })()
+                        }
                       />
+
                     )}
                   </div>
                 ) : null

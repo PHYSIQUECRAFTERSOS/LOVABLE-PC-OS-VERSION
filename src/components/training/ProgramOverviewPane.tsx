@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Layers, Dumbbell, Users, ChevronRight } from "lucide-react";
+import { Layers, Dumbbell, Users, ChevronRight, Plus } from "lucide-react";
 
 export interface OverviewPhase {
   id: string;
@@ -23,9 +23,12 @@ interface ProgramOverviewPaneProps {
   versionNumber?: number | null;
   onSelectPhase: (phaseId: string) => void;
   onAssignPhase: (phaseId: string) => void;
+  /** Optional: shows a "+ Add Phase" button in the header and empty state. */
+  onAddPhase?: () => void;
   /** Optional refresh trigger key — bump to refetch */
   refreshKey?: number;
 }
+
 
 const ProgramOverviewPane = ({
   programId,
@@ -35,8 +38,10 @@ const ProgramOverviewPane = ({
   versionNumber,
   onSelectPhase,
   onAssignPhase,
+  onAddPhase,
   refreshKey,
 }: ProgramOverviewPaneProps) => {
+
   const [phases, setPhases] = useState<OverviewPhase[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -84,27 +89,34 @@ const ProgramOverviewPane = ({
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="text-xl font-bold text-foreground">{programName}</h2>
-          {isMaster && (
-            <Badge className="text-[10px] bg-primary/20 text-primary">Master</Badge>
-          )}
-          {versionNumber != null && (
-            <Badge variant="outline" className="text-[10px]">
-              v{versionNumber}
-            </Badge>
-          )}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xl font-bold text-foreground">{programName}</h2>
+            {isMaster && (
+              <Badge className="text-[10px] bg-primary/20 text-primary">Master</Badge>
+            )}
+            {versionNumber != null && (
+              <Badge variant="outline" className="text-[10px]">
+                v{versionNumber}
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            {programDescription || (
+              <span className="italic text-muted-foreground/70">Say something about this program…</span>
+            )}
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            {phases.length} phase{phases.length !== 1 ? "s" : ""} · {totalWeeks} week
+            {totalWeeks !== 1 ? "s" : ""} total
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground mt-1">
-          {programDescription || (
-            <span className="italic text-muted-foreground/70">Say something about this program…</span>
-          )}
-        </p>
-        <p className="text-xs text-muted-foreground mt-2">
-          {phases.length} phase{phases.length !== 1 ? "s" : ""} · {totalWeeks} week
-          {totalWeeks !== 1 ? "s" : ""} total
-        </p>
+        {onAddPhase && (
+          <Button size="sm" onClick={onAddPhase} className="shrink-0">
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add Phase
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -114,11 +126,18 @@ const ProgramOverviewPane = ({
           <div className="col-span-full text-center py-12 border border-dashed rounded-lg">
             <Layers className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">No phases yet.</p>
-            <p className="text-[11px] text-muted-foreground/70 mt-0.5">
-              Add a phase from the workout view.
-            </p>
+            {onAddPhase ? (
+              <Button size="sm" onClick={onAddPhase} className="mt-3">
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add Phase
+              </Button>
+            ) : (
+              <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                Add a phase from the workout view.
+              </p>
+            )}
           </div>
         ) : (
+
           phases.map((p) => (
             <Card
               key={p.id}

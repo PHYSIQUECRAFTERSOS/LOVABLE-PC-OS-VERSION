@@ -243,6 +243,9 @@ export async function duplicatePhaseInPlace(args: {
   clientId: string;
   sourcePhase: PhaseSnapshot;
   programId: string;
+  /** Overrides (Trainerize-style "Save Training Phase As" dialog). */
+  nameOverride?: string;
+  durationWeeksOverride?: number;
 }): Promise<CopyResult> {
   const { coachId, clientId, sourcePhase, programId } = args;
   const allCloneResults: CloneWorkoutResult[] = [];
@@ -257,15 +260,18 @@ export async function duplicatePhaseInPlace(args: {
       .limit(1);
     const nextOrder = (existing?.[0]?.phase_order || 0) + 1;
 
+    const finalName = args.nameOverride?.trim() || `${sourcePhase.name} (Copy)`;
+    const finalWeeks = args.durationWeeksOverride ?? sourcePhase.duration_weeks;
+
     // 2. Insert new phase row.
     const { data: newPhase, error: phaseErr } = await supabase
       .from("program_phases")
       .insert({
         program_id: programId,
-        name: `${sourcePhase.name} (Copy)`,
+        name: finalName,
         description: sourcePhase.description || null,
         phase_order: nextOrder,
-        duration_weeks: sourcePhase.duration_weeks,
+        duration_weeks: finalWeeks,
         training_style: sourcePhase.training_style || null,
         intensity_system: sourcePhase.intensity_system || null,
         custom_intensity: sourcePhase.custom_intensity || null,
@@ -275,31 +281,49 @@ export async function duplicatePhaseInPlace(args: {
       .single();
     if (phaseErr || !newPhase) throw phaseErr || new Error("Failed to create phase");
 
-    // 3. Clone attached workouts sequentially.
+    // 3. Fetch source workouts, clone in PARALLEL (Trainerize-fast), then
+    //    bulk-insert program_workouts join rows in a single call.
     const { data: sourcePws } = await supabase
       .from("program_workouts")
       .select("workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
       .eq("phase_id", sourcePhase.id)
       .order("sort_order");
 
-    for (const pw of sourcePws || []) {
-      const { workout: clonedW, result } = await cloneWorkoutWithExercises(
-        pw.workout_id,
-        coachId,
-        clientId,
-        false,
-      );
+    const cloneOutcomes = await Promise.all(
+      (sourcePws || []).map((pw) =>
+        cloneWorkoutWithExercises(pw.workout_id, coachId, clientId, false)
+          .then(({ workout, result }) => ({ pw, workout, result }))
+          .catch((err) => ({
+            pw,
+            workout: null as any,
+            result: {
+              workoutId: pw.workout_id,
+              workoutName: "unknown",
+              exercisesExpected: 0,
+              exercisesCopied: 0,
+              errors: [err?.message || "clone failed"],
+            } as CloneWorkoutResult,
+          }))
+      )
+    );
+
+
+    const joinRows: any[] = [];
+    for (const { pw, workout, result } of cloneOutcomes) {
       allCloneResults.push(result);
-      if (!clonedW) continue;
-      await supabase.from("program_workouts").insert({
+      if (!workout) continue;
+      joinRows.push({
         phase_id: newPhase.id,
-        workout_id: clonedW.id,
+        workout_id: workout.id,
         day_of_week: pw.day_of_week,
         day_label: pw.day_label,
         sort_order: pw.sort_order,
         exclude_from_numbering: pw.exclude_from_numbering || false,
         custom_tag: pw.custom_tag || null,
       });
+    }
+    if (joinRows.length > 0) {
+      await supabase.from("program_workouts").insert(joinRows);
     }
 
     // 4. Recompute program total weeks.
@@ -322,6 +346,7 @@ export async function duplicatePhaseInPlace(args: {
     };
   }
 }
+
 
 /**
  * Restore an archived/previous program by appending each of its phases (in order)
