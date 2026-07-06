@@ -616,20 +616,40 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     const nextOrder = phases.length > 0
       ? Math.max(...phases.map(p => p.phase_order || 0)) + 1
       : 1;
-    const { data, error } = await supabase.from("program_phases").insert({
-      program_id: program.id,
+
+    // Optimistic append — placeholder shows instantly, replaced on reload.
+    const tempId = `temp-${Date.now()}`;
+    const tempPhase: Phase = {
+      id: tempId,
       name: `Phase ${nextOrder}`,
+      description: null,
       phase_order: nextOrder,
       duration_weeks: 4,
-    }).select("id").single();
-    if (error || !data) {
+      training_style: null,
+      intensity_system: null,
+      progression_rule: null,
+      directWorkouts: [],
+    };
+    setPhases(prev => [...prev, tempPhase]);
+    toast({ title: "Phase added" });
+
+    // Background insert; on failure roll back and toast.
+    const { error } = await supabase.from("program_phases").insert({
+      program_id: program.id,
+      name: tempPhase.name,
+      phase_order: nextOrder,
+      duration_weeks: 4,
+    });
+    if (error) {
       console.error("[TrainingTab.handleAddPhase] insert failed:", error);
+      setPhases(prev => prev.filter(p => p.id !== tempId));
       toast({ title: "Could not add phase", description: error?.message || "Unknown error", variant: "destructive" });
       return;
     }
-    toast({ title: "Phase added" });
-    await loadClientProgram();
+    // Reconcile from DB in the background.
+    loadClientProgram();
   };
+
 
   const handleCopyPhaseToMaster = async (phase: Phase, targetMasterProgramId: string) => {
     if (!user) return;
