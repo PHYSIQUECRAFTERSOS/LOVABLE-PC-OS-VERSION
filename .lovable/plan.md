@@ -1,68 +1,66 @@
-# Physique Crafters OS: Lazy-Load Heavy Dependencies (Bundle Fix, Step 1 of 3 safe wins)
+# Physique Crafters OS: Client Dashboard Card Resilience (Client Fix, Step 1 of 3)
 
 ## STOP. SCOPE THIS TIGHTLY.
 
-This is the first of three approved safe performance wins from the read-only audit. Implement ONLY this change: make four heavy libraries load on demand instead of in the initial bundle. Do NOT change any feature's behavior, do NOT touch images, monitoring, RLS, indexes, virtualization, or the Overview snapshot idea, those are separate items. Do NOT revert the completed Step 1 fan-out, Step 2 Master Libraries fix, or the collapsible Command Center sections. If you find yourself editing feature logic rather than import mechanics, stop and report.
+This is the first of three approved client-side fixes from the read-only diagnostic. Implement ONLY this change, in ONLY the three card components named. Do NOT touch `useDataFetch`, the Calendar, the HealthKit hook, `ProgressWidgetGrid`, the CacheBuster plugin, native lifecycle code, or any coach-side work. Those are separate items. If you find yourself editing anything other than the three card files below, stop and report.
 
 ## ROLE
 
-You are a senior full stack engineer working inside my Lovable project for "Physique Crafters OS" (React, TypeScript, Vite, Supabase). Make one precise bundle-size change.
+You are a senior full stack engineer working inside my Lovable project for "Physique Crafters OS" (React, TypeScript, Capacitor native iOS, Supabase). Make one precise, contained change that mirrors a fix already validated elsewhere in this project.
 
-## CONFIRMED FINDING (from the read-only audit)
+## CONFIRMED ROOT CAUSE (from the read-only diagnostic, already verified)
 
-The production build ships a large "deps" chunk (about 3.39 MB raw / 913 KB gzip) that is downloaded on every page load. It contains heavy libraries that most pages never use:
+On the client Home dashboard, three cards each wrap their Supabase sub-queries in `Promise.all` with a shared abort signal, a hard `timeout: 5000` passed to `useDataFetch`, and a zero or empty fallback. When any single sub-query exceeds about 5 seconds (common on a cold radio after resume, or a cold Postgres plan), the whole `Promise.all` aborts and the card renders its empty fallback. Because each card has its own independent timeout, whichever card's slowest sub-query crosses 5 seconds on a given cold load is the one that blanks, so the failures look random. This is the exact all-or-nothing pattern that was removed from the coach Command Center in the earlier Step 1 fix, still present here at the card level.
 
-- `@ffmpeg/core` and `@ffmpeg/ffmpeg` (about 1 MB), used only by `src/lib/audioTranscode.ts`.
-- `zxing/library`, the barcode scanner, used only on the scan screen.
-- `emoji-picker-react`, used only in the messaging composer.
-- `pdfjs-dist`, the PDF engine, used only at the PDF preview / export call site. These are being pulled into the eager bundle because they are statically imported. Loading them on demand instead is the single biggest first-load win, and it is safe because feature behavior does not change.
+The affected cards and lines:
 
-## THE CHANGE
+- `src/components/dashboard/MacroSummary.tsx` (around line 31): `Promise.all([logs, targets, resolveDayType(...)])`, shared signal, `timeout: 5000`, zero-targets fallback.
+- `src/components/dashboard/TodayActions.tsx` (around lines 147 and 177): two consecutive `Promise.all(...)` batches, shared signal, `timeout: 5000`, empty-array fallback.
+- `src/components/dashboard/ProgressMomentum.tsx` (around line 34): `Promise.all([weights, sessions, metrics])`, shared signal, `timeout: 5000`, and NO fallback, so it stays undefined and blank on failure.
 
-Convert each of these four libraries from a static top-level import to an on-demand dynamic import at its call site, so it downloads only when the user first triggers that feature.
+## THE FIX (single logical change, applied to all three cards)
 
-1. `@ffmpeg/*` in `src/lib/audioTranscode.ts`: load via `await import(...)` inside the function that actually transcodes, on first use. Cache the loaded module so repeat calls do not re-import.
-2. `zxing/library`: dynamic-import it when the barcode scanner is opened, not at module top level.
-3. `emoji-picker-react`: load the picker component with `React.lazy` plus a `Suspense` fallback so it only downloads when the emoji picker is opened in the messaging composer.
-4. `pdfjs-dist`: dynamic-import it at the PDF preview / export call site only. Leave `jspdf` and `html2canvas` as they are if they are already split into the `pdf` chunk; only address `pdfjs-dist` if it is leaking into the eager `deps` chunk.
+Make each card resilient so one slow or failed sub-query can no longer blank the whole card, mirroring the coach Step 1 fix (`Promise.allSettled` plus per-source handling).
 
-Where a dynamic import introduces a brief pause before the feature is ready (ffmpeg especially), show a small loading indicator so the user gets feedback instead of a dead moment.
-
-## BUILD CONFIG NOTE
-
-The primary change is the dynamic imports above. If, after making them dynamic, the production build still bundles any of these four into an eager chunk because of a `manualChunks` catch-all rule in `vite.config.ts`, make only the minimal `manualChunks` adjustment needed to let these four libraries code-split into their own async chunks. Do not otherwise restructure the build config, and report exactly what you changed.
+1. In each of the three cards, replace `Promise.all([...])` with `Promise.allSettled([...])`.
+2. Handle each settled result independently: use the resolved value when a sub-query fulfilled, and a sensible per-source fallback when it rejected or aborted (for example an empty logs array, the existing zero-targets shape, an empty weight history). A single failed sub-query must degrade only its own piece, and the card must render with whatever data did resolve rather than blanking entirely.
+3. For `TodayActions`, apply this to BOTH `Promise.all` batches (the two lines around 147 and 177).
+4. For `ProgressMomentum`, which currently has no fallback, add per-source fallbacks so it shows partial or empty values instead of staying undefined and blank.
+5. Remove the explicit `timeout: 5000` passed to `useDataFetch` from these three cards so they inherit the hook's mobile-tuned default timeout (longer than 5 seconds). This stops the premature blanking on a cold radio. Do NOT change `useDataFetch` itself or its defaults.
+6. Do NOT change what any card displays, or the queries themselves, or the cache keys or stale times. Only the orchestration (allSettled plus per-source fallback) and the removal of the hard 5 second timeout change.
 
 ## IMPLEMENTATION CONSTRAINTS
 
-- Change import mechanics only. Do NOT change what any of these features do or how they behave once loaded.
-- Do NOT touch avatar/image rendering, monitoring, RLS, indexes, schema, or any other roadmap item.
-- Do NOT alter the Step 1 fan-out (`Promise.allSettled` plus `unwrap` plus 30 s), the Step 2 batch query, or the collapsible sections.
-- Cache each dynamically imported module after first load so features do not re-download it on every use.
-- Use `Promise.allSettled`, never `Promise.all`, if any parallel loading is introduced.
-- Preserve `en-CA` local date formatting anywhere dates are touched.
-- "Track Water" and `water_logs` are out of scope here. If encountered, leave them for a separate flagged item, do not act on them.
+- Edit only `MacroSummary.tsx`, `TodayActions.tsx`, and `ProgressMomentum.tsx`. Edit in place, do not recreate them.
+- Do NOT modify `src/hooks/useDataFetch.ts` or its default timeout. The change is at the card level only.
+- Do NOT touch the Calendar (already resilient), `ProgressWidgetGrid`, the HealthKit hook, the CacheBuster plugin, or any native lifecycle code. Those are separate steps.
+- Preserve every card's displayed content, queries, cache keys, and stale times exactly.
+- Preserve `en-CA` local date formatting (`getLocalDateString` / `toLocalDateString`). Do not switch to UTC.
+- Use `Promise.allSettled`, never `Promise.all`.
+- Preserve `calendar_events` as the single source of truth for completion state.
+- "Track Water" and `water_logs` are out of scope. If encountered, leave them.
 
 ## ACCEPTANCE CRITERIA (all mandatory)
 
-1. A fresh production build shows `@ffmpeg/*`, `zxing/library`, `emoji-picker-react`, and `pdfjs-dist` are no longer in the eager initial bundle, and each now loads as its own async chunk.
-2. Report the `deps` chunk gzip size before and after. It must be measurably smaller.
-3. Each feature still works end to end, just loading its library on first use: audio transcode, barcode scan, emoji picker in messaging, and PDF preview / export.
-4. No feature logic changed beyond the import mechanism.
-5. The production build completes with no new errors or warnings.
-6. The Step 1 fan-out, Step 2 batch fix, and collapsible sections are unchanged.
+1. `MacroSummary`, `TodayActions` (both batches), and `ProgressMomentum` use `Promise.allSettled`, not `Promise.all`.
+2. When one sub-query is slow or fails, the affected card now renders with whatever data resolved, using a per-source fallback for the missing piece, instead of blanking the whole card.
+3. `ProgressMomentum` no longer stays blank on a failed sub-query, it shows partial or empty values.
+4. The three cards no longer pass `timeout: 5000` and now inherit the hook's default timeout.
+5. Each card's displayed content, queries, cache keys, and stale times are unchanged.
+6. `useDataFetch` is unchanged for all callers.
+7. `en-CA` date formatting is preserved.
 
 ## DO NOT TOUCH
 
-- Avatar/image handling, Web Vitals monitoring, RLS policies, indexes, schema, virtualization, and the Overview snapshot idea (all separate roadmap items).
-- Feature behavior for transcode, scanning, emoji, or PDF beyond how the library is loaded.
-- The rest of `vite.config.ts` beyond the minimal `manualChunks` change, if any, needed for these four libraries.
+- `useDataFetch` and its defaults.
+- Calendar, `ProgressWidgetGrid`, the HealthKit hook, CacheBuster, and native lifecycle code (separate steps).
+- Any coach-side work, the bundle fix, image transforms, or the Web Vitals reporter.
+- RLS policies, indexes, schema, migrations.
 - `getDisplayPosition()`, the `calendar_events` source-of-truth rule, `en-CA` formatting.
-- `water_logs` / water tracking (flagged separately).
 
 ## AFTER IMPLEMENTING, REPORT
 
-- Which files changed and how each of the four libraries is now loaded.
-- The `deps` chunk gzip size before and after, and the new async chunk sizes for the four libraries.
-- Whether any `manualChunks` change was needed, and exactly what it was.
-- A short checklist confirming each of the four features still works: transcode, barcode scan, emoji picker, PDF preview / export.
-- Do not proceed to the image transform or monitoring steps. Those are separate approved prompts.
+- The exact lines changed in each of the three files.
+- Confirmation that all three now use `Promise.allSettled` with per-source fallbacks and no longer pass `timeout: 5000`.
+- Confirmation that a slow or failed sub-query now leaves the card showing partial data rather than blank.
+- Do not proceed to the tab-switch caching or the resume-lifecycle steps. Those are separate approved prompts.
