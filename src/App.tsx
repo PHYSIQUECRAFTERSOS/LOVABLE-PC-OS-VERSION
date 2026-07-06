@@ -16,6 +16,7 @@ import { PushNotificationsInit } from "./components/PushNotificationsInit";
 import HealthSyncBootstrap from "./components/HealthSyncBootstrap";
 import SplashGate from "./components/SplashScreen/SplashGate";
 import { ThemeProvider } from "./hooks/useTheme";
+import PerfHUD from "./components/dev/PerfHUD";
 
 // Lazy-loaded routes — desktop web downloads only the current page's chunk.
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
