@@ -87,6 +87,7 @@ const App = () => (
         <PushNotificationsInit />
         <HealthSyncBootstrap />
         <BrowserRouter>
+          <PerfHUD />
           <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Index />} />
