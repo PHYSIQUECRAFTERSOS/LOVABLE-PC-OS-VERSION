@@ -473,26 +473,38 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
     const perDayResults: { dayName: string; exercisesExpected: number; exercisesCopied: number; errors: string[] }[] = [];
     let totalExercisesSaved = 0;
 
+    // Insert a workout row with a single automatic retry so a transient network
+    // hiccup or Supabase blip doesn't silently drop a day from the phase.
+    const insertWorkoutRow = async (name: string, description: string | null) => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { data, error } = await supabase
+          .from("workouts")
+          .insert({
+            coach_id: user.id,
+            client_id: clientId || null,
+            name,
+            description,
+            is_template: isLibraryImport,
+          } as any)
+          .select()
+          .single();
+        if (!error && data) return { data, error: null as any };
+        console.error(`[ai-import] workouts.insert attempt ${attempt + 1} failed for "${name}":`, error);
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 600));
+        else return { data: null as any, error };
+      }
+      return { data: null as any, error: new Error("Insert failed after retry") };
+    };
+
     for (let wi = 0; wi < uniqueWorkouts.length; wi++) {
       const tpl = uniqueWorkouts[wi];
       const name: string = tpl.day_name || `Day ${wi + 1}`;
       setSaveProgress(40 + Math.round((wi / uniqueWorkouts.length) * 40));
 
-      const { data: workout, error: wErr } = await supabase
-        .from("workouts")
-        .insert({
-          coach_id: user.id,
-          client_id: clientId || null,
-          name,
-          description: tpl.instructions || null,
-          is_template: isLibraryImport,
-        } as any)
-        .select()
-        .single();
+      const { data: workout, error: wErr } = await insertWorkoutRow(name, tpl.instructions || null);
 
       if (wErr || !workout) {
-        const msg = wErr?.message || "unknown error";
-        console.error("[ai-import] Failed to create workout row:", name, wErr);
+        const msg = (wErr as any)?.message || "unknown error";
         perDayResults.push({ dayName: name, exercisesExpected: (tpl.exercises || []).length, exercisesCopied: 0, errors: [`Create workout failed: ${msg}`] });
         continue;
       }
@@ -528,16 +540,26 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       });
     }
 
-    if (workoutIdByName.size === 0) {
+    // Hard-fail if ANY workout template did not get a row. Previously this only
+    // logged a warning toast, which the subsequent success toast masked — silently
+    // dropping a day (e.g. Day 2) from the phase without the coach noticing.
+    const missingWorkouts = uniqueWorkouts
+      .map((w: any) => String(w?.day_name || ""))
+      .filter((name: string) => name && !workoutIdByName.has(name));
+    if (missingWorkouts.length > 0) {
       const firstErr = perDayResults.find((r) => r.errors.length > 0)?.errors[0] || "unknown error";
-      throw new Error(`Failed to create any workouts. ${firstErr}. Check that you have permission to create workouts in this program.`);
+      throw new Error(
+        `Save incomplete — ${missingWorkouts.length} of ${uniqueWorkouts.length} workout${missingWorkouts.length === 1 ? "" : "s"} did not save (${missingWorkouts.join(", ")}). Reason: ${firstErr}. No partial changes were kept in the review; please try Save again.`,
+      );
     }
 
     setSaveProgress(85);
 
-    // 2. Schedule: insert one program_workouts row per scheduled occurrence
+    // 2. Schedule: insert one program_workouts row per scheduled occurrence, with
+    //    the same one-shot retry so a transient failure can't silently drop a day.
     let scheduledCount = 0;
     const scheduleErrors: string[] = [];
+    const scheduledNames = new Set<string>();
     for (let si = 0; si < schedule.length; si++) {
       const entry = schedule[si];
       const workoutId = workoutIdByName.get(entry.day_name);
@@ -545,22 +567,33 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         scheduleErrors.push(`Missing workout: ${entry.day_name}`);
         continue;
       }
-      const { error: pwErr } = await supabase.from("program_workouts").insert({
-        phase_id: phaseId,
-        workout_id: workoutId,
-        sort_order: startingSortOrder + si + 1,
-        day_label: entry.day_name,
-      });
+      let pwErr: any = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const res = await supabase.from("program_workouts").insert({
+          phase_id: phaseId,
+          workout_id: workoutId,
+          sort_order: startingSortOrder + si + 1,
+          day_label: entry.day_name,
+        });
+        pwErr = res.error;
+        if (!pwErr) break;
+        console.error(`[ai-import] program_workouts.insert attempt ${attempt + 1} failed for "${entry.day_name}":`, pwErr);
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 600));
+      }
       if (pwErr) {
-        console.error("[ai-import] program_workouts insert failed:", entry.day_name, pwErr);
         scheduleErrors.push(`${entry.day_name}: ${pwErr.message}`);
       } else {
         scheduledCount++;
+        scheduledNames.add(entry.day_name);
       }
     }
 
-    if (scheduledCount === 0) {
-      throw new Error(`No workouts were attached to the phase. ${scheduleErrors[0] || "Check RLS permissions."}`);
+    // Hard-fail if any scheduled workout didn't attach to the phase.
+    const unscheduled = Array.from(workoutIdByName.keys()).filter((n) => !scheduledNames.has(n));
+    if (unscheduled.length > 0 || scheduleErrors.length > 0) {
+      throw new Error(
+        `Save incomplete — ${scheduleErrors.length || unscheduled.length} workout${(scheduleErrors.length || unscheduled.length) === 1 ? "" : "s"} did not attach to the phase (${(unscheduled.length ? unscheduled : scheduleErrors).join(", ")}). Please try Save again.`,
+      );
     }
 
     // If client (legacy new-program flow only), create assignment
@@ -575,14 +608,12 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       });
     }
 
-    // Warn about partial failures
+    // Surface any per-day exercise skips (workout row succeeded but some
+    // exercises inside it were skipped/failed to save).
     const partialDays = perDayResults.filter((r) => r.exercisesCopied < r.exercisesExpected || r.errors.length > 0);
-    if (partialDays.length > 0 || scheduleErrors.length > 0) {
-      const lines = [
-        ...partialDays.map((d) => `• ${d.dayName}: ${d.exercisesCopied}/${d.exercisesExpected} exercises`),
-        ...scheduleErrors.map((e) => `• Schedule: ${e}`),
-      ];
-      toast.warning(`Import completed with warnings\n${lines.slice(0, 5).join("\n")}`);
+    if (partialDays.length > 0) {
+      const lines = partialDays.map((d) => `• ${d.dayName}: ${d.exercisesCopied}/${d.exercisesExpected} exercises`);
+      toast.warning(`Some exercises did not save\n${lines.slice(0, 5).join("\n")}`, { duration: 8000 });
     }
 
     console.log(`[ai-import] Complete: ${uniqueWorkouts.length} unique workouts, ${scheduledCount} scheduled days, ${totalExercisesSaved} exercises saved`);
