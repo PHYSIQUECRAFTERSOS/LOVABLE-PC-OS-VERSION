@@ -1,15 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-// Use the LEGACY build — modern build uses JS features (Promise.withResolvers,
-// modern module workers) that iOS WKWebView fails on during page.render().
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore - no types on legacy entry
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore - vite ?url import
-import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
-
-(pdfjsLib as any).GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+import { loadPdfjsLegacy } from "@/lib/lazyPdfjs";
 
 // iOS WKWebView caps canvas memory; keep total pixels under ~16M.
 const MAX_CANVAS_PIXELS = 16_000_000;
@@ -32,9 +23,10 @@ const PdfCanvasPreview = ({ blob }: Props) => {
       setLoading(true);
       setError(null);
       try {
+        const pdfjsLib: any = await loadPdfjsLegacy();
         const buf = await blob.arrayBuffer();
         if (cancelled) return;
-        const loadingTask = (pdfjsLib as any).getDocument({ data: buf });
+        const loadingTask = pdfjsLib.getDocument({ data: buf });
         pdfDoc = await loadingTask.promise;
         if (cancelled) return;
 
