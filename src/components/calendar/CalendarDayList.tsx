@@ -89,8 +89,8 @@ function getDateLabel(dateStr: string): { label: string; isHighlighted: boolean;
 /** Check if event is a real DB event that can be moved (not a synced/virtual one) */
 function isDraggable(event: CalendarEvent): boolean {
   if (event.id.startsWith("ws-") || event.id.startsWith("cl-") || event.id.startsWith("nut-")) return false;
-  // Cardio and completed events should not be draggable
-  if (event.event_type === "cardio" || event.is_completed) return false;
+  // Completed events should not be draggable
+  if (event.is_completed) return false;
   return true;
 }
 
