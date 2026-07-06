@@ -106,7 +106,7 @@ const ProgressWidgetGrid = () => {
     },
   });
 
-  const { data: metricsData } = useDataFetch<HealthMetricsResult>({
+  const { data: metricsData, refetch: refetchMetrics } = useDataFetch<HealthMetricsResult>({
     queryKey: `progress-metrics-${uid}-${today}`,
     enabled: !!user,
     staleTime: STALE,
