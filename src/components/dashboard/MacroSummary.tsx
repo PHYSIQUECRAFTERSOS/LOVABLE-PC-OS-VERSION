@@ -23,20 +23,21 @@ const MacroSummary = () => {
     queryKey: `macros-${user?.id}-${today}`,
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
-    timeout: 5000,
     fallback: { totals: { calories: 0, protein: 0, carbs: 0, fat: 0 }, targets: { calories: 2000, protein: 150, carbs: 200, fat: 70 }, dayType: "training_day" },
     queryFn: async (signal) => {
       if (!user) throw new Error("No user");
 
-      const [logsRes, tgtRes, dayType] = await Promise.all([
+      const [logsSettled, tgtSettled, dayTypeSettled] = await Promise.allSettled([
         supabase.from("nutrition_logs").select("calories, protein, carbs, fat").eq("client_id", user.id).eq("logged_at", today).abortSignal(signal),
         supabase.from("nutrition_targets").select("calories, protein, carbs, fat, rest_calories, rest_protein, rest_carbs, rest_fat").eq("client_id", user.id).lte("effective_date", today).order("effective_date", { ascending: false }).order("created_at", { ascending: false }).limit(1).abortSignal(signal),
         resolveDayType(user.id),
       ]);
 
-      const logs = logsRes.data || [];
+      const logs = (logsSettled.status === "fulfilled" ? logsSettled.value.data : null) || [];
       const totals = logs.reduce((acc, l) => ({ calories: acc.calories + l.calories, protein: acc.protein + l.protein, carbs: acc.carbs + l.carbs, fat: acc.fat + l.fat }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
-      const tgt = tgtRes.data?.[0];
+      const dayType: DayType = dayTypeSettled.status === "fulfilled" ? dayTypeSettled.value : "training_day";
+      const tgtData = tgtSettled.status === "fulfilled" ? tgtSettled.value.data : null;
+      const tgt = tgtData?.[0];
       const targets = tgt
         ? resolveTargetsForDayType(tgt as any, dayType)
         : { calories: 2000, protein: 150, carbs: 200, fat: 70 };
@@ -44,6 +45,7 @@ const MacroSummary = () => {
       return { totals, targets, dayType };
     },
   });
+
 
   if (loading) return <CardSkeleton lines={3} />;
 
