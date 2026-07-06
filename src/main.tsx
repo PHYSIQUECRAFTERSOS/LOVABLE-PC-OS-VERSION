@@ -4,6 +4,7 @@ import App from "./App.tsx";
 import "./index.css";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
+import { initWebVitals } from "./lib/webVitals";
 
 
 // Native cache bust: clear WKWebView cache on every app launch
@@ -48,4 +49,5 @@ if ("serviceWorker" in navigator) {
 // Clear native cache then render
 clearNativeCache().finally(() => {
   createRoot(document.getElementById("root")!).render(<App />);
+  initWebVitals();
 });

@@ -521,7 +521,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
                       <button key={ex.id} className="w-full flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 text-left transition-colors"
                         onClick={() => addExercise(ex)}>
                         {ex.youtube_thumbnail ? (
-                          <img src={ex.youtube_thumbnail} alt="" className="w-9 h-6 rounded object-cover bg-secondary flex-shrink-0" />
+                          <img src={ex.youtube_thumbnail} alt="" loading="lazy" decoding="async" className="w-9 h-6 rounded object-cover bg-secondary flex-shrink-0" />
                         ) : (
                           <div className="w-9 h-6 rounded bg-secondary flex items-center justify-center flex-shrink-0">
                             <Dumbbell className="h-3 w-3 text-muted-foreground" />
@@ -628,7 +628,7 @@ const SortableExerciseRow = ({
         </div>
         <Badge variant="secondary" className="text-[10px] px-1.5 min-w-[24px] justify-center">{idx + 1}</Badge>
         {ex.thumbnail ? (
-          <img src={ex.thumbnail} alt="" className="w-9 h-6 rounded object-cover bg-secondary flex-shrink-0" />
+          <img src={ex.thumbnail} alt="" loading="lazy" decoding="async" className="w-9 h-6 rounded object-cover bg-secondary flex-shrink-0" />
         ) : (
           <div className="w-9 h-6 rounded bg-secondary flex items-center justify-center flex-shrink-0">
             <Dumbbell className="h-3 w-3 text-muted-foreground" />
