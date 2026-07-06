@@ -663,6 +663,15 @@ const ThreadChatView = ({
               <EyeOff className="h-4 w-4 mr-2" />
               Mark as Unread
             </DropdownMenuItem>
+            {isCoachOfThread && (
+              <DropdownMenuItem
+                onClick={() => setShowDeleteDialog(true)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete conversation
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
