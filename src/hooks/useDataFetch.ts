@@ -240,21 +240,39 @@ export function useDataFetch<T>({
   return { data, loading, error, timedOut, refetch: fetchData };
 }
 
-// Clear specific cache entry
+// Clear specific cache entry (memory + disk)
 export function invalidateCache(queryKey: string) {
   cache.delete(queryKey);
+  deletePersisted(queryKey);
 }
 
-// Clear all cache entries whose key starts with a given prefix
+// Clear all cache entries whose key starts with a given prefix (memory + disk)
 export function invalidateCacheByPrefix(prefix: string) {
-  for (const key of cache.keys()) {
-    if (key.startsWith(prefix)) {
-      cache.delete(key);
-    }
+  for (const key of Array.from(cache.keys())) {
+    if (key.startsWith(prefix)) cache.delete(key);
   }
+  deletePersistedByPrefix(prefix);
 }
 
 // Clear all cache
 export function clearCache() {
   cache.clear();
+  deletePersistedByPrefix("");
+}
+
+// Prime the cache from outside the hook (used by nav hover/touch prefetch).
+// If a fresh (< staleTime) entry exists we skip the network call.
+export async function primeQuery<T>(
+  queryKey: string,
+  queryFn: (signal: AbortSignal) => Promise<T>,
+  staleTime = 2 * 60 * 1000,
+): Promise<void> {
+  const cached = hydrateFromDisk(queryKey);
+  if (cached && Date.now() - cached.timestamp < staleTime) return;
+  try {
+    const controller = new AbortController();
+    const result = await queryFn(controller.signal);
+    cache.set(queryKey, { data: result, timestamp: Date.now() });
+    savePersisted(queryKey, result);
+  } catch { /* best effort */ }
 }
