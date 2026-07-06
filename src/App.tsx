@@ -16,6 +16,7 @@ import { PushNotificationsInit } from "./components/PushNotificationsInit";
 import HealthSyncBootstrap from "./components/HealthSyncBootstrap";
 import SplashGate from "./components/SplashScreen/SplashGate";
 import { ThemeProvider } from "./hooks/useTheme";
+import PerfHUD from "./components/dev/PerfHUD";
 
 // Lazy-loaded routes — desktop web downloads only the current page's chunk.
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
@@ -60,6 +61,8 @@ const queryClient = new QueryClient({
       staleTime: 5 * 60 * 1000,
       retry: 1,
       refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
       queryFn: undefined,
     },
     mutations: {
@@ -84,6 +87,7 @@ const App = () => (
         <PushNotificationsInit />
         <HealthSyncBootstrap />
         <BrowserRouter>
+          <PerfHUD />
           <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Index />} />

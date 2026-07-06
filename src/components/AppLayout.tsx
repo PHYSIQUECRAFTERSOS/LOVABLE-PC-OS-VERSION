@@ -36,6 +36,7 @@ import { useActiveSession } from "@/hooks/useActiveSession";
 import UnfinishedWorkoutBanner from "@/components/workout/UnfinishedWorkoutBanner";
 import { Button } from "@/components/ui/button";
 import MilestoneRoot from "@/components/milestones/MilestoneRoot";
+import { prefetchRoute, warmCoachRoutes, warmClientRoutes } from "@/lib/routePrefetch";
 
 interface NavItem {
   to: string;
@@ -49,6 +50,15 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { activeSession, online, dismiss: dismissBanner } = useActiveSession();
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Warm the top nav destinations after first paint so the first click after
+  // landing is instant (chunk already downloaded).
+  useEffect(() => {
+    if (roleLoading) return;
+    if (role === "coach" || role === "admin") warmCoachRoutes();
+    else if (role === "client") warmClientRoutes();
+  }, [role, roleLoading]);
+
 
   // Fetch unread message count
   const fetchUnread = useCallback(async () => {
@@ -224,6 +234,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       key={item.to}
       to={item.to}
       onClick={onClick}
+      onMouseEnter={() => prefetchRoute(item.to)}
+      onFocus={() => prefetchRoute(item.to)}
+      onTouchStart={() => prefetchRoute(item.to)}
       className={({ isActive }) =>
         cn(
           "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
@@ -342,6 +355,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <NavLink
               key={item.to}
               to={item.to}
+              onTouchStart={() => prefetchRoute(item.to)}
               className={({ isActive }) =>
                 cn(
                   "flex flex-1 flex-col items-center gap-0.5 pt-2 pb-1 text-[10px] font-medium transition-colors relative",
