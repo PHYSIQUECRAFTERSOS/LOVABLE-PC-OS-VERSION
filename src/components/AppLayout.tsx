@@ -20,6 +20,7 @@ import {
   ClipboardList,
   AlertTriangle,
   RefreshCw,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
@@ -168,6 +169,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     { to: "/dashboard", icon: LayoutDashboard, label: "Overview" },
     { to: "/messages", icon: MessageSquare, label: "Messages" },
     { to: "/community", icon: UsersRound, label: "Community" },
+    { to: "/courses", icon: BookOpen, label: "Courses" },
     { to: "/challenges", icon: Flame, label: "Challenges" },
     { to: "/ranked", icon: Trophy, label: "Ranked" },
     { to: "/clients", icon: Users, label: "Clients" },
@@ -191,6 +193,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     { to: "/nutrition", icon: UtensilsCrossed, label: "Nutrition" },
     { to: "/progress", icon: BarChart3, label: "Progress" },
     { to: "/community", icon: UsersRound, label: "Community" },
+    { to: "/courses", icon: BookOpen, label: "Courses" },
     { to: "/messages", icon: MessageSquare, label: "Messages" },
     { to: "/challenges", icon: Flame, label: "Challenges" },
     { to: "/ranked", icon: Trophy, label: "Ranked" },
