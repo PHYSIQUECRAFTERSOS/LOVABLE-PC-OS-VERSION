@@ -98,6 +98,40 @@ const ThreadChatView = ({
   const lastScrollTopRef = useRef<number>(0);
   const lastResizeAtRef = useRef<number>(0);
 
+  // Determine if current user is the coach in this thread and if the client is inactive
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user) return;
+      const { data: thread } = await supabase
+        .from("message_threads")
+        .select("coach_id, client_id")
+        .eq("id", threadId)
+        .maybeSingle();
+      if (!thread || cancelled) return;
+      const amCoach = thread.coach_id === user.id;
+      setIsCoachOfThread(amCoach);
+      if (!amCoach) {
+        setClientInactive(false);
+        return;
+      }
+      const { data: cc } = await supabase
+        .from("coach_clients")
+        .select("status")
+        .eq("coach_id", thread.coach_id)
+        .eq("client_id", thread.client_id)
+        .maybeSingle();
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", thread.client_id)
+        .maybeSingle();
+      const inactive = !prof || !cc || cc.status !== "active";
+      if (!cancelled) setClientInactive(inactive);
+    })();
+    return () => { cancelled = true; };
+  }, [threadId, user]);
+
 
   const handleBackAction = () => {
     if (showBackToDashboard) {
