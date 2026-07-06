@@ -1,49 +1,60 @@
-## What the user is asking for
+# Physique Crafters OS: Command Center Resilience Fix (Phase 2, Step 1 of 3)
 
-1. **Master Libraries → visible "Add Phase" button** next to `AI Import` / `+ New`, and inside each program's overview (right pane). Today, Add Phase only exists deep inside `ProgramDetailView` (workout view), and the ProgramOverviewPane literally tells them "Add a phase from the workout view." That's why they don't see it.
-2. **Instant feedback when adding a phase.** Today `handleAddPhase` in `TrainingTab.tsx` awaits `insert` → toast → `await loadClientProgram()` (full re-fetch). On slow networks / large programs this feels like nothing happens for a long time and can also fail with `TypeError: Failed to fetch`. We need optimistic UI: a placeholder phase appears in <100ms with a spinner badge, DB write happens in the background, error rolls it back.
-3. **Trainerize-style "Save Training Phase As" dialog for Duplicate.** Today Duplicate blindly runs `duplicatePhaseInPlace` (deep-clones every workout sequentially — many round-trips, prone to timeout, and the error toast the user saw). We need:
-    - A dialog with **Name**, **Start date**, and **End** (either explicit end date OR "N weeks" — matching the assignment dialog pattern already used in `copyPhaseToClientProgram`).
-    - Instant close + background clone with a "Duplicating…" toast that resolves into a "Duplicated" toast — never a blocking spinner.
-    - All workout notes (`workouts.description`, `workouts.instructions`, per-exercise `notes`) are already copied by `cloneWorkoutHelpers` — verified. Just needs to run reliably.
-    - Faster: parallelize the per-workout clones with `Promise.all` (currently sequential `for … await`), which is the root cause of the multi-minute wait on 5–8 day phases.
+## STOP. SCOPE THIS TIGHTLY.
 
-## Files to change
+This is Step 1 of a 3-step fix sequence approved after the Phase 1 diagnostic. Implement ONLY the change described here, in ONLY the Command Center component. Do not touch Master Libraries, ProgramDetailView, RLS, indexes, or the shared `useDataFetch` hook's behavior for other callers. Do NOT add owner-column query predicates in this step, that is Step 3. If you find yourself editing any file other than the Command Center component, stop and report.
 
-**`src/components/training/ProgramOverviewPane.tsx`**
-- Add `onAddPhase?: () => void` prop.
-- Render a `+ Add Phase` button in the header row (next to the phase-count line) and as a large dashed empty-state CTA when `phases.length === 0`.
-- Also render a `+ Add Phase` tile at the end of the grid so it's always visible without scrolling to the workout view.
+## ROLE
 
-**`src/pages/MasterLibraries.tsx`**
-- New `handleAddMasterPhase(programId)` that:
-    - Optimistically bumps `overviewRefreshKey` after inserting a `program_phases` row with `phase_order = max+1`, `duration_weeks = 4`, `name = "Phase N"`.
-    - Toast `"Phase added"` immediately; on failure show error toast and refetch.
-- Wire `onAddPhase` on `<ProgramOverviewPane …>` at line 859.
-- Add a `+ Add Phase` `DropdownMenuItem` inside the program-row three-dot menu (line 560 area), between Duplicate and AI Import, so it's reachable from the sidebar too.
+You are a senior full stack engineer working inside my Lovable project for "Physique Crafters OS". Make one precise, contained change.
 
-**`src/components/clients/workspace/TrainingTab.tsx` — `handleAddPhase`**
-- Switch to optimistic pattern: push a temp phase (with `id: "temp-<uuid>"`) into local `phases` state immediately, insert to DB in the background via `EdgeRuntime`-free plain async, then replace the temp id with the real one on success. On failure, remove the temp row and toast the error. No more `await loadClientProgram()` blocking the click.
+## CONFIRMED ROOT CAUSE (from Phase 1 diagnostic, already verified)
 
-**`src/lib/copyPhaseHelpers.ts` — `duplicatePhaseInPlace`**
-- Accept optional overrides `{ nameOverride?: string; durationWeeksOverride?: number; startDate?: string }`.
-- Insert the phase row first, then **clone workouts in parallel** with `Promise.all(sourcePws.map(pw => cloneWorkoutWithExercises(...)))` instead of the current sequential `for` loop, then bulk-insert the `program_workouts` join rows in one call. This is where the 2-minute wait / "Failed to fetch" comes from.
-- If `durationWeeksOverride` is provided, use it in the phase insert and in the program `duration_weeks` recompute.
+`src/components/dashboard/CoachCommandCenter.tsx` fans out 6 parallel Supabase queries using `Promise.all` with a shared 5000 ms AbortController. When any single query exceeds the 5 s wall clock (typically the roster-wide `calendar_events` 7-day query or the `messages` query), the shared AbortController cancels all six and the fetcher returns an all-zeros fallback. The dashboard then renders every card as 0 or empty even though the data exists (39 active clients confirmed in `coach_clients`). This is why the dashboard shows "nothing loaded". Using `Promise.all` here also violates the project invariant that parallel fetches must use `Promise.allSettled`.
 
-**New `src/components/training/DuplicatePhaseDialog.tsx`** (small, mirrors the assign-to-client dialog visually)
-- Fields: `name` (default `"<source> (Copy)"`), `start_date` (date picker, default today), and a toggle "End on date" vs "N weeks" (default = source phase's `duration_weeks`).
-- On confirm: close dialog instantly, fire background `duplicatePhaseInPlace({ …, nameOverride, durationWeeksOverride, startDate })`, show a `sonner` promise toast (`"Duplicating phase…"` → `"Phase duplicated"` / `"Duplicate failed"`).
+## THE FIX (single logical change)
 
-**Wire the new dialog in**
-- `src/components/clients/workspace/TrainingTab.tsx`: replace the direct `duplicatePhase(phase)` call with opening `DuplicatePhaseDialog`.
-- `src/components/training/ProgramDetailView.tsx`: same — replace the current in-menu `duplicatePhase(idx)` (pure local state, no DB round-trip today, so also swap it to a real DB duplicate via the same helper so Master Libraries duplicates persist properly).
+Make the Command Center fan-out resilient so a slow or failed individual query can never blank the entire dashboard.
 
-## What is explicitly not changing
-- Backend schema (`program_phases`, `program_workouts`, `workouts`) — no migrations.
-- RLS policies.
-- The `copyPhaseToClientProgram` / `copyPhaseToMasterProgram` flows already work; they just inherit the same "parallel clone" speedup for free.
-- Nutrition, messaging, ranked systems — untouched.
+1. Replace `Promise.all` with `Promise.allSettled` for the six-query fan-out.
+2. Handle each query's result independently. A fulfilled query populates its own card. A rejected or timed-out query falls back to that card's own empty state only, ideally showing a brief per-card loading or "unavailable" indicator, without affecting the other five cards.
+3. Remove the shared all-or-nothing 5000 ms abort that cancels every query. If you want a timeout, apply it per query so one slow query cannot cancel its siblings. The fast queries (`coach_clients`, `profiles`, `workout_sessions`, `client_risk_scores`) must render immediately with their real values.
+4. Do NOT change the queries themselves in this step. No new WHERE predicates, no column changes, no RLS. Only the orchestration and result handling change.
 
-## Risk notes
-- Parallel workout cloning: `cloneWorkoutWithExercises` writes to `workouts`, `workout_exercises`, and `workout_sets`. Each call is independent (new row per clone), so parallelism is safe. Worst case we hit Supabase rate limits on very large phases — we'll cap concurrency at 6 with a small pool helper if needed.
-- Optimistic add: if the DB insert fails, we roll back the temp row and toast the error; no orphan data.
+## IMPLEMENTATION CONSTRAINTS
+
+- Edit only `src/components/dashboard/CoachCommandCenter.tsx`. Edit it in place. Do not recreate it.
+- Do NOT modify `src/hooks/useDataFetch.ts` in any way that changes behavior for other callers. It is a shared hook. Achieve the resilient fan-out by changing how the Command Center orchestrates and handles its queries. If you believe `useDataFetch` itself must change, STOP and report before editing it.
+- Do NOT add owner-column predicates to `calendar_events` or `messages` in this step. That is Step 3 and requires separate verification.
+- Do NOT modify any RLS policy, index, schema, or migration.
+- Preserve `calendar_events` as the single source of truth for completion state.
+- Preserve `en-CA` local date formatting for the "yesterday" and "last 7 days" calculations. Do not switch to UTC.
+- Use `Promise.allSettled`, never `Promise.all`.
+- "Track Water" must not appear anywhere. If encountered in this file, remove it.
+
+## ACCEPTANCE CRITERIA (all mandatory)
+
+1. The fan-out uses `Promise.allSettled`, not `Promise.all`.
+2. Every card whose underlying query succeeds renders its real value on load, regardless of whether other queries are still pending or have failed.
+3. No card displays 0 or "none" when its own underlying query returned data. Specifically, the active client count reflects the real `coach_clients` rows.
+4. A single slow or failed query never cancels or zeroes the other queries or cards.
+5. `useDataFetch` behavior is unchanged for every other screen that uses it.
+6. No RLS policy, index, schema, or query predicate was changed.
+7. Date logic still uses `en-CA` local formatting, not UTC.
+
+## DO NOT TOUCH
+
+- Master Libraries, `ProgramDetailView`, `ProgramOverviewPane`, `useClientProgram`.
+- RLS policies, indexes, schema, migrations.
+- The shared `useDataFetch` hook's contract or behavior for other callers.
+- Query predicates or owner filters on `calendar_events` and `messages` (deferred to Step 3).
+- Desktop and mobile layout.
+- `getDisplayPosition()`, the `calendar_events` source-of-truth rule, `en-CA` formatting.
+
+## AFTER IMPLEMENTING, REPORT
+
+- Which lines changed in the Command Center component.
+- Confirmation that the fast cards now populate with real data on load.
+- Confirmation that the two heavy cards resolve on their own without zeroing the rest of the dashboard.
+- Do not proceed to Master Libraries or the query-predicate optimization. Those are separate approved steps.
+- &nbsp;
