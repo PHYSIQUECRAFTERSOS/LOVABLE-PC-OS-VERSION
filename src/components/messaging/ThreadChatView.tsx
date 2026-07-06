@@ -83,6 +83,9 @@ const ThreadChatView = ({
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [isCoachOfThread, setIsCoachOfThread] = useState(false);
+  const [clientInactive, setClientInactive] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const dragDepthRef = useRef(0);
   const initialLoadRef = useRef(true);
