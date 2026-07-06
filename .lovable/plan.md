@@ -1,66 +1,63 @@
 
-# Speed Pass v2 — kill the last visible slow spots
+## Diagnosis
 
-Screenshots show three real problems on mobile:
+Symptoms from your screenshots + console:
+- Messages page: infinite spinner (desktop, coach view)
+- Training page: infinite spinner (mobile)
+- Dashboard: console shows `coach-command-center-… took 5927ms (>3s limit)`
 
-1. **Calendar** still shows "Failed to load. Tap to retry." — we never actually shipped the calendar RPC bundle from the last plan; `Calendar.tsx` is still firing 6+ round-trips with a hard 5s timeout.
-2. **Nutrition → Plan** sits on "Loading…" and the food-log fetch throws `TypeError: Load failed` (a fetch was aborted or the network dropped mid-request, and the error is surfaced as a red toast instead of falling back to cache).
-3. **Desktop feels slower than before** because every route change re-runs the unread-badge query, which does a per-thread `select count(*)` (N+1) on every message realtime event.
+Cross-referencing what we changed in the last hour:
 
-Plus the training prefetch we added only fires on the Training tab. Calendar and Nutrition get no prefetch at all.
+### 1. The persistent SWR cache is doing synchronous localStorage I/O on every fetch
+In `useDataFetch.ts`, `hydrateFromDisk` runs on every hook mount and every `fetchData` call — it does a synchronous `localStorage.getItem` + `JSON.parse`. `savePersisted` runs a synchronous `JSON.stringify` + `setItem` after every successful fetch. On mobile Safari, large payloads (nutrition logs, calendar bundles, coach command-center data) block the main thread for hundreds of ms each. This is almost certainly why the app now *feels* slower after the "improvements".
 
-## What to build
+### 2. Timeout escalation actually made hangs longer
+Old behavior: caller-provided `timeout: 5000` → abort at 5s → show "Failed to load, retry".
+New behavior: `Math.max(baseTimeout, 12000)` on cold load, `Math.max(baseTimeout * 3, 20000)` when cached. So a genuinely stuck request now shows a spinner for **12–20 seconds** instead of failing fast. That matches the infinite-spinner screenshots exactly.
 
-### 1. Finish the Calendar bundle (biggest single win)
-- Add Postgres RPC `get_client_calendar_bundle(_client_id, _start, _end)` returning, in one round-trip: `calendar_events` (already joined to workout/cardio names), completed `workout_sessions`, `cardio_logs`, `weight_logs`, per-day aggregated `nutrition_logs` totals, and the `program_workouts` label map for the active phase. `SECURITY DEFINER`, checks `auth.uid() = _client_id OR is a coach/admin of that client`, `GRANT EXECUTE ... TO authenticated`.
-- In `Calendar.tsx` client path, replace the 6 queries + the assignment/phase/pw chain with one `.rpc()` call. Coach path stays untouched.
-- Drop the hardcoded `timeout: 5000` on the calendar query — let `useDataFetch` pick the mobile-tuned default (12s cold / 20s revalidate).
+### 3. Prefetchers fire duplicate work
+`registerRouteDataPrefetch` in AppLayout kicks off `.from("calendar_events").select("id").limit(1)` etc. on hover — but the actual pages use *different* cache keys and *different* selects, so the prefetched row is discarded. It's pure overhead: extra DB round-trips + more localStorage writes, zero cache hits.
 
-### 2. Fix the Nutrition "Load failed" toast and stuck Plan tab
-- `DailyNutritionLog`: wrap the food-log fetch in the same SWR pattern as `useDataFetch` — on abort/network-error, if we have cached rows show them silently; only toast on a real error with no cache.
-- `ClientNutritionHub` (Plan tab): the "Loading…" never resolves because the guides query fails silently on mobile. Add a real empty/error state and use `useDataFetch` so it inherits the persistent cache + timeout logic.
-- Root cause of the abort: navigating tabs unmounts the log fetch mid-flight; `AbortError` currently bubbles as a red toast. Suppress `AbortError` in the toast path (still log to console).
+### 4. Nothing here explains the 5.9s coach-command-center query
+That's a separate DB-side slowness (pre-existing) and needs its own investigation — not something the recent code changes caused or can fix from the client.
 
-### 3. Prefetch Calendar + Nutrition data on hover/touch
-- In `AppLayout.tsx`, register data prefetchers for `/calendar` (calls the new bundle RPC for the client's rolling window) and `/nutrition` (primes today's food-log + macro targets) alongside the existing `/training` one.
-- Because `NavLink` already fires `onTouchStart` → `prefetchRoute`, the data warms as the finger lands, before the tap completes. This is the "Trainerize instant" trick.
+## Targeted Fix (no full revert)
 
-### 4. Kill the unread-badge N+1
-- Replace the per-thread count loop in `AppLayout.fetchUnread` with a single RPC `get_unread_thread_count(_user_id, _is_coach)` that does the aggregation in SQL. Cuts up to ~30 sequential queries on coach login to one.
-- Debounce the realtime handler to 500ms so a burst of message events doesn't refetch 10x in a second.
+Keep the wins that are actually working (route JS chunk prefetch on hover, unread badge debounce, Calendar parallelization, suppressed AbortError toasts). Rip out the parts that regressed things.
 
-### 5. Small but visible wins
-- Cache the `coach_clients.calendar_lookahead_days` lookup in `Calendar.tsx` (currently re-runs every mount) via `useDataFetch`.
-- Preconnect to the Supabase origin in `index.html` (`<link rel="preconnect">` + `dns-prefetch`) so the first API call after cold boot doesn't pay TLS handshake cost.
-- Add `fetchpriority="high"` to the logo/LCP image so mobile Safari doesn't defer it behind chunk JS.
+### Changes
 
-## What we are NOT doing (out of scope)
-- No schema changes to existing tables — everything is additive RPCs.
-- No changes to coach-side Calendar/Training queries (already single-query).
-- No design changes.
+**`src/hooks/useDataFetch.ts`**
+- Remove the persistent localStorage cache entirely: delete `loadPersisted` / `savePersisted` / `deletePersisted*` / `hydrateFromDisk` and the `PERSIST_*` constants. Keep only the in-memory `Map` cache.
+- Revert the timeout logic to honor the caller's `timeout` value exactly. Drop the `Math.max(baseTimeout, 12000)` and the `cached ? baseTimeout*3 : …` escalation. If a caller passes `timeout: 5000`, it aborts at 5s like before.
+- `invalidateCache` / `invalidateCacheByPrefix` / `clearCache` go back to memory-only.
+- `primeQuery` stays (memory-only) — the JS-chunk prefetch path still uses it harmlessly.
 
-## Technical section
+**`src/components/AppLayout.tsx`**
+- Remove the entire second `useEffect` (lines ~62–135) that calls `registerRouteDataPrefetch` for `/training`, `/calendar`, `/nutrition`. It's producing wasted DB round-trips with no cache hit.
+- Keep the JS-chunk `warmClientRoutes` / `warmCoachRoutes` call — that one genuinely helps.
+- Keep the unread-badge 500ms debounce — that's a real win.
 
-**New migration** — `supabase/migrations/<ts>_calendar_bundle_and_unread_count.sql`
-- `create or replace function public.get_client_calendar_bundle(_client_id uuid, _start date, _end date) returns jsonb` — SECURITY DEFINER, guards with `auth.uid() = _client_id or exists(coach_clients where coach_id = auth.uid() and client_id = _client_id and status in ('active','subscribed'))` or admin role. Returns `jsonb_build_object('events', …, 'sessions', …, 'cardio', …, 'weights', …, 'nutrition_daily', …, 'workout_labels', …)`.
-- `create or replace function public.get_unread_thread_count(_user_id uuid, _is_coach boolean) returns integer` — same "unread" definition as `CoachThreadList.tsx` (see comment in AppLayout).
-- `grant execute on function … to authenticated;`
+**`src/lib/routePrefetch.ts`**
+- Keep `registerRouteDataPrefetch` as a no-op-friendly registry (still called by any lingering imports) — no behavior change needed here.
 
-**Files to edit**
-- `src/pages/Calendar.tsx` — swap client query fan-out for `supabase.rpc("get_client_calendar_bundle", …)`; drop `timeout: 5000`.
-- `src/components/nutrition/DailyNutritionLog.tsx` — SWR the food-log fetch, suppress `AbortError` toast, keep console log.
-- `src/components/nutrition/ClientNutritionHub.tsx` — use `useDataFetch`, add empty/error state.
-- `src/components/AppLayout.tsx` — register `/calendar` + `/nutrition` data prefetchers; replace `fetchUnread` body with the new RPC; debounce realtime handler.
-- `src/integrations/supabase/types.ts` — regenerated for new RPCs.
-- `index.html` — add `<link rel="preconnect" href="https://<supabase-host>" crossorigin>` + `dns-prefetch`.
+**`src/pages/Calendar.tsx`**
+- Keep the parallelized label-chain change — that's a genuine win, not a regression.
 
-**Safety**
-- RPCs are additive; if either fails at deploy time we fall back to current code paths with a try/catch guard around the RPC call.
-- Persistent SWR cache is versioned + user-namespaced, so no cross-account leaks.
-- Unread badge RPC returns the same integer the current code produces — no UI change.
+**`src/pages/Training.tsx`**
+- Keep the RPC call for clients — it's fewer round-trips. The infinite spinner was the 12s timeout floor, which #1 fixes.
 
-## Expected impact
-- Calendar cold-load on LTE: **~2.5s → ~600ms**, warm load: **instant from cache**.
-- Nutrition Plan tab: no more infinite "Loading…", no more red "TypeError: Load failed" toast.
-- Desktop nav clicks: unread badge no longer stalls the click on ~30 sequential DB round-trips.
-- Overall: matches the "instant tab switch" behavior you see in Trainerize.
+**`src/components/nutrition/DailyNutritionLog.tsx`**
+- Keep the AbortError toast suppression — it prevents legit false-alarm errors.
+
+### What I am NOT touching
+- The `get_client_training_workouts` and `get_client_calendar_bundle` RPCs (if the second one was created) — they don't cost anything to leave in place, and reverting DB objects has risk.
+- The Master Libraries visibility migrations from earlier — unrelated to perf.
+
+### Expected effect
+- localStorage sync writes gone → mobile main-thread frees up on every data fetch.
+- 5s timeouts abort at 5s again → no more 12s "infinite" spinners.
+- Prefetcher overhead gone → fewer background DB calls competing with the real page load.
+
+### Separately (not in this change, needs your OK)
+The 5.9s `coach-command-center` query is the biggest single perf issue you have and is a DB-side problem. Want me to open that as a follow-up after this revert lands?

@@ -59,80 +59,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     else if (role === "client") warmClientRoutes();
   }, [role, roleLoading]);
 
-  // Register data prefetchers for high-traffic client routes so hovering /
-  // tapping the bottom nav also warms the SWR cache — not just the JS chunk.
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    (async () => {
-      const [{ registerRouteDataPrefetch }, { primeQuery }, { supabase }] = await Promise.all([
-        import("@/lib/routePrefetch"),
-        import("@/hooks/useDataFetch"),
-        import("@/integrations/supabase/client"),
-      ]);
-      if (cancelled) return;
-      const isClient = role === "client";
-      if (isClient) {
-        registerRouteDataPrefetch("/training", () =>
-          primeQuery(
-            `workouts-${user.id}-${role}`,
-            async () => {
-              const { data } = await (supabase as any).rpc("get_client_training_workouts", {
-                _client_id: user.id,
-              });
-              return data || [];
-            },
-            3 * 60 * 1000,
-          ),
-        );
 
-        // Calendar: prime today's rolling window so tapping the tab paints instantly.
-        registerRouteDataPrefetch("/calendar", async () => {
-          const today = new Date();
-          const start = new Date(today); start.setDate(today.getDate() - 31);
-          const end = new Date(today); end.setDate(today.getDate() + 15);
-          const fmt = (d: Date) => d.toLocaleDateString("en-CA");
-          const startStr = fmt(start);
-          const endStr = fmt(end);
-          await primeQuery(
-            `calendar-${user.id}-${startStr}-${endStr}`,
-            // Cheap warm — just prime the raw calendar_events fetch (the label chain
-            // is a separate DB call that runs in parallel on the real page mount).
-            async () => {
-              const { data } = await (supabase as any)
-                .from("calendar_events")
-                .select("id")
-                .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
-                .gte("event_date", startStr)
-                .lte("event_date", endStr)
-                .limit(1);
-              return data || [];
-            },
-            60 * 1000,
-          );
-        });
 
-        // Nutrition: prime today's food log so the Tracker tab paints instantly.
-        registerRouteDataPrefetch("/nutrition", async () => {
-          const dateStr = new Date().toLocaleDateString("en-CA");
-          await primeQuery(
-            `nutrition-logs-${user.id}-${dateStr}`,
-            async () => {
-              const { data } = await (supabase as any)
-                .from("nutrition_logs")
-                .select("id")
-                .eq("client_id", user.id)
-                .eq("logged_at", dateStr)
-                .limit(1);
-              return data || [];
-            },
-            60 * 1000,
-          );
-        });
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [user, role]);
 
 
   // Fetch unread message count
