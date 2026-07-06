@@ -22,6 +22,65 @@ interface UseDataFetchResult<T> {
 // Simple in-memory cache
 const cache = new Map<string, { data: any; timestamp: number }>();
 
+// ── Persistent (localStorage) SWR cache ──
+// Mirrors the in-memory cache so screens paint instantly on cold navigation.
+// Namespaced by app version so a deploy invalidates everything cleanly.
+const PERSIST_PREFIX = "pc.cache.v1:";
+const MAX_PERSIST_BYTES = 200 * 1024; // per entry — skip large payloads
+const PERSIST_MAX_AGE = 24 * 60 * 60 * 1000; // 24h hard ceiling on disk
+
+function persistKey(k: string) { return PERSIST_PREFIX + k; }
+
+function loadPersisted<T>(queryKey: string): { data: T; timestamp: number } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(persistKey(queryKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { data: T; timestamp: number };
+    if (!parsed || typeof parsed.timestamp !== "number") return null;
+    if (Date.now() - parsed.timestamp > PERSIST_MAX_AGE) {
+      localStorage.removeItem(persistKey(queryKey));
+      return null;
+    }
+    return parsed;
+  } catch { return null; }
+}
+
+function savePersisted(queryKey: string, data: any) {
+  if (typeof window === "undefined") return;
+  try {
+    const payload = JSON.stringify({ data, timestamp: Date.now() });
+    if (payload.length > MAX_PERSIST_BYTES) return;
+    localStorage.setItem(persistKey(queryKey), payload);
+  } catch { /* quota / serialization — best effort */ }
+}
+
+function deletePersisted(queryKey: string) {
+  if (typeof window === "undefined") return;
+  try { localStorage.removeItem(persistKey(queryKey)); } catch { /* noop */ }
+}
+
+function deletePersistedByPrefix(prefix: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const full = PERSIST_PREFIX + prefix;
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(full)) localStorage.removeItem(k);
+    }
+  } catch { /* noop */ }
+}
+
+function hydrateFromDisk(queryKey: string) {
+  if (cache.has(queryKey)) return cache.get(queryKey)!;
+  const persisted = loadPersisted(queryKey);
+  if (persisted) {
+    cache.set(queryKey, persisted);
+    return persisted;
+  }
+  return null;
+}
+
 // ── Performance log buffer ──
 interface PerfLogEntry {
   queryKey: string;
@@ -79,12 +138,13 @@ export function useDataFetch<T>({
   isAI = false,
   fallback,
 }: UseDataFetchOptions<T>): UseDataFetchResult<T> {
-  const effectiveTimeout = timeout ?? (isAI ? TIMEOUTS.AI_PROCESS : TIMEOUTS.STANDARD_API);
+  // Base timeout: what the caller (or defaults) asked for
+  const baseTimeout = timeout ?? (isAI ? TIMEOUTS.AI_PROCESS : TIMEOUTS.STANDARD_API);
+
+  // Hydrate from persistent (localStorage) cache so cold mobile navigations paint instantly.
   const [data, setData] = useState<T | undefined>(() => {
-    const cached = cache.get(queryKey);
-    if (cached && Date.now() - cached.timestamp < staleTime) {
-      return cached.data as T;
-    }
+    const cached = hydrateFromDisk(queryKey);
+    if (cached) return cached.data as T;
     return undefined;
   });
   const [loading, setLoading] = useState(!data);
@@ -96,14 +156,14 @@ export function useDataFetch<T>({
   const fetchData = useCallback(async () => {
     if (!enabled) return;
 
-    const cached = cache.get(queryKey);
+    const cached = hydrateFromDisk(queryKey);
     if (cached && Date.now() - cached.timestamp < staleTime) {
       setData(cached.data as T);
       setLoading(false);
       return;
     }
 
-    // Stale-while-revalidate
+    // Stale-while-revalidate: render cache instantly, revalidate silently.
     if (cached) {
       setData(cached.data as T);
       setLoading(false);
@@ -118,6 +178,10 @@ export function useDataFetch<T>({
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // When we already have cache to show, give the network far more slack
+    // so slow LTE never surfaces a "Failed to load" while data is on screen.
+    // Only enforce the tight timeout when the user is actually staring at a skeleton.
+    const effectiveTimeout = cached ? Math.max(baseTimeout * 3, 20000) : Math.max(baseTimeout, 12000);
     const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
     const startTime = performance.now();
 
@@ -131,6 +195,7 @@ export function useDataFetch<T>({
       logPerf({ queryKey, durationMs: elapsed, success: true, timestamp: Date.now() });
 
       cache.set(queryKey, { data: result, timestamp: Date.now() });
+      savePersisted(queryKey, result);
       setData(result);
       setLoading(false);
     } catch (err: any) {
@@ -141,23 +206,27 @@ export function useDataFetch<T>({
 
       if (err.name === "AbortError") {
         logPerf({ queryKey, durationMs: elapsed, success: false, error: "timeout", timestamp: Date.now() });
-        setTimedOut(true);
+        // Only show the timed-out banner when there's no cache to show.
         if (cached) {
           setData(cached.data as T);
-        } else if (fallback !== undefined) {
-          setData(fallback);
+        } else {
+          setTimedOut(true);
+          if (fallback !== undefined) setData(fallback);
         }
       } else {
         logPerf({ queryKey, durationMs: elapsed, success: false, error: err.message, timestamp: Date.now() });
         console.error(`[Perf] ${queryKey} error:`, err.message);
-        setError(err.message);
-        if (fallback !== undefined && !data) {
-          setData(fallback);
+        // Same rule for errors: cache wins over an error banner.
+        if (cached) {
+          setData(cached.data as T);
+        } else {
+          setError(err.message);
+          if (fallback !== undefined && !data) setData(fallback);
         }
       }
       setLoading(false);
     }
-  }, [queryKey, enabled, staleTime, effectiveTimeout]);
+  }, [queryKey, enabled, staleTime, baseTimeout]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -171,21 +240,39 @@ export function useDataFetch<T>({
   return { data, loading, error, timedOut, refetch: fetchData };
 }
 
-// Clear specific cache entry
+// Clear specific cache entry (memory + disk)
 export function invalidateCache(queryKey: string) {
   cache.delete(queryKey);
+  deletePersisted(queryKey);
 }
 
-// Clear all cache entries whose key starts with a given prefix
+// Clear all cache entries whose key starts with a given prefix (memory + disk)
 export function invalidateCacheByPrefix(prefix: string) {
-  for (const key of cache.keys()) {
-    if (key.startsWith(prefix)) {
-      cache.delete(key);
-    }
+  for (const key of Array.from(cache.keys())) {
+    if (key.startsWith(prefix)) cache.delete(key);
   }
+  deletePersistedByPrefix(prefix);
 }
 
 // Clear all cache
 export function clearCache() {
   cache.clear();
+  deletePersistedByPrefix("");
+}
+
+// Prime the cache from outside the hook (used by nav hover/touch prefetch).
+// If a fresh (< staleTime) entry exists we skip the network call.
+export async function primeQuery<T>(
+  queryKey: string,
+  queryFn: (signal: AbortSignal) => Promise<T>,
+  staleTime = 2 * 60 * 1000,
+): Promise<void> {
+  const cached = hydrateFromDisk(queryKey);
+  if (cached && Date.now() - cached.timestamp < staleTime) return;
+  try {
+    const controller = new AbortController();
+    const result = await queryFn(controller.signal);
+    cache.set(queryKey, { data: result, timestamp: Date.now() });
+    savePersisted(queryKey, result);
+  } catch { /* best effort */ }
 }

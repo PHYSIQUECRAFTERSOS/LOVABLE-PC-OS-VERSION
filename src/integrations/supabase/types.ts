@@ -8076,6 +8076,17 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_client_training_workouts: {
+        Args: { _client_id: string }
+        Returns: {
+          description: string
+          id: string
+          instructions: string
+          is_template: boolean
+          name: string
+          phase: string
+        }[]
+      }
       get_logging_streak: { Args: { p_user_id: string }; Returns: number }
       get_logging_streak_v2:
         | { Args: { p_today: string; p_user_id: string }; Returns: number }

@@ -1,90 +1,73 @@
 
-## Current state
+# Mobile Speed Pass — Calendar & Training
 
-Your DB is not the bottleneck — slow-query snapshot shows the worst read at ~160ms; almost all queries are <10ms. Bundle is already code-split and lazily loaded per route. So the remaining desktop slowness is coming from **client-side patterns**, not the server.
+Goal: match Trainerize-level "instant" feel when opening Calendar and Training on mobile. Focus is the two screens you called out; the changes reuse patterns we already put in for desktop.
 
-Signals I can already see:
-- `[Perf] 🟡 coach-command-center-…: 2074ms` in your console today
-- `sw.js` is set to **bypass cache** with 5-minute polling (per project memory) — this is safe for correctness but forces network on every navigation
-- Many pages use `useDataFetch` (custom, in-memory) alongside React Query — two caches that don't share, so a lot of re-fetching per route switch
-- Coach pages fan out large `Promise.allSettled` bundles on mount, blocking first meaningful paint
+## What's slow today (measured from the code)
 
-## Speed plan — highest ROI first
+**Calendar (`src/pages/Calendar.tsx`)**
+- On every open it fires **6 separate queries** in parallel (`calendar_events`, `workout_sessions`, `cardio_logs`, `nutrition_logs`, `weight_logs`, plus a `client_program_assignments` → `program_phases` → `program_workouts` chain for the label map).
+- On LTE, each round-trip is ~300–800ms. The 5s timeout then trips and you see "Failed to load. Tap to retry." (your screenshot).
+- Cache is in-memory only. First navigation after a cold app open = no cache → full fan-out → skeleton for 2–5s.
 
-### 1. Route prefetch on hover/focus (biggest perceived win)
-Trainerize feels instant because the next screen is already downloaded before you click. Add a tiny prefetch wrapper on `NavLink` and coach dashboard cards:
-- On `mouseenter` / `focus`, call the same `import("./pages/Xxx")` used by `lazy()`
-- Prefetch the top 3 destinations from every screen (Dashboard, Clients, Messages, Calendar)
-- Result: route transitions drop from ~400–900ms to <100ms on desktop
+**Training (`src/pages/Training.tsx`)**
+- Client path is **sequential**: `client_program_assignments` → (`program_phases` + `program_weeks`) → `program_workouts` → `workouts`. Four serial round-trips before anything renders.
+- Then `ClientProgramView` does its own additional fetches for exercises/meta.
+- Same in-memory-only cache issue.
 
-### 2. Unify caching on React Query, kill duplicate fetches
-Right now `useDataFetch` and React Query maintain separate caches. Same client list gets refetched when switching Dashboard ↔ Clients ↔ ClientDetail.
-- Migrate hot coach paths (`useClientProgram`, roster fetch, coach-command-center, messages thread list) to React Query with shared query keys
-- Set `staleTime: 60_000` for roster/program data, `staleTime: 10_000` for messaging
-- Keep `useDataFetch` for one-off leaf reads; stop using it for anything queried on more than one page
+## Plan
 
-### 3. Fix the 2-second coach-command-center fetch
-The perf log flagged it today. Likely a serial waterfall of 4–6 queries.
-- Convert to a single RPC (`get_coach_command_center(coach_id)`) that returns the whole payload in one round trip
-- Or batch with `Promise.all` and drop any unused columns (`select` only what the widget renders)
-- Target: <400ms
+### 1. Persistent SWR cache (biggest single win)
+Extend `useDataFetch` so cache entries are mirrored to `localStorage` under a versioned key. On mount:
+- If a cached entry exists (even if stale), render it **immediately** and revalidate in the background.
+- Only show the skeleton when there is genuinely no cached data.
+- Cap stored payload size and skip persistence for huge blobs.
 
-### 4. Trim what ships to the browser
-Even with code-splitting, the first paint pulls a chunk that includes libs it doesn't need.
-- `lucide-react`: switch imports to `lucide-react/icons/<name>` (per-icon, tree-shakes properly). Currently a single "icons" chunk is loaded up-front for everyone.
-- `recharts` + `d3`: lazy-import chart components inside the pages that use them (Analytics, Progress) so coach dashboard doesn't pay the cost
-- `jspdf` + `html2canvas`: already in a "pdf" chunk — verify it's only imported from PDF export buttons via `await import()` (not statically)
-- Drop `terser` in favor of the default `esbuild` minifier for faster builds and equivalent output
+Result: Calendar & Training paint in <100ms on repeat visits, exactly like Trainerize's "instant" feel. First-ever load is unchanged.
 
-### 5. Service worker: cache the shell, revalidate in background
-Today `sw.js` bypasses cache entirely to fix stale PWA builds. That's overkill for desktop.
-- Switch to **stale-while-revalidate** for JS/CSS/font assets (they're hashed — safe to cache forever)
-- Keep network-first only for `index.html` and API calls
-- Preserves your auto-reload guarantee, but subsequent loads become instant
+### 2. Consolidate Calendar into one RPC
+Add a Postgres function `get_client_calendar_bundle(_user_id, _start, _end)` that returns:
+- calendar_events (with joined workout/cardio names)
+- completed workout_sessions in range
+- cardio_logs in range
+- weight_logs in range
+- aggregated daily nutrition totals in range (avoid pulling every meal row)
+- the program_workouts label map for the client's active phase
 
-### 6. Real-time subscriptions: batch and scope
-`ThreadChatView` and the coach thread list open a Supabase channel per thread. Every unread-check triggers an INSERT event handler that refetches. On a coach with 40 threads this is dozens of open sockets.
-- One channel per coach filtered by `client_id in (…)` for the roster
-- Debounce refresh handlers to 250ms
+Replace the six client-side queries with a single `.rpc()` call. Cuts Calendar to **1 round-trip** instead of 6, and moves the nutrition aggregation to the DB (already indexed).
 
-### 7. Perf HUD (so this doesn't happen again)
-Add a floating dev-only overlay (admin-only in prod, toggle with `?perf=1`) that shows:
-- Route transition time
-- Top 5 slowest queries this session from `getPerfSummary()`
-- Bundle chunk sizes loaded
-This is how Trainerize keeps regressions from shipping — you'll see any new slow query the moment it appears.
+Coach view keeps its existing narrower query path — no behavior change for coach.
 
-### 8. Small polish
-- Enable `refetchOnReconnect: false` on React Query (currently defaults on)
-- Warm the auth session cache from `localStorage` synchronously on `main.tsx` so `AuthProvider` doesn't block first paint (already partially done — verify)
-- Preload the Inter font with `<link rel="preload" as="font" crossorigin>` in `index.html`
+### 3. Consolidate Training client fetch
+Add `get_client_training_workouts(_user_id)` that returns the deduped `workouts` rows for all active assignments in one call (does the phases/weeks/program_workouts join server-side). Replaces the 4-step chain with **1 round-trip**.
 
-## What I will NOT touch
-- Business logic, RLS policies, schemas
-- Design system / colors / layout
-- Data correctness (offline soft-delete, coach authority, etc.)
+Coach path (`workouts` by `coach_id`) is already one query — leave it alone.
 
-## Order of execution
-1. Route prefetch on hover (Section 1) — 1 file, immediate feel improvement
-2. Service worker stale-while-revalidate (Section 5)
-3. Icon + chart lazy imports (Section 4)
-4. Coach-command-center RPC (Section 3)
-5. React Query consolidation on hot paths (Section 2)
-6. Real-time channel batching (Section 6)
-7. Perf HUD (Section 7)
-8. Polish (Section 8)
+### 4. Prefetch Calendar & Training data on tab hover/touch
+We already prefetch the route chunks. Extend `routePrefetch.ts` to optionally run a data prefetch callback. Register the Calendar and Training query functions so hovering the bottom-nav icon warms the cache before the tap lands. On mobile, use `touchstart` (already wired in `NavLink`).
 
-## Notes on Cloud compute
-Your DB is barely working (max 160ms). **Upgrading the Cloud instance will not help right now** — this is a frontend + query-shape problem. Save that lever for when you cross ~500 active clients or start seeing >1s DB queries in slow_queries.
+### 5. Tune timeouts for mobile
+- Raise the hard timeout from 5s to 12s for the initial fetch (LTE reality), but **only when we have no cache to show**. When cache exists, revalidation runs silently with no user-visible timeout.
+- Show the "Retry" state only after a real failure, not a slow network — the persistent cache path means users almost never see it.
 
-## Files that will change (approximate)
-- `src/components/NavLink.tsx`, `src/App.tsx` — hover prefetch
-- `public/sw.js` — SWR strategy
-- Icon-heavy components — per-icon imports (codemod)
-- `src/pages/Analytics.tsx`, `src/pages/Progress.tsx` — lazy charts
-- `src/hooks/useDataFetch.ts` consumers on hot paths — swap to React Query
-- One new SQL function `get_coach_command_center`
-- `src/components/dashboard/CoachCommandCenter.tsx` — single RPC call
-- `src/components/messaging/CoachThreadList.tsx`, `ThreadChatView.tsx` — channel batching
-- New `src/components/dev/PerfHUD.tsx`
-- `vite.config.ts` — swap terser → esbuild
+### 6. Small cleanups
+- Drop the `console.log` calls in `Training.tsx` `queryFn` (they run on every load).
+- Reduce Calendar's client date window overhead by only fetching the visible week on week view instead of the 30-day back window when `view === "week"` on coach path (client keeps rolling window).
+
+## Technical section
+
+**Files to add**
+- `supabase/migrations/<ts>_calendar_and_training_bundles.sql` — two `SECURITY DEFINER` functions above with `GRANT EXECUTE ... TO authenticated`. Both respect existing RLS by filtering on `auth.uid()` / passed `_user_id` equality check.
+
+**Files to edit**
+- `src/hooks/useDataFetch.ts` — add localStorage persistence layer, stale-while-revalidate render path, per-key size cap, timeout gating.
+- `src/pages/Calendar.tsx` — swap fan-out for `supabase.rpc("get_client_calendar_bundle", …)` on client role; keep coach path.
+- `src/pages/Training.tsx` — swap client chain for `supabase.rpc("get_client_training_workouts", …)`; remove debug logs.
+- `src/lib/routePrefetch.ts` + `src/components/NavLink.tsx` — accept optional `dataPrefetch()` and invoke on hover/touch.
+- `src/components/AppLayout.tsx` — register calendar/training data prefetchers alongside the route imports.
+- `src/integrations/supabase/types.ts` — regenerated for the two new RPCs.
+
+**Risk & safety**
+- No schema changes, no destructive SQL. New RPCs are additive; if they fail we can fall back to the current queries.
+- Persistent cache is namespaced by user id and app version so stale data can't leak between accounts or survive a deploy.
+- Coach flows and admin flows are untouched except for the shared cache upgrade (which only makes them faster).
