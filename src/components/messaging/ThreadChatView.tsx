@@ -98,6 +98,18 @@ const ThreadChatView = ({
   const lastScrollTopRef = useRef<number>(0);
   const lastResizeAtRef = useRef<number>(0);
 
+  // Auto-grow composer up to ~60vh as the user types (Trainerize-style).
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    const maxH = Math.round(window.innerHeight * 0.6);
+    const next = Math.min(ta.scrollHeight, maxH);
+    ta.style.height = next + "px";
+  }, [newMessage]);
+
+
+
   // Determine if current user is the coach in this thread and if the client is inactive
   useEffect(() => {
     let cancelled = false;
