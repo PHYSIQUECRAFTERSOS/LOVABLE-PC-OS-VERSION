@@ -183,7 +183,9 @@ const CoachCommandCenter = () => {
   const { data, loading, error, timedOut, refetch } = useDataFetch<CommandCenterData>({
     queryKey: `coach-command-center-${user?.id}`,
     enabled: !!user,
-    staleTime: 2 * 60 * 1000,
+    // 5-min cache — returning to /dashboard after visiting Clients/Messages
+    // shouldn't re-run this 6-query fan-out.
+    staleTime: 5 * 60 * 1000,
     timeout: 5000,
     fallback: { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], phaseDeadlineSummary: { activeClients: 0 }, newClients: [], programRenewals: [], m2mClients: [] },
     queryFn: async (signal) => {
