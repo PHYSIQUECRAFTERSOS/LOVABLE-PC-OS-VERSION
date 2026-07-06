@@ -225,6 +225,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       key={item.to}
       to={item.to}
       onClick={onClick}
+      onMouseEnter={() => prefetchRoute(item.to)}
+      onFocus={() => prefetchRoute(item.to)}
+      onTouchStart={() => prefetchRoute(item.to)}
       className={({ isActive }) =>
         cn(
           "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
