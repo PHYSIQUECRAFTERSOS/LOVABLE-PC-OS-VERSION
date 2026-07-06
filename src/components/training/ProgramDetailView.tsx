@@ -135,6 +135,13 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
   const [renamingPhase, setRenamingPhase] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
+  // Delete phase — two-step confirmation
+  const [deletingPhase, setDeletingPhase] = useState<{ idx: number; name: string } | null>(null);
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
+  const [deletingInFlight, setDeletingInFlight] = useState(false);
+
+
+
   // Import dialog
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importTargetPhase, setImportTargetPhase] = useState(0);
