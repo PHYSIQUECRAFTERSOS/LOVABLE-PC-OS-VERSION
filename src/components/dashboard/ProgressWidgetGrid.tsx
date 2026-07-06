@@ -16,6 +16,8 @@ import ProgressPhotosModal from "./ProgressPhotosModal";
 import SleepCard from "./SleepCard";
 import SleepHistoryModal from "./SleepHistoryModal";
 import { getLocalDateString } from "@/utils/localDate";
+import { readSnapshotSlice, writeSnapshotSlice, type ProgressWidgetSlice } from "@/lib/dashboardSnapshot";
+
 
 interface SparkData {
   value: number;
