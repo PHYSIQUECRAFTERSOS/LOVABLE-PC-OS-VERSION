@@ -118,7 +118,7 @@ const NewCourseDialog = ({ open, onOpenChange, modules, existing, onSaved }: Pro
       const body = `📺 New training replay: ${title.trim()}\n\n${url.trim()}`;
       await supabase
         .from("community_posts")
-        .insert({ user_id: user.id, content: body });
+        .insert({ author_id: user.id, content: body });
     }
 
     setSaving(false);
