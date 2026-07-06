@@ -651,7 +651,13 @@ const CoachCommandCenter = () => {
     <div className="space-y-6 animate-fade-in">
       {/* ─── SECTION 1: Daily Action Panel ─── */}
       <div>
-        <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => setAttentionOpen(o => !o)}
+          className="w-full font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3 hover:opacity-80 transition-opacity"
+          aria-expanded={attentionOpen}
+        >
+          {attentionOpen ? <ChevronDown className="h-5 w-5 text-primary" /> : <ChevronRight className="h-5 w-5 text-primary" />}
           <AlertTriangle className="h-5 w-5 text-primary" />
           Clients Requiring Attention
           {actionItems.length > 0 && (
@@ -659,44 +665,47 @@ const CoachCommandCenter = () => {
               {actionItems.length}
             </span>
           )}
-        </h2>
-        {actionItems.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <CheckCircle2 className="h-8 w-8 text-success mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">All clients on track. No immediate actions needed.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {actionItems.map((item) => (
-              <Card
-                key={item.clientId}
-                className="cursor-pointer hover:border-primary/40 transition-colors"
-                onClick={() => navigate(`/clients/${item.clientId}`)}
-              >
-                <CardContent className="py-3 flex items-center gap-4">
-                  <UserAvatar src={item.avatarUrl} name={item.clientName} className="h-9 w-9 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{item.clientName}</p>
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {item.reasons.map((r, i) => (
-                        <span key={i} className="inline-flex items-center rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
-                          {r}
-                        </span>
-                      ))}
+        </button>
+        {attentionOpen && (
+          actionItems.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <CheckCircle2 className="h-8 w-8 text-success mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">All clients on track. No immediate actions needed.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {actionItems.map((item) => (
+                <Card
+                  key={item.clientId}
+                  className="cursor-pointer hover:border-primary/40 transition-colors"
+                  onClick={() => navigate(`/clients/${item.clientId}`)}
+                >
+                  <CardContent className="py-3 flex items-center gap-4">
+                    <UserAvatar src={item.avatarUrl} name={item.clientName} className="h-9 w-9 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">{item.clientName}</p>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {item.reasons.map((r, i) => (
+                          <span key={i} className="inline-flex items-center rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
+                            {r}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className={`text-lg font-bold ${complianceColor(item.compliancePct)}`}>{item.compliancePct}%</p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    <div className="text-right shrink-0">
+                      <p className={`text-lg font-bold ${complianceColor(item.compliancePct)}`}>{item.compliancePct}%</p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )
         )}
       </div>
+
 
       {/* ─── SECTION 2: Yesterday's Workout Results ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
