@@ -1140,7 +1140,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           const target = phases.find(p => p.id === phaseId);
           if (target) setChangeDurationPhase(target);
         }}
-        onDuplicatePhase={(phase) => guardEdit(() => duplicatePhase(phase))}
+        onDuplicatePhase={(phase) => guardEdit(() => setDuplicatePhaseTarget(phase))}
         onDeletePhase={(phase) => guardEdit(() => setDeletePhaseTarget(phase))}
         onCopyPhaseToMaster={(phase) => setCopyToMasterPhase(phase)}
         onCopyPhaseToClient={(phase) => setCopyToClientPhase(phase)}
