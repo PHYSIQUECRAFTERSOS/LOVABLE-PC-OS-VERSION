@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { useDataFetch } from "@/hooks/useDataFetch";
 import { CardSkeleton } from "@/components/ui/data-skeleton";
 import { resolveDayType, resolveTargetsForDayType, type DayType } from "@/utils/resolveDayType";
 import { toLocalDateString } from "@/utils/localDate";
+import { readSnapshotSlice, writeSnapshotSlice, type MacrosSlice } from "@/lib/dashboardSnapshot";
 
 interface MacroData {
   totals: { calories: number; protein: number; carbs: number; fat: number };
@@ -18,6 +20,7 @@ interface MacroData {
 const MacroSummary = () => {
   const { user } = useAuth();
   const today = toLocalDateString(new Date());
+  const snapshot = readSnapshotSlice(user?.id, "macros", today);
 
   const { data, loading } = useDataFetch<MacroData>({
     queryKey: `macros-${user?.id}-${today}`,
@@ -46,10 +49,19 @@ const MacroSummary = () => {
     },
   });
 
+  // Persist fresh data to snapshot for instant paint on next cold boot.
+  useEffect(() => {
+    if (data && user?.id) {
+      writeSnapshotSlice(user.id, "macros", data as MacrosSlice, today);
+    }
+  }, [data, user?.id, today]);
 
-  if (loading) return <CardSkeleton lines={3} />;
+  // Instant paint from snapshot on cold boot; skeleton only when nothing at all.
+  if (loading && !data && !snapshot) return <CardSkeleton lines={3} />;
 
-  const { totals, targets, dayType } = data || { totals: { calories: 0, protein: 0, carbs: 0, fat: 0 }, targets: { calories: 2000, protein: 150, carbs: 200, fat: 70 }, dayType: "training_day" as DayType };
+  const effective = data ?? snapshot ?? { totals: { calories: 0, protein: 0, carbs: 0, fat: 0 }, targets: { calories: 2000, protein: 150, carbs: 200, fat: 70 }, dayType: "training_day" as DayType };
+  const { totals, targets, dayType } = effective;
+
 
   return (
     <Card className="overflow-hidden">
