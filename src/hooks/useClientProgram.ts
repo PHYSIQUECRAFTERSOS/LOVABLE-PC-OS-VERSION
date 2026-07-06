@@ -50,14 +50,27 @@ export interface ClientProgramData {
   weeks: ProgramWeek[];
 }
 
+// In-memory cache keyed by clientId. Coach navigating between clients gets
+// instant loads for previously visited clients; realtime mutations invalidate.
+const CACHE_TTL_MS = 60 * 1000;
+const programCache = new Map<string, { data: ClientProgramData; ts: number }>();
+
+export function invalidateClientProgramCache(clientId?: string) {
+  if (clientId) programCache.delete(clientId);
+  else programCache.clear();
+}
+
 export function useClientProgram(clientId: string | undefined) {
-  const [data, setData] = useState<ClientProgramData>({
-    assignment: null,
-    program: null,
-    phases: [],
-    weeks: [],
+  const [data, setData] = useState<ClientProgramData>(() => {
+    const cached = clientId ? programCache.get(clientId) : null;
+    return cached && Date.now() - cached.ts < CACHE_TTL_MS
+      ? cached.data
+      : { assignment: null, program: null, phases: [], weeks: [] };
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    const cached = clientId ? programCache.get(clientId) : null;
+    return !(cached && Date.now() - cached.ts < CACHE_TTL_MS);
+  });
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
