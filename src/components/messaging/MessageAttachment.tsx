@@ -40,7 +40,9 @@ const MessageAttachment = ({ url, type, name, isOwn }: MessageAttachmentProps) =
       <video
         src={url}
         controls
-        preload="metadata"
+        preload="none"
+        autoPlay={false}
+        muted={false}
         className="rounded-lg max-w-full max-h-60"
         playsInline
       >
