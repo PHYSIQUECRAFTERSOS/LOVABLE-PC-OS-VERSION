@@ -34,18 +34,31 @@ const loaders: Record<string, Loader> = {
 
 const started = new Set<string>();
 
+// Optional data prefetchers keyed by base path (registered from screens/nav).
+// Runs once per session per path — warms the SWR cache before the tap lands.
+type DataPrefetcher = () => Promise<void> | void;
+const dataPrefetchers: Record<string, DataPrefetcher> = {};
+const dataStarted = new Set<string>();
+
+export function registerRouteDataPrefetch(basePath: string, fn: DataPrefetcher): void {
+  dataPrefetchers[basePath] = fn;
+}
+
 export function prefetchRoute(path: string): void {
   // Extract base path (drops :params, query, hash) so `/clients/abc` still
   // warms the `/clients` loader if the caller doesn't strip it.
   const base = "/" + (path.split("?")[0].split("#")[0].split("/")[1] || "");
   const loader = loaders[base] || loaders[path];
-  if (!loader || started.has(base)) return;
-  started.add(base);
-  // Kick off the download but swallow errors — the real route mount will
-  // surface any genuine failure through Suspense's error boundary.
-  loader().catch(() => {
-    started.delete(base);
-  });
+  if (loader && !started.has(base)) {
+    started.add(base);
+    loader().catch(() => { started.delete(base); });
+  }
+  const dataFn = dataPrefetchers[base];
+  if (dataFn && !dataStarted.has(base)) {
+    dataStarted.add(base);
+    try { Promise.resolve(dataFn()).catch(() => dataStarted.delete(base)); }
+    catch { dataStarted.delete(base); }
+  }
 }
 
 /**
