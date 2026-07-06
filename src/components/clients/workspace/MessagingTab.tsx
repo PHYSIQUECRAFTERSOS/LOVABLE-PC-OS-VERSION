@@ -36,6 +36,12 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
         .maybeSingle();
 
       if (existingThread) {
+        // Unhide if this coach previously deleted the conversation from their inbox
+        await supabase
+          .from("message_threads")
+          .update({ coach_hidden_at: null } as any)
+          .eq("id", existingThread.id)
+          .eq("coach_id", user.id);
         setThreadId(existingThread.id);
       } else {
         const { data: newThread, error } = await supabase
