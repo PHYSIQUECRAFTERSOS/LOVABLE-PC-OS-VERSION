@@ -1,66 +1,87 @@
-# Physique Crafters OS: Client Dashboard Card Resilience (Client Fix, Step 1 of 3)
+## Fast Resume Diagnostic — Findings Report (Read-Only)
 
-## STOP. SCOPE THIS TIGHTLY.
+No files, plugins, native code, or config were modified. `CacheBuster` is not proposed to be changed. This report answers all six confirmation points and gives a clear go/no-go.
 
-This is the first of three approved client-side fixes from the read-only diagnostic. Implement ONLY this change, in ONLY the three card components named. Do NOT touch `useDataFetch`, the Calendar, the HealthKit hook, `ProgressWidgetGrid`, the CacheBuster plugin, native lifecycle code, or any coach-side work. Those are separate items. If you find yourself editing anything other than the three card files below, stop and report.
+### 1. CacheBuster scope — what it actually clears
 
-## ROLE
+`ios-plugin/CacheBusterPlugin.swift` (lines 13–35) does exactly two things on cold launch:
 
-You are a senior full stack engineer working inside my Lovable project for "Physique Crafters OS" (React, TypeScript, Capacitor native iOS, Supabase). Make one precise, contained change that mirrors a fix already validated elsewhere in this project.
+- `URLCache.shared.removeAllCachedResponses()` — HTTP-level cache only.
+- `WKWebsiteDataStore.default().removeData(ofTypes: …)` with this exact set:
+  - `WKWebsiteDataTypeDiskCache`
+  - `WKWebsiteDataTypeMemoryCache`
+  - `WKWebsiteDataTypeOfflineWebApplicationCache`
+  - `WKWebsiteDataTypeFetchCache`
+  - `WKWebsiteDataTypeServiceWorkerRegistrations`
 
-## CONFIRMED ROOT CAUSE (from the read-only diagnostic, already verified)
+Critically, the set does NOT include `WKWebsiteDataTypeLocalStorage`, `WKWebsiteDataTypeSessionStorage`, `WKWebsiteDataTypeIndexedDBDatabases`, or `WKWebsiteDataTypeCookies`. So webview `localStorage` also survives (that is how the Supabase session persists — see below), even though the naming "CacheBuster clears web storage" is loose. It clears web *caches* (HTTP/fetch/SW), not key-value web storage.
 
-On the client Home dashboard, three cards each wrap their Supabase sub-queries in `Promise.all` with a shared abort signal, a hard `timeout: 5000` passed to `useDataFetch`, and a zero or empty fallback. When any single sub-query exceeds about 5 seconds (common on a cold radio after resume, or a cold Postgres plan), the whole `Promise.all` aborts and the card renders its empty fallback. Because each card has its own independent timeout, whichever card's slowest sub-query crosses 5 seconds on a given cold load is the one that blanks, so the failures look random. This is the exact all-or-nothing pattern that was removed from the coach Command Center in the earlier Step 1 fix, still present here at the card level.
+CacheBuster does not touch anything in native land: it never reads or writes iOS `UserDefaults`, the Capacitor `Preferences` container, the app sandbox `Documents`/`Library` directories, or the Keychain. **Native key-value storage is fully outside CacheBuster's blast radius.**
 
-The affected cards and lines:
+### 2. Native storage availability
 
-- `src/components/dashboard/MacroSummary.tsx` (around line 31): `Promise.all([logs, targets, resolveDayType(...)])`, shared signal, `timeout: 5000`, zero-targets fallback.
-- `src/components/dashboard/TodayActions.tsx` (around lines 147 and 177): two consecutive `Promise.all(...)` batches, shared signal, `timeout: 5000`, empty-array fallback.
-- `src/components/dashboard/ProgressMomentum.tsx` (around line 34): `Promise.all([weights, sessions, metrics])`, shared signal, `timeout: 5000`, and NO fallback, so it stays undefined and blank on failure.
+- `@capacitor/app` **is** installed (`package.json`, used by `useHealthSync.ts`, `usePushNotifications.ts`, `InlineRestTimer.tsx`).
+- `@capacitor/preferences` is **not installed**. No other native KV plugin is present.
 
-## THE FIX (single logical change, applied to all three cards)
+To land the snapshot on native storage, `@capacitor/preferences` (thin wrapper over iOS `UserDefaults` / Android `SharedPreferences`) would need to be added. It's a first-party Capacitor plugin, zero native Swift required, and adding it does not change any existing plugin.
 
-Make each card resilient so one slow or failed sub-query can no longer blank the whole card, mirroring the coach Step 1 fix (`Promise.allSettled` plus per-source handling).
+### 3. Auth survival path — will a snapshot interfere?
 
-1. In each of the three cards, replace `Promise.all([...])` with `Promise.allSettled([...])`.
-2. Handle each settled result independently: use the resolved value when a sub-query fulfilled, and a sensible per-source fallback when it rejected or aborted (for example an empty logs array, the existing zero-targets shape, an empty weight history). A single failed sub-query must degrade only its own piece, and the card must render with whatever data did resolve rather than blanking entirely.
-3. For `TodayActions`, apply this to BOTH `Promise.all` batches (the two lines around 147 and 177).
-4. For `ProgressMomentum`, which currently has no fallback, add per-source fallbacks so it shows partial or empty values instead of staying undefined and blank.
-5. Remove the explicit `timeout: 5000` passed to `useDataFetch` from these three cards so they inherit the hook's mobile-tuned default timeout (longer than 5 seconds). This stops the premature blanking on a cold radio. Do NOT change `useDataFetch` itself or its defaults.
-6. Do NOT change what any card displays, or the queries themselves, or the cache keys or stale times. Only the orchestration (allSettled plus per-source fallback) and the removal of the hard 5 second timeout change.
+Supabase client (`src/integrations/supabase/client.ts`) is configured with `storage: localStorage, persistSession: true, autoRefreshToken: true`. The session token lives in webview `localStorage` under the standard `sb-*-auth-token` key. As established in point 1, `WKWebsiteDataTypeLocalStorage` is NOT in CacheBuster's cleared set, so the session survives the wipe. `AuthProvider` (`src/hooks/useAuth.tsx` lines 262–302) then calls `supabase.auth.getSession()` on mount, which reads from that surviving `localStorage` entry, and additionally reads cached roles from `localStorage` under `pc_cached_roles:*` (lines 33–56).
 
-## IMPLEMENTATION CONSTRAINTS
+A separate snapshot written to `@capacitor/preferences` is in a completely different storage container (native `UserDefaults`), on a different key namespace, and is never read or written by the Supabase JS client or `AuthProvider`. **There is zero interference risk with login/session restore.** The snapshot is display-cache only; auth continues to hydrate from `localStorage` exactly as today.
 
-- Edit only `MacroSummary.tsx`, `TodayActions.tsx`, and `ProgressMomentum.tsx`. Edit in place, do not recreate them.
-- Do NOT modify `src/hooks/useDataFetch.ts` or its default timeout. The change is at the card level only.
-- Do NOT touch the Calendar (already resilient), `ProgressWidgetGrid`, the HealthKit hook, the CacheBuster plugin, or any native lifecycle code. Those are separate steps.
-- Preserve every card's displayed content, queries, cache keys, and stale times exactly.
-- Preserve `en-CA` local date formatting (`getLocalDateString` / `toLocalDateString`). Do not switch to UTC.
-- Use `Promise.allSettled`, never `Promise.all`.
-- Preserve `calendar_events` as the single source of truth for completion state.
-- "Track Water" and `water_logs` are out of scope. If encountered, leave them.
+### 4. Snapshot contents & version guard
 
-## ACCEPTANCE CRITERIA (all mandatory)
+Minimum viable "last known dashboard" snapshot for the client Home cards. All values are already visible to the client on that same device — no new sensitivity:
 
-1. `MacroSummary`, `TodayActions` (both batches), and `ProgressMomentum` use `Promise.allSettled`, not `Promise.all`.
-2. When one sub-query is slow or fails, the affected card now renders with whatever data resolved, using a per-source fallback for the missing piece, instead of blanking the whole card.
-3. `ProgressMomentum` no longer stays blank on a failed sub-query, it shows partial or empty values.
-4. The three cards no longer pass `timeout: 5000` and now inherit the hook's default timeout.
-5. Each card's displayed content, queries, cache keys, and stale times are unchanged.
-6. `useDataFetch` is unchanged for all callers.
-7. `en-CA` date formatting is preserved.
+- `steps` (today's step count + step goal)
+- `walking_running_distance_km`
+- `macros.totals` (calories, protein, carbs, fat) + `macros.targets` + `dayType`
+- `todayActions.counts` (scheduled / completed workouts, cardio, nutrition-logged flag)
+- `progressMomentum` (weightChange, currentWeight, workoutCompletion %, stepAvg)
+- `caloriesToday`
+- Small metadata: `userId`, `localDate` (en-CA), `writtenAt` (ms epoch).
 
-## DO NOT TOUCH
+Estimated size: well under 2 KB JSON per user. `UserDefaults` handles this trivially.
 
-- `useDataFetch` and its defaults.
-- Calendar, `ProgressWidgetGrid`, the HealthKit hook, CacheBuster, and native lifecycle code (separate steps).
-- Any coach-side work, the bundle fix, image transforms, or the Web Vitals reporter.
-- RLS policies, indexes, schema, migrations.
-- `getDisplayPosition()`, the `calendar_events` source-of-truth rule, `en-CA` formatting.
+**Version guard (essential — builds ship several times a week):**
 
-## AFTER IMPLEMENTING, REPORT
+- Key snapshot under `pc_dashboard_snapshot:v<N>:<userId>:<localDate>` with an explicit integer `SNAPSHOT_VERSION`.
+- On read, validate: version matches, `userId` matches current session, `localDate === getLocalDateString()`, and each field passes a shape check (numbers are numbers, arrays are arrays). Any mismatch → discard and fall through to the normal skeleton, then normal fetch.
+- On writer-side bump: increment `SNAPSHOT_VERSION` in the same commit that changes the shape; older snapshots become invisible automatically.
+- Also apply a max-age (e.g. 24 h) so stale snapshots from a device left cold for days do not flash old numbers.
 
-- The exact lines changed in each of the three files.
-- Confirmation that all three now use `Promise.allSettled` with per-source fallbacks and no longer pass `timeout: 5000`.
-- Confirmation that a slow or failed sub-query now leaves the card showing partial data rather than blank.
-- Do not proceed to the tab-switch caching or the resume-lifecycle steps. Those are separate approved prompts.
+### 5. Short-background resume listener
+
+Yes, worth adding — it addresses a different case from cold-boot eviction:
+
+- **Cold boot (webview evicted, ≥ ~20 min):** JS reboots, `CacheBuster` runs, snapshot hydrates instant paint, then background fetch. This is what the native snapshot solves.
+- **Warm resume (webview alive, < ~20 min):** JS state is intact, but the tab may have missed changes made on other devices. A `@capacitor/app` `appStateChange` listener on the client Dashboard (scoped: `isActive === true`) can fire a lightweight background refetch/invalidate for the tiles, without wiping anything. `@capacitor/app` is already installed, so no new plugin is needed for this piece.
+
+These two mechanisms are complementary and independent. Both are worth adding; both leave `CacheBuster` untouched.
+
+### 6. Version-mismatch guard — covered above (§4)
+
+Explicit `SNAPSHOT_VERSION` constant + shape validation on read + max-age + per-user + per-local-date keying. Guard failures fall back silently to the current skeleton/fetch path, so the worst case is "same behavior as today."
+
+---
+
+## Go / No-Go
+
+**GO** on the native-snapshot approach.
+
+- Native `UserDefaults` (via `@capacitor/preferences`) survives `CacheBuster` — confirmed by reading the Swift source directly.
+- Auth restore is completely decoupled: session lives in webview `localStorage` (also not in CacheBuster's clear list), snapshot lives in native `UserDefaults`, different storage, different keys, different clients. No login-loss risk.
+- One new dependency: `@capacitor/preferences` (first-party, additive, would require a `pod install` / `npx cap sync` on the user's local machine after export — no changes to existing native plugins).
+- `@capacitor/app` resume listener is a separate, additive win for the warm-resume case.
+
+## Proposed next-phase scope (not applied now)
+
+When you approve, a single implementation prompt would:
+
+1. Add `@capacitor/preferences`.
+2. Add a small `dashboardSnapshot.ts` helper (read/write/validate with `SNAPSHOT_VERSION`, per-user, per-local-date key, max-age).
+3. Wire the four client dashboard cards (MacroSummary, TodayActions, ProgressMomentum, ProgressWidgetGrid) to hydrate initial state from the snapshot when present, then let their existing `useDataFetch` refresh in the background and rewrite the snapshot on success.
+4. Add a scoped `App.addListener('appStateChange', …)` on the client Dashboard to trigger a lightweight refetch on warm resume.
+5. Leave `CacheBuster`, `useDataFetch`, `useHealthSync`, Auth, RLS, indexes, schema, coach-side code, `getDisplayPosition()`, `calendar_events` rules, and en-CA formatting fully untouched.
