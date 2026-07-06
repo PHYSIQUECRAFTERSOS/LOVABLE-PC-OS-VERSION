@@ -965,6 +965,19 @@ const ThreadChatView = ({
         onClose={() => setPendingAttachment(null)}
         onSent={fetchMessages}
       />
+
+      {isCoachOfThread && (
+        <DeleteThreadDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          threadId={threadId}
+          clientName={otherUserName}
+          onDeleted={() => {
+            (window as any).__refetchCoachThreads?.();
+            onBack?.();
+          }}
+        />
+      )}
     </div>
   );
 };
