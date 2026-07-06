@@ -36,6 +36,7 @@ import { useActiveSession } from "@/hooks/useActiveSession";
 import UnfinishedWorkoutBanner from "@/components/workout/UnfinishedWorkoutBanner";
 import { Button } from "@/components/ui/button";
 import MilestoneRoot from "@/components/milestones/MilestoneRoot";
+import { prefetchRoute, warmCoachRoutes, warmClientRoutes } from "@/lib/routePrefetch";
 
 interface NavItem {
   to: string;
