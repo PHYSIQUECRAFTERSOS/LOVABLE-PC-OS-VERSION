@@ -378,7 +378,20 @@ const ThreadChatView = ({
 
   const handleSend = async () => {
     if (!user || !newMessage.trim()) return;
+    if (isCoachOfThread && clientInactive) {
+      toast({ title: "Client is inactive", description: "Reactivate them from Clients to resume messaging.", variant: "destructive" });
+      return;
+    }
     setSending(true);
+    // Unhide thread if this coach previously deleted it — sending re-opens the conversation
+    if (isCoachOfThread) {
+      supabase
+        .from("message_threads")
+        .update({ coach_hidden_at: null } as any)
+        .eq("id", threadId)
+        .eq("coach_id", user.id)
+        .then(() => {});
+    }
     const messageContent = newMessage.trim();
     const { data: insertedMsg, error: insertError } = await supabase
       .from("thread_messages")
