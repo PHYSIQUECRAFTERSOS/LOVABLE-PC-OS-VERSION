@@ -38,8 +38,10 @@ const ProgramOverviewPane = ({
   versionNumber,
   onSelectPhase,
   onAssignPhase,
+  onAddPhase,
   refreshKey,
 }: ProgramOverviewPaneProps) => {
+
   const [phases, setPhases] = useState<OverviewPhase[]>([]);
   const [loading, setLoading] = useState(true);
 
