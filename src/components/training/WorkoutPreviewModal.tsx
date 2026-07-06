@@ -94,14 +94,16 @@ const WorkoutPreviewModal = ({
 
       if (signal) workoutQuery = workoutQuery.abortSignal(signal);
 
-      const [exerciseDetails, wRes] = await Promise.all([
+      const [exSettled, wSettled] = await Promise.allSettled([
         fetchWorkoutExerciseDetails(workoutId, signal),
         workoutQuery.maybeSingle(),
       ]);
 
-      if (wRes.error) throw wRes.error;
+      if (exSettled.status === "rejected") throw exSettled.reason;
+      const exerciseDetails = exSettled.value;
 
-      setInstructions(wRes.data?.instructions || null);
+      const wData = wSettled.status === "fulfilled" ? wSettled.value.data : null;
+      setInstructions(wData?.instructions || null);
 
       const mapped: ExerciseDetail[] = exerciseDetails.map((we) => ({
         id: we.id,

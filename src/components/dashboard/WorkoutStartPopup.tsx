@@ -67,12 +67,15 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
 
       if (signal) sessionQuery = sessionQuery.abortSignal(signal);
 
-      const [exerciseDetails, sessionRes] = await Promise.all([
+      const [exSettled, sessionSettled] = await Promise.allSettled([
         fetchWorkoutExerciseDetails(workoutId, signal),
         sessionQuery.maybeSingle(),
       ]);
 
-      if (sessionRes.error) throw sessionRes.error;
+      // Exercises are required; session lookup is best-effort
+      if (exSettled.status === "rejected") throw exSettled.reason;
+      const exerciseDetails = exSettled.value;
+      const sessionData = sessionSettled.status === "fulfilled" ? sessionSettled.value.data : null;
 
       const mapped: ExercisePreview[] = exerciseDetails.map((we) => ({
         id: we.exercise?.id || we.exercise_id,
@@ -87,8 +90,8 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
       }));
 
       setExercises(mapped);
-      setLastPerformed(sessionRes.data?.completed_at
-        ? formatDistanceToNow(new Date(sessionRes.data.completed_at), { addSuffix: true })
+      setLastPerformed(sessionData?.completed_at
+        ? formatDistanceToNow(new Date(sessionData.completed_at), { addSuffix: true })
         : null);
     } catch (err: any) {
       if (err?.name === "AbortError") {
