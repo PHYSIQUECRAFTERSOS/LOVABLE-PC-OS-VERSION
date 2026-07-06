@@ -82,41 +82,6 @@ const ProgressWidgetGrid = () => {
   const today = getLocalDateString();
   const uid = user?.id ?? "anon";
 
-  // Invalidate caches on external update events, then refetch.
-  const { refetch: refetchMetrics } = useDataFetch<HealthMetricsResult>({
-    queryKey: `progress-metrics-${uid}-${today}`,
-    enabled: !!user,
-    staleTime: STALE,
-    fallback: { dbSteps: null, dbDistance: null, dbStepGoal: null, stepsSpark: [], distanceSpark: [] },
-    queryFn: async () => {
-      const sevenAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
-      const { data } = await supabase
-        .from("daily_health_metrics")
-        .select("metric_date, steps, walking_running_distance_km, step_goal")
-        .eq("user_id", user!.id)
-        .gte("metric_date", sevenAgo)
-        .order("metric_date", { ascending: true });
-
-      const rows = data ?? [];
-      const todayRow = rows.find((d) => d.metric_date === today);
-      const sSpark: SparkData[] = [];
-      const dSpark: SparkData[] = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = format(subDays(new Date(), i), "yyyy-MM-dd");
-        const row = rows.find((r) => r.metric_date === d);
-        sSpark.push({ value: row?.steps ?? 0 });
-        dSpark.push({ value: row?.walking_running_distance_km ?? 0 });
-      }
-      return {
-        dbSteps: todayRow?.steps ?? null,
-        dbDistance: todayRow?.walking_running_distance_km ?? null,
-        dbStepGoal: todayRow?.step_goal ?? null,
-        stepsSpark: sSpark,
-        distanceSpark: dSpark,
-      };
-    },
-  });
-
   const { data: photoData, refetch: refetchPhotos } = useDataFetch<string[]>({
     queryKey: `progress-photos-${uid}`,
     enabled: !!user,
