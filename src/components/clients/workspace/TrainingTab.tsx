@@ -1584,6 +1584,23 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         />
       )}
 
+      {/* Save Training Phase As — Trainerize-style duplicate dialog */}
+      {duplicatePhaseTarget && (
+        <DuplicatePhaseDialog
+          open={!!duplicatePhaseTarget}
+          onOpenChange={(o) => { if (!o) setDuplicatePhaseTarget(null); }}
+          sourceName={duplicatePhaseTarget.name}
+          sourceDurationWeeks={duplicatePhaseTarget.duration_weeks}
+          onConfirm={({ name, durationWeeks }) => {
+            const target = duplicatePhaseTarget;
+            setDuplicatePhaseTarget(null);
+            if (target) duplicatePhase(target, { nameOverride: name, durationWeeksOverride: durationWeeks });
+          }}
+        />
+      )}
+
+
+
       {/* AI Create New Phase */}
       {aiCreateOpen && program && (
         <AICreateProgramModal
