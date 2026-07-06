@@ -138,13 +138,12 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
     queryKey: cacheKey,
     enabled: !!user,
     staleTime: 60 * 1000,
-    timeout: 5000,
     fallback: [],
     queryFn: async (signal) => {
       if (!user) return [];
 
       // Calendar is the source of truth — only show items scheduled for this date
-      const [calRes, cardioRes, nutritionRes] = await Promise.all([
+      const [calSettled, cardioSettled, nutritionSettled] = await Promise.allSettled([
         supabase
           .from("calendar_events")
           .select("id, title, event_type, is_completed, linked_workout_id, description")
@@ -168,13 +167,17 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
           .abortSignal(signal),
       ]);
 
+      const calRes = calSettled.status === "fulfilled" ? calSettled.value : { data: null };
+      const cardioRes = cardioSettled.status === "fulfilled" ? cardioSettled.value : { data: null };
+      const nutritionRes = nutritionSettled.status === "fulfilled" ? nutritionSettled.value : { data: null };
+
       // Collect linked workout IDs from today's calendar events to check completion
       const calWorkoutIds = (calRes.data || [])
         .filter(e => e.event_type === "workout" && e.linked_workout_id)
         .map(e => e.linked_workout_id!);
 
       // Fetch workout sessions + names only for workouts actually scheduled today
-      const [sessRes, workoutNamesRes] = await Promise.all([
+      const [sessSettled, workoutNamesSettled] = await Promise.allSettled([
         calWorkoutIds.length > 0
           ? supabase
               .from("workout_sessions")
@@ -194,6 +197,10 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
               .abortSignal(signal)
           : Promise.resolve({ data: [] as any[], error: null }),
       ]);
+
+      const sessRes = sessSettled.status === "fulfilled" ? sessSettled.value : { data: [] as any[] };
+      const workoutNamesRes = workoutNamesSettled.status === "fulfilled" ? workoutNamesSettled.value : { data: [] as any[] };
+
 
       const items: ActionItem[] = [];
 
