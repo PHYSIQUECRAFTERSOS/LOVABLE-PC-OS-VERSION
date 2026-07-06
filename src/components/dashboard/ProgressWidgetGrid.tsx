@@ -4,6 +4,7 @@ import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { useAuth } from "@/hooks/useAuth";
 import { useHealthSync } from "@/hooks/useHealthSync";
 import { useCoachStepGoal } from "@/hooks/useCoachStepGoal";
+import { useDataFetch, invalidateCacheByPrefix } from "@/hooks/useDataFetch";
 import { useNavigate } from "react-router-dom";
 import { format, subDays } from "date-fns";
 import { Footprints, Camera, Flame, MapPin } from "lucide-react";
@@ -51,20 +52,27 @@ const MiniSparkline = forwardRef<SVGSVGElement, { data: SparkData[]; color?: str
 
 MiniSparkline.displayName = "MiniSparkline";
 
+const STALE = 5 * 60 * 1000;
+
+interface HealthMetricsResult {
+  dbSteps: number | null;
+  dbDistance: number | null;
+  dbStepGoal: number | null;
+  stepsSpark: SparkData[];
+  distanceSpark: SparkData[];
+}
+
+interface CaloriesResult {
+  todayCals: number;
+  calSpark: SparkData[];
+}
+
 const ProgressWidgetGrid = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { todayMetrics, weekMetrics, isNative, connection } = useHealthSync();
   const { convertDistance, distanceLabel } = useUnitPreferences();
 
-  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
-  const [todayCals, setTodayCals] = useState<number>(0);
-  const [calSpark, setCalSpark] = useState<SparkData[]>([]);
-  const [dbSteps, setDbSteps] = useState<number | null>(null);
-  const [dbDistance, setDbDistance] = useState<number | null>(null);
-  const [stepsSpark, setStepsSpark] = useState<SparkData[]>([]);
-  const [distanceSpark, setDistanceSpark] = useState<SparkData[]>([]);
-  const [dbStepGoal, setDbStepGoal] = useState<number | null>(null);
   const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
   const [distanceTrendOpen, setDistanceTrendOpen] = useState(false);
@@ -72,101 +80,155 @@ const ProgressWidgetGrid = () => {
   const [sleepHistoryOpen, setSleepHistoryOpen] = useState(false);
 
   const today = getLocalDateString();
-  const [refreshKey, setRefreshKey] = useState(0);
+  const uid = user?.id ?? "anon";
 
-  // Listen for photo/weight updates to refresh instantly
-  useEffect(() => {
-    const handler = () => setRefreshKey(k => k + 1);
-    window.addEventListener("photos-uploaded", handler);
-    window.addEventListener("weight-logged", handler);
-    return () => {
-      window.removeEventListener("photos-uploaded", handler);
-      window.removeEventListener("weight-logged", handler);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-
-    // Fetch steps + distance from daily_health_metrics (source of truth)
-    const fetchHealthMetrics = async () => {
+  // Invalidate caches on external update events, then refetch.
+  const { refetch: refetchMetrics } = useDataFetch<HealthMetricsResult>({
+    queryKey: `progress-metrics-${uid}-${today}`,
+    enabled: !!user,
+    staleTime: STALE,
+    fallback: { dbSteps: null, dbDistance: null, dbStepGoal: null, stepsSpark: [], distanceSpark: [] },
+    queryFn: async () => {
       const sevenAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
       const { data } = await supabase
         .from("daily_health_metrics")
         .select("metric_date, steps, walking_running_distance_km, step_goal")
-        .eq("user_id", user.id)
+        .eq("user_id", user!.id)
         .gte("metric_date", sevenAgo)
         .order("metric_date", { ascending: true });
 
-      if (data) {
-        const todayRow = data.find((d) => d.metric_date === today);
-        setDbSteps(todayRow?.steps ?? null);
-        setDbDistance(todayRow?.walking_running_distance_km ?? null);
-        if (todayRow?.step_goal) setDbStepGoal(todayRow.step_goal);
-
-        const sSpark: SparkData[] = [];
-        const dSpark: SparkData[] = [];
-        for (let i = 6; i >= 0; i--) {
-          const d = format(subDays(new Date(), i), "yyyy-MM-dd");
-          const row = data.find((r) => r.metric_date === d);
-          sSpark.push({ value: row?.steps ?? 0 });
-          dSpark.push({ value: row?.walking_running_distance_km ?? 0 });
-        }
-        setStepsSpark(sSpark);
-        setDistanceSpark(dSpark);
+      const rows = data ?? [];
+      const todayRow = rows.find((d) => d.metric_date === today);
+      const sSpark: SparkData[] = [];
+      const dSpark: SparkData[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = format(subDays(new Date(), i), "yyyy-MM-dd");
+        const row = rows.find((r) => r.metric_date === d);
+        sSpark.push({ value: row?.steps ?? 0 });
+        dSpark.push({ value: row?.walking_running_distance_km ?? 0 });
       }
-    };
+      return {
+        dbSteps: todayRow?.steps ?? null,
+        dbDistance: todayRow?.walking_running_distance_km ?? null,
+        dbStepGoal: todayRow?.step_goal ?? null,
+        stepsSpark: sSpark,
+        distanceSpark: dSpark,
+      };
+    },
+  });
 
-    // Fetch recent photos
-    const fetchPhotos = async () => {
+  const { data: photoData, refetch: refetchPhotos } = useDataFetch<string[]>({
+    queryKey: `progress-photos-${uid}`,
+    enabled: !!user,
+    staleTime: STALE,
+    fallback: [],
+    queryFn: async () => {
       const { data } = await supabase
         .from("progress_photos")
         .select("storage_path")
-        .eq("client_id", user.id)
+        .eq("client_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(2);
-      if (data && data.length > 0) {
-        const urls = await Promise.all(
-          data.map(async (p) => {
-            const { data: urlData } = await supabase.storage
-              .from("progress-photos")
-              .createSignedUrl(p.storage_path, 3600);
-            return urlData?.signedUrl || "";
-          })
-        );
-        setPhotoUrls(urls.filter(Boolean));
-      }
-    };
+      if (!data || data.length === 0) return [];
+      const results = await Promise.allSettled(
+        data.map((p) =>
+          supabase.storage.from("progress-photos").createSignedUrl(p.storage_path, 3600)
+        )
+      );
+      return results
+        .map((r) => (r.status === "fulfilled" ? r.value.data?.signedUrl || "" : ""))
+        .filter(Boolean);
+    },
+  });
 
-    // Fetch calorie data (last 7 days)
-    const fetchCalories = async () => {
+  const { data: metricsData } = useDataFetch<HealthMetricsResult>({
+    queryKey: `progress-metrics-${uid}-${today}`,
+    enabled: !!user,
+    staleTime: STALE,
+    fallback: { dbSteps: null, dbDistance: null, dbStepGoal: null, stepsSpark: [], distanceSpark: [] },
+    queryFn: async () => {
+      // Duplicate registration returns same cached result via queryKey.
+      const sevenAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
+      const { data } = await supabase
+        .from("daily_health_metrics")
+        .select("metric_date, steps, walking_running_distance_km, step_goal")
+        .eq("user_id", user!.id)
+        .gte("metric_date", sevenAgo)
+        .order("metric_date", { ascending: true });
+      const rows = data ?? [];
+      const todayRow = rows.find((d) => d.metric_date === today);
+      const sSpark: SparkData[] = [];
+      const dSpark: SparkData[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = format(subDays(new Date(), i), "yyyy-MM-dd");
+        const row = rows.find((r) => r.metric_date === d);
+        sSpark.push({ value: row?.steps ?? 0 });
+        dSpark.push({ value: row?.walking_running_distance_km ?? 0 });
+      }
+      return {
+        dbSteps: todayRow?.steps ?? null,
+        dbDistance: todayRow?.walking_running_distance_km ?? null,
+        dbStepGoal: todayRow?.step_goal ?? null,
+        stepsSpark: sSpark,
+        distanceSpark: dSpark,
+      };
+    },
+  });
+
+  const { data: caloriesData } = useDataFetch<CaloriesResult>({
+    queryKey: `progress-calories-${uid}-${today}`,
+    enabled: !!user,
+    staleTime: STALE,
+    fallback: { todayCals: 0, calSpark: [] },
+    queryFn: async () => {
       const sevenAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
       const { data } = await supabase
         .from("nutrition_logs")
         .select("calories, logged_at")
-        .eq("client_id", user.id)
+        .eq("client_id", user!.id)
         .gte("logged_at", sevenAgo)
         .order("logged_at", { ascending: true });
-      if (data) {
-        const dayMap: Record<string, number> = {};
-        data.forEach(d => {
-          const day = d.logged_at;
-          dayMap[day] = (dayMap[day] || 0) + Number(d.calories || 0);
-        });
-        setTodayCals(dayMap[today] || 0);
-        const spark: SparkData[] = [];
-        for (let i = 6; i >= 0; i--) {
-          const d = format(subDays(new Date(), i), "yyyy-MM-dd");
-          spark.push({ value: dayMap[d] || 0 });
-        }
-        setCalSpark(spark);
+      const dayMap: Record<string, number> = {};
+      (data ?? []).forEach((d) => {
+        const day = d.logged_at;
+        dayMap[day] = (dayMap[day] || 0) + Number(d.calories || 0);
+      });
+      const spark: SparkData[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = format(subDays(new Date(), i), "yyyy-MM-dd");
+        spark.push({ value: dayMap[d] || 0 });
       }
-    };
+      return { todayCals: dayMap[today] || 0, calSpark: spark };
+    },
+  });
 
-    fetchHealthMetrics();
-    fetchPhotos();
-    fetchCalories();
-  }, [user, today, refreshKey]);
+  // Listen for external updates → invalidate + refetch the affected key.
+  useEffect(() => {
+    const onPhotos = () => {
+      invalidateCacheByPrefix(`progress-photos-${uid}`);
+      refetchPhotos();
+    };
+    const onWeight = () => {
+      // Weight card is separate, but metrics may also refresh.
+      invalidateCacheByPrefix(`progress-metrics-${uid}-`);
+      refetchMetrics();
+    };
+    window.addEventListener("photos-uploaded", onPhotos);
+    window.addEventListener("weight-logged", onWeight);
+    return () => {
+      window.removeEventListener("photos-uploaded", onPhotos);
+      window.removeEventListener("weight-logged", onWeight);
+    };
+  }, [uid, refetchPhotos, refetchMetrics]);
+
+  const dbSteps = metricsData?.dbSteps ?? null;
+  const dbDistance = metricsData?.dbDistance ?? null;
+  const dbStepGoal = metricsData?.dbStepGoal ?? null;
+  const stepsSpark = metricsData?.stepsSpark ?? [];
+  const distanceSpark = metricsData?.distanceSpark ?? [];
+  const photoUrls = photoData ?? [];
+  const todayCals = caloriesData?.todayCals ?? 0;
+  const calSpark = caloriesData?.calSpark ?? [];
 
   // Merge: take the higher of DB value or live HealthKit value
   const isConnected = (isNative && connection?.is_connected) || todayMetrics?.source === "apple_health";
