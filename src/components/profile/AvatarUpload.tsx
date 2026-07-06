@@ -155,7 +155,7 @@ const AvatarUpload = ({ currentUrl, fullName, onUploaded }: AvatarUploadProps) =
   return (
     <div className="flex items-center gap-4">
       <div className="relative">
-        <UserAvatar src={displayUrl} name={fullName} className="h-20 w-20 text-lg" />
+        <UserAvatar src={displayUrl} name={fullName} className="h-20 w-20 text-lg" size="detail" />
         {uploading && (
           <div className="absolute inset-0 flex items-center justify-center rounded-full bg-background/70">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
