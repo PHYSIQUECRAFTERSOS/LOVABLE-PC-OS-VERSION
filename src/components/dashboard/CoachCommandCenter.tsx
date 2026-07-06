@@ -564,13 +564,15 @@ const CoachCommandCenter = () => {
       const newClients: NewClientReadiness[] = [];
       if (recentAssignments?.length) {
         const newClientIds = recentAssignments.map((a) => a.client_id);
-        const [onboardingRes, photosRes] = await Promise.all([
+        const [onboardingSettled, photosSettled] = await Promise.allSettled([
           supabase.from("onboarding_profiles").select("user_id, onboarding_completed").in("user_id", newClientIds),
           supabase.from("progress_photos").select("client_id, pose").in("client_id", newClientIds),
         ]);
-        const onboardingMap = new Map((onboardingRes.data || []).map((o) => [o.user_id, o.onboarding_completed]));
+        const onboardingRows = onboardingSettled.status === "fulfilled" ? (onboardingSettled.value.data || []) : [];
+        const photoRows = photosSettled.status === "fulfilled" ? (photosSettled.value.data || []) : [];
+        const onboardingMap = new Map(onboardingRows.map((o: any) => [o.user_id, o.onboarding_completed]));
         const photoCountMap = new Map<string, number>();
-        (photosRes.data || []).forEach((p) => {
+        photoRows.forEach((p: any) => {
           photoCountMap.set(p.client_id, (photoCountMap.get(p.client_id) || 0) + 1);
         });
 
