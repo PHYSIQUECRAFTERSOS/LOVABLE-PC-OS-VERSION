@@ -50,11 +50,42 @@ const Dashboard = () => {
 };
 
 const ClientDashboard = () => {
+  const { user } = useAuth();
   const { streak: consistencyStreak, last30 } = useConsistencyStreak();
   const { streak: loggingStreak, loading: streakLoading } = useLoggingStreak();
   const { streak: workoutStreak, loading: workoutStreakLoading } = useWorkoutStreak();
   const [todayItems, setTodayItems] = useState<ActionItem[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // Warm-resume: when the webview survives a short background, invalidate
+  // client dashboard caches so the visible tiles re-fetch fresh. Wipes
+  // nothing. Cold-boot eviction is handled separately by CacheBuster + the
+  // localStorage snapshot in dashboardSnapshot.ts.
+  useEffect(() => {
+    if (!user?.id) return;
+    let sub: { remove: () => void } | undefined;
+    let cancelled = false;
+    App.addListener("appStateChange", (state: AppState) => {
+      if (!state.isActive) return;
+      const uid = user.id;
+      invalidateCacheByPrefix(`macros-${uid}-`);
+      invalidateCacheByPrefix(`today-actions-${uid}-`);
+      invalidateCacheByPrefix(`progress-momentum-${uid}-`);
+      invalidateCacheByPrefix(`progress-metrics-${uid}-`);
+      invalidateCacheByPrefix(`progress-photos-${uid}`);
+      invalidateCacheByPrefix(`progress-calories-${uid}-`);
+    })
+      .then((handle) => {
+        if (cancelled) handle.remove();
+        else sub = handle;
+      })
+      .catch(() => { /* web preview: plugin unavailable, ignore */ });
+    return () => {
+      cancelled = true;
+      sub?.remove();
+    };
+  }, [user?.id]);
+
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const isTodaySelected = isDateToday(selectedDate);
