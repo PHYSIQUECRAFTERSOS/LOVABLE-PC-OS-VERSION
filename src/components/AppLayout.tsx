@@ -346,6 +346,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <NavLink
               key={item.to}
               to={item.to}
+              onTouchStart={() => prefetchRoute(item.to)}
               className={({ isActive }) =>
                 cn(
                   "flex flex-1 flex-col items-center gap-0.5 pt-2 pb-1 text-[10px] font-medium transition-colors relative",
