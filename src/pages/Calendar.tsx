@@ -86,7 +86,9 @@ const Calendar = () => {
     queryKey: cacheKey,
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
-    timeout: 5000,
+    // No hardcoded timeout — inherit useDataFetch's mobile-tuned defaults
+    // (12s cold, 20s when we already have cache to show). The old 5s cap was
+    // the reason mobile users saw "Failed to load. Tap to retry." on LTE.
     fallback: [],
     queryFn: async (signal) => {
       if (!user) return [];
@@ -94,16 +96,21 @@ const Calendar = () => {
       const normalizeWorkoutName = (name: string) => name.replace(/^day\s*\d+\s*[:\-]\s*/i, "").trim();
       const workoutLabelMap = new Map<string, string>();
 
-      const { data: assignment } = await supabase
-        .from("client_program_assignments")
-        .select("program_id, current_phase_id")
-        .eq("client_id", user.id)
-        .in("status", ["active", "subscribed"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Resolve the workout-label chain (assignment → phase → program_workouts)
+      // IN PARALLEL with the main fan-out below instead of blocking on it.
+      // Previously this was 1-3 sequential round-trips before anything else started.
+      const labelChainPromise = (async () => {
+        if (isCoach) return;
+        const { data: assignment } = await supabase
+          .from("client_program_assignments")
+          .select("program_id, current_phase_id")
+          .eq("client_id", user.id)
+          .in("status", ["active", "subscribed"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!assignment?.program_id) return;
 
-      if (assignment?.program_id) {
         let phaseId = assignment.current_phase_id;
         if (!phaseId) {
           const { data: firstPhase } = await supabase
@@ -115,37 +122,34 @@ const Calendar = () => {
             .maybeSingle();
           phaseId = firstPhase?.id ?? null;
         }
+        if (!phaseId) return;
 
-        if (phaseId) {
-          const { data: pws } = await supabase
-            .from("program_workouts")
-            .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name, is_accessory)")
-            .eq("phase_id", phaseId)
-            .order("sort_order", { ascending: true });
+        const { data: pws } = await supabase
+          .from("program_workouts")
+          .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name, is_accessory)")
+          .eq("phase_id", phaseId)
+          .order("sort_order", { ascending: true });
 
-          // Show workouts verbatim using the coach-authored name and order by
-          // any leading "Day N" prefix (Trainerize-style chronological order).
-          const ordered = sortWorkoutsChronologically(
-            (pws || []).map((pw: any) => ({
-              id: pw.workout_id,
-              sort_order: pw.sort_order,
-              exclude_from_numbering: pw.exclude_from_numbering || !!(pw.workouts as any)?.is_accessory,
-              custom_tag: pw.custom_tag || null,
-              name: (pw.workouts as any)?.name || "Workout",
-              is_accessory: !!(pw.workouts as any)?.is_accessory,
-            }))
-          );
+        const ordered = sortWorkoutsChronologically(
+          (pws || []).map((pw: any) => ({
+            id: pw.workout_id,
+            sort_order: pw.sort_order,
+            exclude_from_numbering: pw.exclude_from_numbering || !!(pw.workouts as any)?.is_accessory,
+            custom_tag: pw.custom_tag || null,
+            name: (pw.workouts as any)?.name || "Workout",
+            is_accessory: !!(pw.workouts as any)?.is_accessory,
+          }))
+        );
 
-          ordered.forEach((w: any) => {
-            const label = w.is_accessory
-              ? w.name
-              : w.exclude_from_numbering && w.custom_tag
-                ? `${w.custom_tag}: ${w.name}`
-                : w.name;
-            workoutLabelMap.set(w.id, label);
-          });
-        }
-      }
+        ordered.forEach((w: any) => {
+          const label = w.is_accessory
+            ? w.name
+            : w.exclude_from_numbering && w.custom_tag
+              ? `${w.custom_tag}: ${w.name}`
+              : w.name;
+          workoutLabelMap.set(w.id, label);
+        });
+      })();
 
       const calendarPromise = supabase
         .from("calendar_events")
