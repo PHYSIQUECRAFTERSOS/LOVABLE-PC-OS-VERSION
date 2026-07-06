@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, CheckCheck, Check, ArrowLeft, MoreVertical, EyeOff, Smile, Pencil, Trash2, UserX } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import EmojiPicker, { Theme, EmojiStyle } from "emoji-picker-react";
+import LazyEmojiPicker from "./LazyEmojiPicker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -915,10 +915,7 @@ const ThreadChatView = ({
                   sideOffset={8}
                   className="p-0 w-auto border-none bg-transparent shadow-none"
                 >
-                  <EmojiPicker
-                    theme={Theme.DARK}
-                    emojiStyle={EmojiStyle.NATIVE}
-                    lazyLoadEmojis
+                  <LazyEmojiPicker
                     onEmojiClick={(data) => {
                       const ta = textareaRef.current;
                       const emoji = data.emoji;
