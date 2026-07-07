@@ -4,6 +4,7 @@ import { UsersRound, MessageSquare, Heart, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useDataFetch } from "@/hooks/useDataFetch";
 import { formatDistanceToNow } from "date-fns";
+import UserAvatar from "@/components/profile/UserAvatar";
 
 interface CommunityPost {
   id: string;
@@ -87,14 +88,6 @@ const CommunityQuickAccess = () => {
 
   if (loading) return null;
 
-  const getInitials = (name: string) =>
-    name
-      .split(" ")
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-
   return (
     <Card className="overflow-hidden">
       <CardHeader className="pb-2">
@@ -129,19 +122,12 @@ const CommunityQuickAccess = () => {
               className="flex items-start gap-3 w-full text-left rounded-lg p-2 -mx-2 hover:bg-secondary/50 transition-colors"
             >
               {/* Avatar */}
-              <div className="h-8 w-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
-                {post.author_avatar ? (
-                  <img
-                    src={post.author_avatar}
-                    alt=""
-                    className="h-8 w-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <span className="text-[10px] font-bold text-primary">
-                    {getInitials(post.author_name)}
-                  </span>
-                )}
-              </div>
+              <UserAvatar
+                src={post.author_avatar}
+                name={post.author_name}
+                className="h-8 w-8 shrink-0"
+                fallbackClassName="bg-primary/10 text-primary text-[10px]"
+              />
 
               {/* Content */}
               <div className="flex-1 min-w-0">

@@ -1,5 +1,5 @@
 import { useLeaderboard } from "@/hooks/useCommunity";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/profile/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Flame, Star } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,7 +31,6 @@ const Leaderboard = () => {
   return (
     <div className="space-y-2">
       {leaders.map((entry, i) => {
-        const initials = (entry.full_name || "U").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
         const isTop3 = i < 3;
 
         return (
@@ -44,12 +43,12 @@ const Leaderboard = () => {
             <span className="w-8 text-center font-bold text-lg">
               {i < 3 ? medals[i] : <span className="text-muted-foreground text-sm">#{i + 1}</span>}
             </span>
-            <Avatar className="h-9 w-9">
-              {entry.avatar_url && <AvatarImage src={entry.avatar_url} />}
-              <AvatarFallback className={isTop3 ? "bg-primary/20 text-primary" : "bg-secondary text-foreground"}>
-                {initials}
-              </AvatarFallback>
-            </Avatar>
+            <UserAvatar
+              src={entry.avatar_url}
+              name={entry.full_name}
+              className="h-9 w-9"
+              fallbackClassName={isTop3 ? "bg-primary/20 text-primary" : "bg-secondary text-foreground"}
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-foreground truncate">{entry.full_name}</span>
