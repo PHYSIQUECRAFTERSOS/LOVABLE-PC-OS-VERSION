@@ -16,7 +16,14 @@ export function transformSupabaseImage(
     if (opts.width) u.searchParams.set("width", String(opts.width));
     if (opts.height) u.searchParams.set("height", String(opts.height));
     u.searchParams.set("quality", String(opts.quality ?? 70));
-    if (opts.resize) u.searchParams.set("resize", opts.resize);
+    // Only apply `resize` when BOTH dimensions are provided. Supabase's
+    // transform treats `resize=cover` with a single dimension as a square
+    // target and hard-crops non-square originals, which distorts avatars.
+    // Width-only (or height-only) with no `resize` scales proportionally and
+    // preserves aspect ratio; the browser then centers via CSS object-cover.
+    if (opts.resize && opts.width && opts.height) {
+      u.searchParams.set("resize", opts.resize);
+    }
     return u.toString();
   } catch {
     return url;
