@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { transformSupabaseImage } from "@/lib/supabaseImage";
 
 interface UserAvatarProps {
   src?: string | null;
@@ -9,9 +8,9 @@ interface UserAvatarProps {
   className?: string;
   fallbackClassName?: string;
   /**
-   * Rendering context. "list" (default) requests a tiny 64px transform for
-   * list rows / message threads / command-center cards. "detail" requests
-   * 256px for large profile / detail views. The stored original is untouched.
+   * Rendering context retained for call-site compatibility. Avatar display uses
+   * the stored raw image so portrait profile photos render like they did before
+   * the image-transform regression.
    */
   size?: "list" | "detail";
 }
@@ -26,17 +25,14 @@ const getInitials = (name?: string) => {
     .slice(0, 2);
 };
 
-const UserAvatar = ({ src, name, className, fallbackClassName, size = "list" }: UserAvatarProps) => {
+const UserAvatar = ({ src, name, className, fallbackClassName }: UserAvatarProps) => {
   const [failed, setFailed] = useState(false);
-  const width = size === "detail" ? 256 : 64;
-  // Width-only transform: aspect ratio preserved server-side; the circular
-  // Avatar container + `object-cover` handles centered display cropping.
-  const transformed = !failed ? transformSupabaseImage(src, { width, quality: 70 }) : undefined;
+  const imageSrc = !failed ? src || undefined : undefined;
   return (
     <Avatar className={cn("ring-2 ring-primary/30", className)}>
-      {transformed && (
+      {imageSrc && (
         <AvatarImage
-          src={transformed}
+          src={imageSrc}
           alt={name || "User"}
           className="object-cover"
           loading="lazy"
