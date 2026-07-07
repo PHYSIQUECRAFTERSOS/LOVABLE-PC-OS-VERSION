@@ -29,7 +29,9 @@ const getInitials = (name?: string) => {
 const UserAvatar = ({ src, name, className, fallbackClassName, size = "list" }: UserAvatarProps) => {
   const [failed, setFailed] = useState(false);
   const width = size === "detail" ? 256 : 64;
-  const transformed = !failed ? transformSupabaseImage(src, { width, quality: 70, resize: "cover" }) : undefined;
+  // Width-only transform: aspect ratio preserved server-side; the circular
+  // Avatar container + `object-cover` handles centered display cropping.
+  const transformed = !failed ? transformSupabaseImage(src, { width, quality: 70 }) : undefined;
   return (
     <Avatar className={cn("ring-2 ring-primary/30", className)}>
       {transformed && (
