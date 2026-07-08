@@ -133,6 +133,21 @@ const PerfHUD = () => {
       {!collapsed && (
         <>
           <div style={{ opacity: 0.7, marginTop: 6, marginBottom: 4 }}>
+            Long tasks:{" "}
+            <span
+              style={{
+                color:
+                  longTasks.maxMs > 200
+                    ? "#f87171"
+                    : longTasks.maxMs > 100
+                    ? "#fbbf24"
+                    : "#4ade80",
+              }}
+            >
+              {longTasks.count} · max {longTasks.maxMs}ms
+            </span>
+          </div>
+          <div style={{ opacity: 0.7, marginTop: 6, marginBottom: 4 }}>
             Top slow queries (avg ms)
           </div>
           {rows.length === 0 ? (
