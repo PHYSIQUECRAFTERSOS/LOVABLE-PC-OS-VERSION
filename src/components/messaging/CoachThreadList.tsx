@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import DeleteThreadDialog from "./DeleteThreadDialog";
 
 interface Thread {
@@ -41,12 +42,18 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
   const [showInactive, setShowInactive] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Thread | null>(null);
 
+  // Debounce realtime-triggered refetches so bursts of incoming messages
+  // don't cause N repeat scans of every thread.
+  const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const fetchThreads = useCallback(async () => {
     if (!user) return;
 
     const { data: rawThreads } = await supabase
       .from("message_threads")
-      .select("*")
+      .select(
+        "id, client_id, updated_at, is_archived, coach_last_seen_at, coach_marked_unread"
+      )
       .eq("coach_id", user.id)
       .eq("is_archived", false)
       .is("coach_hidden_at" as any, null)
@@ -58,14 +65,38 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
       return;
     }
 
+    const threadIds = rawThreads.map((t) => t.id);
     const clientIds = rawThreads.map((t) => t.client_id);
-    const [{ data: profiles }, { data: assignments }] = await Promise.all([
+
+    // ── Batch #1: profiles + coach_clients status (unchanged) ──
+    // ── Batch #2: newest message per thread (single query, we dedupe client-side) ──
+    // ── Batch #3: unread messages per thread (single query, we group client-side) ──
+    const [
+      { data: profiles },
+      { data: assignments },
+      { data: recentMsgs },
+      { data: unreadRows },
+    ] = await Promise.all([
       supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", clientIds),
       supabase
         .from("coach_clients")
         .select("client_id, status")
         .eq("coach_id", user.id)
         .in("client_id", clientIds),
+      // Pull recent messages for these threads. We only render the newest per
+      // thread so cap the window; ordering DESC lets us keep the first per id.
+      supabase
+        .from("thread_messages")
+        .select("thread_id, content, sender_id, created_at")
+        .in("thread_id", threadIds)
+        .order("created_at", { ascending: false })
+        .limit(Math.max(threadIds.length * 3, 200)),
+      // Pull only unread client→coach messages for these threads.
+      supabase
+        .from("thread_messages")
+        .select("thread_id, sender_id, created_at")
+        .in("thread_id", threadIds)
+        .is("read_at", null),
     ]);
 
     const nameMap: Record<string, string> = {};
@@ -81,60 +112,66 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
       statusMap[a.client_id] = a.status;
     });
 
-    const enriched = await Promise.all(
-      rawThreads.map(async (thread) => {
-        const { data: lastMsg } = await supabase
-          .from("thread_messages")
-          .select("content, created_at, sender_id")
-          .eq("thread_id", thread.id)
-          .order("created_at", { ascending: false })
-          .limit(1);
+    // Newest message per thread (data already sorted DESC).
+    const lastMsgMap: Record<string, { content: string; sender_id: string }> = {};
+    (recentMsgs || []).forEach((m: any) => {
+      if (!lastMsgMap[m.thread_id]) {
+        lastMsgMap[m.thread_id] = { content: m.content, sender_id: m.sender_id };
+      }
+    });
 
-        const lastSeen = (thread as any).coach_last_seen_at;
-        const markedUnread = (thread as any).coach_marked_unread ?? false;
+    // Group unread rows by thread; caller filters against coach_last_seen_at
+    // and client-sender to compute the badge.
+    const unreadByThread: Record<string, { sender_id: string; created_at: string }[]> = {};
+    (unreadRows || []).forEach((r: any) => {
+      (unreadByThread[r.thread_id] ||= []).push({
+        sender_id: r.sender_id,
+        created_at: r.created_at,
+      });
+    });
 
-        let unreadCount = 0;
-        if (lastSeen) {
-          const { count } = await supabase
-            .from("thread_messages")
-            .select("id", { count: "exact", head: true })
-            .eq("thread_id", thread.id)
-            .eq("sender_id", thread.client_id)
-            .gt("created_at", lastSeen);
-          unreadCount = count || 0;
-        } else {
-          const { count } = await supabase
-            .from("thread_messages")
-            .select("id", { count: "exact", head: true })
-            .eq("thread_id", thread.id)
-            .eq("sender_id", thread.client_id);
-          unreadCount = count || 0;
-        }
+    const enriched: Thread[] = rawThreads.map((thread) => {
+      const lastSeen = (thread as any).coach_last_seen_at;
+      const markedUnread = (thread as any).coach_marked_unread ?? false;
 
-        if (markedUnread && unreadCount === 0) unreadCount = 1;
+      const rows = unreadByThread[thread.id] || [];
+      let unreadCount = rows.filter((r) => {
+        if (r.sender_id !== thread.client_id) return false;
+        if (lastSeen && r.created_at <= lastSeen) return false;
+        return true;
+      }).length;
+      if (markedUnread && unreadCount === 0) unreadCount = 1;
 
-        const inactive = !profileMap[thread.client_id] || statusMap[thread.client_id] !== "active";
+      const inactive =
+        !profileMap[thread.client_id] || statusMap[thread.client_id] !== "active";
 
-        return {
-          id: thread.id,
-          client_id: thread.client_id,
-          updated_at: thread.updated_at,
-          is_archived: thread.is_archived,
-          coach_last_seen_at: lastSeen,
-          coach_marked_unread: markedUnread,
-          clientName: nameMap[thread.client_id] || "Unnamed Client",
-          clientAvatar: avatarMap[thread.client_id],
-          lastMessage: lastMsg?.[0]?.content,
-          lastMessageSenderId: lastMsg?.[0]?.sender_id,
-          unreadCount: inactive ? 0 : unreadCount, // suppress unread badge for inactive
-          inactive,
-        };
-      })
-    );
+      const last = lastMsgMap[thread.id];
+      return {
+        id: thread.id,
+        client_id: thread.client_id,
+        updated_at: thread.updated_at,
+        is_archived: thread.is_archived,
+        coach_last_seen_at: lastSeen,
+        coach_marked_unread: markedUnread,
+        clientName: nameMap[thread.client_id] || "Unnamed Client",
+        clientAvatar: avatarMap[thread.client_id],
+        lastMessage: last?.content,
+        lastMessageSenderId: last?.sender_id,
+        unreadCount: inactive ? 0 : unreadCount,
+        inactive,
+      };
+    });
 
     setThreads(enriched);
     setLoading(false);
   }, [user]);
+
+  const scheduleRefetch = useCallback(() => {
+    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+    refetchTimerRef.current = setTimeout(() => {
+      fetchThreads();
+    }, 400);
+  }, [fetchThreads]);
 
   useEffect(() => {
     fetchThreads();
@@ -142,17 +179,18 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
     const channel = supabase
       .channel("coach-thread-updates")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "thread_messages" }, () => {
-        fetchThreads();
+        scheduleRefetch();
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "message_threads" }, () => {
-        fetchThreads();
+        scheduleRefetch();
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
     };
-  }, [fetchThreads]);
+  }, [fetchThreads, scheduleRefetch]);
 
   useEffect(() => {
     (window as any).__refetchCoachThreads = fetchThreads;
@@ -161,13 +199,28 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
     };
   }, [fetchThreads]);
 
-  const filtered = threads.filter((t) => t.clientName.toLowerCase().includes(search.toLowerCase()));
-  const activeList = filtered.filter((t) => !t.inactive);
-  const inactiveList = filtered.filter((t) => t.inactive);
+  const filtered = useMemo(
+    () =>
+      threads.filter((t) =>
+        t.clientName.toLowerCase().includes(search.toLowerCase())
+      ),
+    [threads, search]
+  );
+  const activeList = useMemo(() => filtered.filter((t) => !t.inactive), [filtered]);
+  const inactiveList = useMemo(() => filtered.filter((t) => t.inactive), [filtered]);
 
-  const renderRow = (thread: Thread) => (
+  // Virtualize the active list (the bulk of rows).
+  const scrollParentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: activeList.length,
+    getScrollElement: () => scrollParentRef.current,
+    estimateSize: () => 68,
+    overscan: 8,
+  });
+
+  const ThreadRow = ({ thread, style }: { thread: Thread; style?: React.CSSProperties }) => (
     <div
-      key={thread.id}
+      style={style}
       className={cn(
         "group relative flex w-full items-start gap-3 rounded-lg px-3 py-3 transition-colors",
         activeThreadId === thread.id ? "bg-primary/10" : "hover:bg-secondary",
@@ -181,6 +234,7 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
         <UserAvatar
           src={thread.clientAvatar}
           name={thread.clientName}
+          size="list"
           className="h-9 w-9 text-xs mt-0.5"
         />
         <div className="flex-1 min-w-0">
@@ -251,6 +305,8 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
     );
   }
 
+  const empty = activeList.length === 0 && inactiveList.length === 0;
+
   return (
     <div className="flex flex-col h-full">
       <div className="px-3 py-3">
@@ -265,16 +321,44 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-0.5 px-2">
-        {activeList.length === 0 && inactiveList.length === 0 && (
+      <div ref={scrollParentRef} className="flex-1 overflow-y-auto px-2">
+        {empty && (
           <p className="text-sm text-muted-foreground py-8 text-center">
             {search ? "No matching clients" : "No active client threads"}
           </p>
         )}
-        {activeList.map(renderRow)}
 
+        {/* Virtualized active threads */}
+        {activeList.length > 0 && (
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((vi) => {
+              const thread = activeList[vi.index];
+              return (
+                <ThreadRow
+                  key={thread.id}
+                  thread={thread}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${vi.start}px)`,
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {/* Inactive section — usually short, render normally */}
         {inactiveList.length > 0 && (
-          <div className="mt-4">
+          <div className="mt-4 space-y-0.5">
             <button
               onClick={() => setShowInactive((v) => !v)}
               className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
@@ -290,7 +374,9 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
                 )}
               />
             </button>
-            {showInactive && inactiveList.map(renderRow)}
+            {showInactive && inactiveList.map((thread) => (
+              <ThreadRow key={thread.id} thread={thread} />
+            ))}
           </div>
         )}
       </div>
