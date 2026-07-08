@@ -21,6 +21,10 @@ const PerfHUD = () => {
     { queryKey: string; avgMs: number; calls: number }[]
   >([]);
   const [collapsed, setCollapsed] = useState(false);
+  const [longTasks, setLongTasks] = useState<{ count: number; maxMs: number }>({
+    count: 0,
+    maxMs: 0,
+  });
   const location = useLocation();
 
   // Detect the flag once on mount, then react to storage changes.
@@ -68,7 +72,34 @@ const PerfHUD = () => {
     return () => window.clearInterval(id);
   }, [enabled]);
 
+  // Observe long tasks (main-thread blocks >50ms) — the smoking gun for
+  // scroll freezes on iOS. Requires PerformanceObserver + 'longtask' entry
+  // support (Safari 16+; Chromium always).
+  useEffect(() => {
+    if (!enabled) return;
+    if (typeof PerformanceObserver === "undefined") return;
+    let observer: PerformanceObserver | null = null;
+    try {
+      observer = new PerformanceObserver((list) => {
+        setLongTasks((prev) => {
+          let count = prev.count;
+          let maxMs = prev.maxMs;
+          for (const entry of list.getEntries()) {
+            count++;
+            if (entry.duration > maxMs) maxMs = Math.round(entry.duration);
+          }
+          return { count, maxMs };
+        });
+      });
+      observer.observe({ entryTypes: ["longtask"] });
+    } catch {
+      // Safari <16 or unsupported — silently skip.
+    }
+    return () => observer?.disconnect();
+  }, [enabled]);
+
   if (!enabled) return null;
+
 
   return (
     <div
@@ -101,6 +132,21 @@ const PerfHUD = () => {
       </div>
       {!collapsed && (
         <>
+          <div style={{ opacity: 0.7, marginTop: 6, marginBottom: 4 }}>
+            Long tasks:{" "}
+            <span
+              style={{
+                color:
+                  longTasks.maxMs > 200
+                    ? "#f87171"
+                    : longTasks.maxMs > 100
+                    ? "#fbbf24"
+                    : "#4ade80",
+              }}
+            >
+              {longTasks.count} · max {longTasks.maxMs}ms
+            </span>
+          </div>
           <div style={{ opacity: 0.7, marginTop: 6, marginBottom: 4 }}>
             Top slow queries (avg ms)
           </div>
