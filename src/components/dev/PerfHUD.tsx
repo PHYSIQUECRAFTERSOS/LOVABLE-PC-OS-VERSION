@@ -21,6 +21,10 @@ const PerfHUD = () => {
     { queryKey: string; avgMs: number; calls: number }[]
   >([]);
   const [collapsed, setCollapsed] = useState(false);
+  const [longTasks, setLongTasks] = useState<{ count: number; maxMs: number }>({
+    count: 0,
+    maxMs: 0,
+  });
   const location = useLocation();
 
   // Detect the flag once on mount, then react to storage changes.

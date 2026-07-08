@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { MessageSquare, Users, Megaphone } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 
 interface Conversation {
   id: string;
@@ -19,9 +18,12 @@ interface ConversationListProps {
 
 const ConversationList = ({ activeId, onSelect }: ConversationListProps) => {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<(Conversation & { otherName?: string; lastMessage?: string; unread?: number })[]>([]);
+  const [conversations, setConversations] = useState<
+    (Conversation & { otherName?: string; lastMessage?: string; unread?: number })[]
+  >([]);
+  const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     if (!user) return;
 
     const { data: participations } = await supabase
@@ -34,85 +36,108 @@ const ConversationList = ({ activeId, onSelect }: ConversationListProps) => {
       return;
     }
 
-    const convIds = participations.map(p => p.conversation_id);
+    const convIds = participations.map((p) => p.conversation_id);
     const { data: convos } = await supabase
       .from("conversations")
-      .select("*")
+      .select("id, type, name, updated_at")
       .in("id", convIds)
       .order("updated_at", { ascending: false });
 
-    if (!convos) { setConversations([]); return; }
+    if (!convos) {
+      setConversations([]);
+      return;
+    }
 
-    // Enrich with other participant names for direct chats and last messages
-    const enriched = await Promise.all(convos.map(async (conv) => {
-      let otherName = conv.name;
+    // ── Batch all secondary reads. Was doing 3-4 queries per convo. ──
+    const directConvIds = convos.filter((c) => c.type === "direct").map((c) => c.id);
 
-      if (conv.type === "direct") {
-        const { data: parts } = await supabase
-          .from("conversation_participants")
-          .select("user_id")
-          .eq("conversation_id", conv.id)
-          .neq("user_id", user.id);
-        if (parts && parts.length > 0) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", parts[0].user_id)
-            .single();
-          otherName = profile?.full_name || "Unnamed";
-        }
-      }
-
-      // Last message
-      const { data: lastMsg } = await supabase
+    const [otherPartsRes, allMsgsRes, readsRes] = await Promise.all([
+      directConvIds.length
+        ? supabase
+            .from("conversation_participants")
+            .select("conversation_id, user_id")
+            .in("conversation_id", directConvIds)
+            .neq("user_id", user.id)
+        : Promise.resolve({ data: [] as any[] }),
+      supabase
         .from("messages")
-        .select("content, created_at")
-        .eq("conversation_id", conv.id)
+        .select("id, conversation_id, content, sender_id, created_at")
+        .in("conversation_id", convIds)
         .order("created_at", { ascending: false })
-        .limit(1);
+        .limit(Math.max(convIds.length * 6, 200)),
+      supabase
+        .from("message_reads")
+        .select("message_id")
+        .eq("user_id", user.id),
+    ]);
 
-      // Unread count
-      const { data: allMsgs } = await supabase
-        .from("messages")
-        .select("id")
-        .eq("conversation_id", conv.id)
-        .neq("sender_id", user.id);
-
-      const msgIds = (allMsgs || []).map(m => m.id);
-      let unread = 0;
-      if (msgIds.length > 0) {
-        const { data: reads } = await supabase
-          .from("message_reads")
-          .select("message_id")
-          .eq("user_id", user.id)
-          .in("message_id", msgIds);
-        unread = msgIds.length - (reads?.length || 0);
+    const otherUserIdByConv: Record<string, string> = {};
+    (otherPartsRes.data || []).forEach((p: any) => {
+      if (!otherUserIdByConv[p.conversation_id]) {
+        otherUserIdByConv[p.conversation_id] = p.user_id;
       }
+    });
 
+    const otherUserIds = [...new Set(Object.values(otherUserIdByConv))];
+    const { data: profiles } = otherUserIds.length
+      ? await supabase.from("profiles").select("user_id, full_name").in("user_id", otherUserIds)
+      : { data: [] as any[] };
+
+    const nameById: Record<string, string> = {};
+    (profiles || []).forEach((p: any) => {
+      nameById[p.user_id] = p.full_name || "Unnamed";
+    });
+
+    // Latest message per conversation + all non-me message ids for unread calc.
+    const latestByConv: Record<string, { content: string; created_at: string }> = {};
+    const nonMeMsgsByConv: Record<string, string[]> = {};
+    (allMsgsRes.data || []).forEach((m: any) => {
+      if (!latestByConv[m.conversation_id]) {
+        latestByConv[m.conversation_id] = { content: m.content, created_at: m.created_at };
+      }
+      if (m.sender_id !== user.id) {
+        (nonMeMsgsByConv[m.conversation_id] ||= []).push(m.id);
+      }
+    });
+
+    const readSet = new Set((readsRes.data || []).map((r: any) => r.message_id));
+
+    const enriched = convos.map((conv) => {
+      const otherId = otherUserIdByConv[conv.id];
+      const otherName = conv.type === "direct" ? nameById[otherId] || conv.name : conv.name;
+      const nonMe = nonMeMsgsByConv[conv.id] || [];
+      const unread = nonMe.filter((id) => !readSet.has(id)).length;
       return {
         ...conv,
-        otherName,
-        lastMessage: lastMsg?.[0]?.content,
+        otherName: otherName ?? undefined,
+        lastMessage: latestByConv[conv.id]?.content,
         unread,
       };
-    }));
+    });
 
     setConversations(enriched);
-  };
+  }, [user]);
+
+  const scheduleRefetch = useCallback(() => {
+    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+    refetchTimerRef.current = setTimeout(fetchConversations, 400);
+  }, [fetchConversations]);
 
   useEffect(() => {
     fetchConversations();
 
-    // Subscribe to new messages to refresh list
     const channel = supabase
       .channel("conv-list-updates")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => {
-        fetchConversations();
+        scheduleRefetch();
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [user]);
+    return () => {
+      supabase.removeChannel(channel);
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+    };
+  }, [fetchConversations, scheduleRefetch]);
 
   const getIcon = (type: string) => {
     if (type === "group") return Users;
