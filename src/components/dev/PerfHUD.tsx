@@ -72,7 +72,34 @@ const PerfHUD = () => {
     return () => window.clearInterval(id);
   }, [enabled]);
 
+  // Observe long tasks (main-thread blocks >50ms) — the smoking gun for
+  // scroll freezes on iOS. Requires PerformanceObserver + 'longtask' entry
+  // support (Safari 16+; Chromium always).
+  useEffect(() => {
+    if (!enabled) return;
+    if (typeof PerformanceObserver === "undefined") return;
+    let observer: PerformanceObserver | null = null;
+    try {
+      observer = new PerformanceObserver((list) => {
+        setLongTasks((prev) => {
+          let count = prev.count;
+          let maxMs = prev.maxMs;
+          for (const entry of list.getEntries()) {
+            count++;
+            if (entry.duration > maxMs) maxMs = Math.round(entry.duration);
+          }
+          return { count, maxMs };
+        });
+      });
+      observer.observe({ entryTypes: ["longtask"] });
+    } catch {
+      // Safari <16 or unsupported — silently skip.
+    }
+    return () => observer?.disconnect();
+  }, [enabled]);
+
   if (!enabled) return null;
+
 
   return (
     <div
