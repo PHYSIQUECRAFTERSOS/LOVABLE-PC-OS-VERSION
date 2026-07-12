@@ -20,7 +20,12 @@ async function clearNativeCache() {
   }
 }
 
-// Auto-update: detect new service worker and reload to latest version
+// ─── Fresh-build discovery ───────────────────────────────────────────────────
+// Combines two signals so a new deploy is picked up without a manual clear:
+//   1) Ask the browser to check /sw.js bytes (registration.update()).
+//   2) Poll /version.json (no-store) and compare to the running __BUILD_ID__.
+// Runs on: ready, 5-min interval, visibilitychange -> visible, window focus.
+// The existing updatefound -> activated -> reload flow does the actual swap.
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.ready.then((registration) => {
     registration.addEventListener("updatefound", () => {
@@ -34,15 +39,46 @@ if ("serviceWorker" in navigator) {
       });
     });
 
-    const checkForUpdates = () => {
+    const safeUpdate = () => {
       try {
         void registration.update()?.catch(() => undefined);
       } catch {
-        return;
+        /* noop */
       }
     };
 
-    setInterval(checkForUpdates, 5 * 60 * 1000);
+    const checkVersion = async () => {
+      try {
+        const res = await fetch("/version.json", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { buildId?: string };
+        if (data?.buildId && data.buildId !== __BUILD_ID__) {
+          // Deployed build differs from the one running in this tab. Ask the
+          // browser to fetch a fresh /sw.js — the updatefound path above then
+          // reloads the tab once the new worker activates.
+          safeUpdate();
+        }
+      } catch {
+        /* offline or version.json missing — ignore */
+      }
+    };
+
+    const poll = () => {
+      safeUpdate();
+      void checkVersion();
+    };
+
+    // Kick off immediately.
+    poll();
+
+    // Periodic floor.
+    setInterval(poll, 5 * 60 * 1000);
+
+    // User returns to the tab / app.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") poll();
+    });
+    window.addEventListener("focus", poll);
   });
 }
 
