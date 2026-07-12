@@ -6,6 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ShieldCheck } from "lucide-react";
+import {
+  AUTH_ACTION_TIMEOUT_MS,
+  AuthTimeoutError,
+  clearLocalAuthState,
+  withAuthTimeout,
+} from "@/lib/authRecovery";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -19,15 +25,34 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: signInData, error } = await withAuthTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        AUTH_ACTION_TIMEOUT_MS,
+        "Sign-in took too long. I reset the saved session; please try again."
+      );
       if (error) throw error;
 
       // Ensure session is hydrated before redirecting to avoid bounce/spinner races
-      const session = signInData?.session ?? (await supabase.auth.getSession()).data.session;
+      const session = signInData?.session ?? (await withAuthTimeout(
+        supabase.auth.getSession(),
+        5000,
+        "Sign-in succeeded, but session confirmation took too long."
+      )).data.session;
       if (!session) throw new Error("Sign-in succeeded but session was not restored. Please try again.");
 
       navigate("/dashboard");
     } catch (error: any) {
+      if (error instanceof AuthTimeoutError) {
+        clearLocalAuthState();
+        toast({
+          title: "Sign-in reset",
+          description: error.message,
+          variant: "destructive",
+        });
+        window.setTimeout(() => window.location.replace("/auth?authReset=1"), 700);
+        return;
+      }
+
       toast({
         title: "Error",
         description: error.message,
