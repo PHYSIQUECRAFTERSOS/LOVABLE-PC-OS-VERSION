@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ReSignPrompt from "@/components/signing/ReSignPrompt";
+import { resetAuthAndRedirect } from "@/lib/authRecovery";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -121,10 +122,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
           </Button>
           <Button
             variant="destructive"
-            onClick={async () => {
-              await supabase.auth.signOut();
-              window.location.href = "/auth";
-            }}
+            onClick={() => resetAuthAndRedirect("/auth?authReset=1")}
           >
             Sign in again
           </Button>
@@ -159,10 +157,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
           </Button>
           <Button
             variant="destructive"
-            onClick={async () => {
-              await supabase.auth.signOut();
-              window.location.href = "/auth";
-            }}
+            onClick={() => resetAuthAndRedirect("/auth?authReset=1")}
           >
             Sign in again
           </Button>

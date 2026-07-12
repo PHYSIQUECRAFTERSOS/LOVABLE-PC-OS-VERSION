@@ -9,6 +9,12 @@ import {
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import {
+  AUTH_RESTORE_TIMEOUT_MS,
+  AuthTimeoutError,
+  clearLocalAuthState,
+  withAuthTimeout,
+} from "@/lib/authRecovery";
 
 type AppRole = "admin" | "coach" | "client" | "manager";
 
@@ -103,12 +109,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select("role")
         .eq("user_id", userId);
 
-      // Increase timeout to 8s to avoid false negatives on slow networks
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("role_fetch_timeout")), 8000);
-      });
-
-      const { data } = (await Promise.race([rolePromise, timeoutPromise])) as {
+      const { data } = (await withAuthTimeout(
+        rolePromise,
+        8000,
+        "Role lookup took too long."
+      )) as {
         data: { role: string }[] | null;
       };
 
@@ -261,6 +266,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     mountedRef.current = true;
+    let cancelled = false;
+    let subscription: { unsubscribe: () => void } | null = null;
 
     const enqueueResolution = (incomingSession: Session | null) => {
       queueRef.current = queueRef.current
@@ -274,30 +281,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
     };
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, incomingSession) => {
-      console.log("[auth] onAuthStateChange:", event);
-      enqueueResolution(incomingSession);
-    });
+    const subscribeToAuthChanges = () => {
+      if (cancelled || subscription) return;
 
-    supabase.auth
-      .getSession()
+      const { data } = supabase.auth.onAuthStateChange((event, incomingSession) => {
+        console.log("[auth] onAuthStateChange:", event);
+        // Supabase auth callbacks must stay synchronous. Defer all follow-up
+        // database/auth work so a near-expiry mobile session cannot deadlock
+        // the auth lock and strand users on the startup spinner.
+        window.setTimeout(() => enqueueResolution(incomingSession), 0);
+      });
+
+      subscription = data.subscription;
+    };
+
+    withAuthTimeout(
+      supabase.auth.getSession(),
+      AUTH_RESTORE_TIMEOUT_MS,
+      "Saved session restore timed out."
+    )
       .then(({ data: { session: currentSession } }) => {
+        if (cancelled) return;
         console.log("[auth] getSession:", currentSession ? "has session" : "no session");
         enqueueResolution(currentSession);
       })
       .catch((error) => {
         console.error("[auth] getSession failed:", error);
         if (mountedRef.current) {
+          if (error instanceof AuthTimeoutError) {
+            clearLocalAuthState();
+          }
+          enqueueResolution(null);
           setLoading(false);
           setRoleLoading(false);
         }
+      })
+      .finally(() => {
+        subscribeToAuthChanges();
       });
 
     return () => {
+      cancelled = true;
       mountedRef.current = false;
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, [resolveSession]);
 
