@@ -10,14 +10,14 @@ export class AuthTimeoutError extends Error {
   }
 }
 
-export function withAuthTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+export function withAuthTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, message: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new AuthTimeoutError(message)), timeoutMs);
   });
 
-  return Promise.race([promise, timeout]).finally(() => {
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => {
     if (timer) clearTimeout(timer);
   });
 }
