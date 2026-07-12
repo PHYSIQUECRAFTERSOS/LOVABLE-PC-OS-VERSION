@@ -1,10 +1,51 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import fs from "fs";
 import { componentTagger } from "lovable-tagger";
+
+// Stable per build. Exposed as `__BUILD_ID__` in app code and written to
+// dist/version.json so the running app can detect a new deploy by polling.
+const BUILD_ID =
+  process.env.VITE_BUILD_ID ||
+  process.env.COMMIT_REF ||
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  String(Date.now());
+
+// Emit /version.json at build time so the client can poll it with no-store.
+function versionJsonPlugin(): Plugin {
+  return {
+    name: "pc-version-json",
+    apply: "build",
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "version.json",
+        source: JSON.stringify({ buildId: BUILD_ID, builtAt: Date.now() }),
+      });
+    },
+    closeBundle() {
+      // Belt-and-suspenders for hosts that skip emitFile assets.
+      try {
+        const outDir = path.resolve(__dirname, "dist");
+        if (fs.existsSync(outDir)) {
+          fs.writeFileSync(
+            path.join(outDir, "version.json"),
+            JSON.stringify({ buildId: BUILD_ID, builtAt: Date.now() }),
+          );
+        }
+      } catch {
+        // best-effort
+      }
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   server: {
     host: "::",
     port: 8080,
@@ -12,7 +53,7 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), mode === "development" && componentTagger(), versionJsonPlugin()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
