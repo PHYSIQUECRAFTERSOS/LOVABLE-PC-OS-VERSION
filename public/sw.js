@@ -1,12 +1,15 @@
 // Physique Crafters service worker
 // Strategy:
 //   - Never touch backend/API traffic (Supabase REST, auth, storage, functions).
-//   - HTML documents: network-first with cache fallback (auto-picks up new builds).
-//   - Hashed static assets (JS/CSS/fonts/images with a content hash in the name):
-//     stale-while-revalidate — instant from cache, updated in the background.
-//   - Everything else same-origin: network-first with cache fallback.
+//   - HTML navigations: NETWORK-ONLY (never cached) with a minimal offline fallback.
+//     This kills the "stale HTML -> stale hashed asset URL" chain that caused
+//     intermittent old-build reloads.
+//   - /sw.js, /version.json, /manifest.json: always network, never cached.
+//   - Hashed static assets (JS/CSS/fonts/images with a content hash): stale-while-
+//     revalidate. Safe because a new build produces new URLs (cache miss).
+//   - Other same-origin GETs: network-first with cache fallback.
 // Bump CACHE_NAME to invalidate previously cached shells.
-const CACHE_NAME = 'physique-crafters-v12';
+const CACHE_NAME = 'physique-crafters-v13';
 
 function isBackendOrApiRequest(url) {
   return (
@@ -22,15 +25,21 @@ function isBackendOrApiRequest(url) {
 // new URL, so stale content can never be served for a fresh deploy.
 const HASHED_ASSET_RE = /-[0-9a-f]{8,}\.(?:js|mjs|css|woff2?|ttf|otf|png|jpg|jpeg|webp|avif|svg|gif|ico)$/i;
 
+// Deploy heartbeat + control files — always fetch fresh.
+const NEVER_CACHE_PATHS = new Set(['/version.json', '/manifest.json', '/sw.js']);
+
 self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((names) =>
-      Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
-    ).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((names) =>
+        Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))),
+      )
+      .then(() => self.clients.claim()),
   );
 });
 
@@ -52,6 +61,21 @@ async function staleWhileRevalidate(request) {
   return cached || network;
 }
 
+const OFFLINE_HTML =
+  '<html><body style="background:#0a0a0a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><p>You appear to be offline. Please reconnect and reopen the app.</p></body></html>';
+
+async function networkOnlyNavigation(request) {
+  try {
+    // Force a fresh HTML fetch every navigation. No cache read, no cache write.
+    return await fetch(request, { cache: 'no-store' });
+  } catch {
+    return new Response(OFFLINE_HTML, {
+      status: 503,
+      headers: { 'Content-Type': 'text/html' },
+    });
+  }
+}
+
 async function networkFirst(request) {
   const cache = await caches.open(CACHE_NAME);
   try {
@@ -60,15 +84,9 @@ async function networkFirst(request) {
       cache.put(request, res.clone()).catch(() => {});
     }
     return res;
-  } catch (err) {
+  } catch {
     const cached = await cache.match(request);
     if (cached) return cached;
-    if (request.mode === 'navigate') {
-      return new Response(
-        '<html><body style="background:#0a0a0a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><p>You appear to be offline. Please reconnect and reopen the app.</p></body></html>',
-        { status: 503, headers: { 'Content-Type': 'text/html' } }
-      );
-    }
     return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
   }
 }
@@ -81,13 +99,29 @@ self.addEventListener('fetch', (event) => {
   // Never intercept API/backend requests or cross-origin.
   if (url.origin !== self.location.origin || isBackendOrApiRequest(url)) return;
 
-  // Hashed immutable assets → stale-while-revalidate (instant repeat loads).
+  // HTML navigations -> always network, never cached. This is the fix for
+  // intermittent stale builds after reload.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(networkOnlyNavigation(event.request));
+    return;
+  }
+
+  // Deploy-heartbeat + control files -> always network.
+  if (NEVER_CACHE_PATHS.has(url.pathname)) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' }).catch(
+        () => new Response('', { status: 503 }),
+      ),
+    );
+    return;
+  }
+
+  // Hashed immutable assets -> stale-while-revalidate (instant repeat loads).
   if (HASHED_ASSET_RE.test(url.pathname)) {
     event.respondWith(staleWhileRevalidate(event.request));
     return;
   }
 
-  // Everything else (HTML shell, unhashed public files) → network-first so new
-  // builds get picked up immediately without a manual reload.
+  // Everything else (unhashed public files) -> network-first with cache fallback.
   event.respondWith(networkFirst(event.request));
 });
