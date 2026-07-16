@@ -14,7 +14,6 @@ const ComplianceScore = ({ clientId }: { clientId?: string }) => {
     queryKey: `compliance-${targetId}`,
     enabled: !!targetId,
     staleTime: 3 * 60 * 1000,
-    timeout: 5000,
     fallback: { score: 0, streak: 0 },
     queryFn: async (signal) => {
       if (!targetId) throw new Error("No target");

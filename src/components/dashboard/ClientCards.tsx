@@ -24,7 +24,6 @@ const ClientCards = () => {
     queryKey: `coach-clients-${user?.id}`,
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
-    timeout: 5000,
     fallback: [],
     queryFn: async (signal) => {
       if (!user) return [];

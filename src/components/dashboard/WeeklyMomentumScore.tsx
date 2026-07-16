@@ -15,7 +15,6 @@ const WeeklyMomentumScore = () => {
     queryKey: `weekly-score-${user?.id}-${today}`,
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
-    timeout: 5000,
     fallback: 0,
     queryFn: async (signal) => {
       if (!user) return 0;
