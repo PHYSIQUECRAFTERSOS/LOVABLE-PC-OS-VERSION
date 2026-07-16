@@ -1,56 +1,44 @@
+## Diagnosis
 
-# Stale-Build Fix — Approved Implementation Plan (A + B + C + CDN header)
+The rest-timer "ding" is silent on Android because the audio path is hard-coded to an **iOS-only** native plugin.
 
-## Root cause (confirmed)
-On a normal reload, the browser can serve `index.html` from its own HTTP cache before the SW wakes. The stale HTML points at old hashed bundle URLs, which the SW's `staleWhileRevalidate` returns from its own cache. New SW discovery is lazy (5-min interval only), and `/sw.js` itself may be edge-cached, so the browser's native SW update check can also see stale bytes for up to 24h.
+**Flow today** (`src/utils/restTimerAudio.ts`):
+- `isNative() === true` on both iOS and Android.
+- Foreground: calls `AudioMixPlugin.playRestTimerCue()`.
+- Background: schedules a `LocalNotifications` entry with sound `rest-timer-complete.caf`.
 
-## Changes
+**Why it breaks on Android:**
+1. `AudioMixPlugin` is defined only in `ios-plugin/AudioMixPlugin.swift` and registered only in `ios-plugin/MainViewController.swift`. There is no Kotlin counterpart in `android-plugin/`. On Android, `registerPlugin("AudioMixPlugin")` falls through to the web fallback, which throws `UNIMPLEMENTED`. The catch in `playRestTimerCue` retries once, fails again, and logs — no sound.
+2. The HTMLAudioElement fallback (`/sounds/rest-timer-complete.mp3`) is only reached when `isNative() === false`, so Android never uses it even though the Capacitor WebView could play it fine.
+3. The background `LocalNotifications` sound is `rest-timer-complete.caf` — a Core Audio Format file iOS-only. Android needs an `.mp3`/`.ogg` placed in `android/app/src/main/res/raw/` and referenced without extension. Result: no background ding either.
 
-### A. `public/sw.js` — stop caching HTML
-- Bump `CACHE_NAME` to `physique-crafters-v13` (evicts old entries on activate).
-- New `NEVER_CACHE_PATHS` set: `/version.json`, `/manifest.json`, `/sw.js` → always `fetch(..., { cache: 'no-store' })`.
-- Navigation requests (`request.mode === 'navigate'`) → **network-only** with `cache: 'no-store'`, no cache read/write. Offline fallback unchanged.
-- Hashed assets → still `staleWhileRevalidate` (safe: new hash = new URL).
-- Other same-origin GETs → still `networkFirst`.
-- API/backend + cross-origin pass-through unchanged.
+The client reports the foreground case ("when the timer hits zero"), so fixing the foreground path restores the ding immediately. Background is a smaller follow-up.
 
-### B. `src/main.tsx` — aggressive update discovery
-- Keep existing `updatefound` → `activated` → `location.reload()` flow (unchanged).
-- Call `registration.update()` **immediately after `ready`**.
-- Call `registration.update()` on `document.visibilitychange` → visible.
-- Call `registration.update()` on `window.focus`.
-- Keep the 5-min interval as a floor.
-- Add a lightweight `/version.json` heartbeat: on boot + on visible/focus, `fetch('/version.json', { cache: 'no-store' })`; if `buildId` differs from `__BUILD_ID__`, trigger `registration.update()` (SW path then reloads on activate).
+## Fix Plan
 
-### C. Build-ID injection
-- `vite.config.ts`: compute `BUILD_ID` (env `VITE_BUILD_ID` / `COMMIT_REF` / `VERCEL_GIT_COMMIT_SHA` / `Date.now()` fallback). Add `define: { __BUILD_ID__: JSON.stringify(BUILD_ID) }`. Add a small Vite plugin that emits `dist/version.json` with `{ buildId, builtAt }`.
-- `src/vite-env.d.ts`: declare `__BUILD_ID__`.
-- No `index.html` change needed — the check runs from `main.tsx`.
+### 1. Split platform routing in `src/utils/restTimerAudio.ts`
+- Add `isIOS()` and `isAndroid()` helpers using `Capacitor.getPlatform()`.
+- **Preload:**
+  - iOS: keep current `AudioMixPlugin.enableMixing()` + `preloadRestTimerCue()`.
+  - Android + Web: build the `HTMLAudioElement` once with `preload = "auto"` and `load()`. (Same code that already exists in the web branch — just include Android in it.)
+- **Play (`playCompletionSound`):**
+  - iOS: unchanged (AudioMixPlugin path).
+  - Android + Web: use the shared `HTMLAudioElement`, reset `currentTime = 0`, call `.play()`. This works in the Capacitor Android WebView because timer start is a user gesture and the audio element is created ahead of time (already the pattern in the knowledge snippet about Android async audio).
 
-### D. `/sw.js` CDN cache header (per your addition)
-- Lovable hosting sets response headers; there is no project-level CDN config file I can commit that will guarantee a specific header on `/sw.js` for this host. I will:
-  1. Ship the code changes above (which make the app deploy-safe even if `/sw.js` byte-check is slow — the `/version.json` heartbeat + focus/visibility `update()` calls force discovery).
-  2. In the changelog, explicitly document that `/sw.js` should be served with `Cache-Control: no-cache` (or `max-age=0`) and verify what Lovable hosting currently returns via `curl -I https://app.physiquecrafters.com/sw.js` after deploy. If the header is wrong, we escalate to hosting — no in-repo fix can override it.
+### 2. Background path on Android (`scheduleBackgroundCompletion`)
+- iOS: unchanged, keep `rest-timer-complete.caf`.
+- Android: pass sound as `"rest_timer_complete"` (no extension, lowercase + underscores per Android resource rules). Only include the `sound` field if the raw resource is present; otherwise fall back to the default notification sound so we still get an audible cue on lock screen.
+- Document (in code comment) the one-time asset copy the user must do after `npx cap sync android`: place `rest-timer-complete.mp3` at `android/app/src/main/res/raw/rest_timer_complete.mp3`. If that file is missing, notification just uses the default system sound — still audible, no crash.
 
-## No-touch list (guardrails, will be verified in changelog)
-- `localStorage` read/write anywhere — untouched.
-- `ios-plugin/CacheBusterPlugin.swift` — untouched.
-- `src/lib/dashboardSnapshot.ts` and all hydration paths — untouched.
-- `src/hooks/useAuth.tsx`, `src/lib/authRecovery.ts` — untouched.
-- Capacitor branch in `index.html` (SW unregister) — untouched.
+### 3. No changes to
+- `InlineRestTimer.tsx` (call sites already correct).
+- `ios-plugin/*` (iOS behavior preserved).
+- `useAuth`, CacheBuster, service worker, localStorage — untouched per prior guardrails.
 
-## Files changed
-| File | Change |
-|---|---|
-| `public/sw.js` | Navigation network-only; never-cache list; CACHE_NAME v13 |
-| `src/main.tsx` | `update()` on ready/visible/focus; `/version.json` heartbeat |
-| `vite.config.ts` | `__BUILD_ID__` define + `version.json` emit plugin |
-| `src/vite-env.d.ts` | `__BUILD_ID__` declaration |
+## Verification
+- Web preview: confirm foreground ding via `playCompletionSound` in dev.
+- Android: after next build, timer finish in foreground plays `/sounds/rest-timer-complete.mp3` through WebView. Background plays default system notification sound until the raw resource is added.
+- iOS: regression-check that `AudioMixPlugin` path is untouched (same code, just guarded by `isIOS()` instead of `isNative()`).
 
-## Post-implementation deliverables
-1. File-by-file changelog.
-2. Grep confirmation that no `localStorage` / snapshot / auth code was touched.
-3. `curl -I` output for `/sw.js` after deploy, with a clear pass/fail on the cache header.
-4. Verification steps for desktop; you verify on iOS.
-
-**Approve to switch to build mode and execute.**
+## Files touched
+- `src/utils/restTimerAudio.ts` — platform-split routing (only file with logic changes).
