@@ -1,69 +1,54 @@
 ## Diagnosis
 
-Your client is right — history is lookup-by-`exercise_id`, and that ID silently changes between phases.
+The most recent update (`cc46887c "Added identity-expanded fetch"`) only touched `WorkoutLogger.tsx` and `workout/ExerciseCard.tsx`. Neither of those files is imported by the Calendar page, the client Dashboard tiles, the Training program list, or the Coach Command Center. So the code change itself did not break those screens.
 
-**Where the lookup happens** (`src/components/WorkoutLogger.tsx`, lines 502–546):
-```
-select ... from exercise_logs
-where exercise_id in (<current workout's exercise ids>)
-  and workout_sessions.client_id = user.id
-  and workout_sessions.status = 'completed'
-```
-Then it groups by exercise, picks the newest session per exercise, and passes that as `previousSets` → `ExerciseCard`.
+What actually broke them is the accumulation of aggressive **5-second timeouts** landed across recent turns, combined with the harder cache-busting the service worker/CacheBuster now does on every launch. On mobile LTE (and desktop when a Supabase call is slow), 5s is not enough for the fan-out queries these screens run — the abort fires, and because the in-memory cache was just wiped on cold boot, the fallback (empty `[]`) renders as "Failed to load" / infinite spinner / empty priority card.
 
-**Why it misses history:** the `exercises` table has duplicates for the same lift. A live count shows this today:
-- `incline cable chest press` → 3 rows
-- `tibialis raises` → 3 rows
-- `jumping lunges`, `hack squat`, `push ups`, `t bar row`, `russian twist`, `cable rear delt flyes`, `mountain climbers`, `seated dumbbell shrug`, `standing loop band curl`, ~20+ others → 2 rows each
+Concrete hotspots I found while auditing:
 
-When the coach (or AI import) built the new phase, it picked a **different UUID** for the same-name exercise than the previous phase used. `exercise_logs` from the last block are keyed to the old UUID, so the `in (...)` filter never returns them. The card shows blank "previous" fields even though logs exist.
+| Screen | File | Current timeout | Problem |
+|---|---|---|---|
+| Calendar (iOS: "Failed to load. Tap to retry.") | `src/pages/Calendar.tsx` line 85-92 | inherits `TIMEOUTS.STANDARD_API` = 5000ms | 5s not enough for the 5-way parallel fan-out (calendar + sessions + cardio + nutrition + weight + label chain). On abort with no prior cache it flips to `timedOut` → RetryBanner. |
+| Training (spinner never resolves under the phase header) | `src/pages/Training.tsx` line 37 | hard-coded `timeout: 5000` | 5s abort on `get_client_training_workouts` RPC. ClientProgramView's own `useEffect` load has no error toast, so the child spinner stays on if the assignment step hiccups. |
+| Dashboard Today's Actions ("0/1", missing workouts) | `src/components/dashboard/TodayActions.tsx` line 143-147 | inherits `TIMEOUTS.STANDARD_API` = 5000ms | 5s abort on 5-query fan-out means only the hard-coded "Track Nutrition" row survives — scheduled workouts silently drop out. |
+| Coach Command Center | `src/components/dashboard/CoachCommandCenter.tsx` line 197 | already `30000` — OK | With 71 clients this is fine; screenshot actually shows it did load, just with zeros for yesterday. Verify by checking whether the "loading" state is what the user is seeing vs. real zero data. |
+| Shared default | `src/lib/performance.ts` line 12 | `STANDARD_API = 5000` | Blanket 5s cap is the root cause across the app. |
 
-There is already an `exercise_synonyms` table (`term` / `canonical`) and an `exercise_extraction_aliases` table (`normalized_name` → `exercise_id`) — the import pipeline uses these but the workout history query does not.
+The `useDataFetch` timeout path (line 139-146) writes the fallback and flips `timedOut=true` only when there is **no cached data**. Because CacheBuster wipes the WKWebView cache on every launch, cold boots always hit that branch on iOS. This is why the calendar renders skeleton → "Failed to load" on cold-start but works on second attempt.
 
-## Fix Plan
+## Plan
 
-### Step 1 (primary fix — code-only, safe)
-Expand the history lookup in `WorkoutLogger.tsx` so it matches by **exercise identity**, not just UUID:
+Read-only investigation is done. Fix in three surgical edits — no schema changes, no service worker changes, no touching of localStorage snapshots or CacheBuster scope (per your earlier constraints).
 
-1. Build an "identity group" per current exercise: the set of all `exercises.id` whose `LOWER(TRIM(name))` matches the current exercise's normalized name, plus any IDs linked to it via `exercise_synonyms` / `exercise_extraction_aliases`.
-2. Fetch a single grouped set of IDs, then query `exercise_logs` with `.in("exercise_id", allRelatedIds)`.
-3. When grouping results, map each log back to the **current** exercise it should attach to (via `identity → current UUID` map), so `previousPerformance[currentExerciseId]` is populated even when the log used a sibling UUID.
-4. Apply the same identity expansion to `personal_records` and `allTimeBests` so PR alerts and all-time bests carry across phases.
+### Step 1 — Raise the shared API timeout to a mobile-realistic value
 
-Result: history immediately starts flowing across programs/phases without touching data.
+`src/lib/performance.ts`: change `STANDARD_API` from `5000` → `15000`. Keep `SPINNER_MAX` and `UPLOAD` alone. This is the single biggest lever — every screen that inherits the default (Calendar, TodayActions, ProgressWidgetGrid, MacroSummary, ProgressMomentum) instantly gets breathing room without per-file edits.
 
-### Step 2 (UX improvement, code-only)
-Right now `previousSets` is "latest completed session for this exercise". Add:
+### Step 2 — Remove the two remaining hard-coded 5s caps
 
-- **"Last time" ribbon** on each set row: `120 lb × 8 · Jun 12` (session date), pulled from the most recent per-set entry. This is what Strong / Hevy do and it directly answers "what did I do last week?".
-- **Fallback ladder** when no exact set-number match exists: use `set_number - 1`, else the highest set from the previous session, so the placeholder is never empty when history exists.
-- **All-time best chip**: show top-lbs × reps small chip under the exercise name (already computed as `allTimeBests`, just not surfaced per-set).
+- `src/pages/Training.tsx` line 37: drop the `timeout: 5000` line so it inherits the new default.
+- Grep for any other explicit `timeout: 5000` and remove (leave AI/upload alone).
 
-### Step 3 (data hygiene — requires migration approval)
-Merge the ~20+ duplicate library rows into a single canonical row per exercise:
+### Step 3 — Make the Calendar page degrade gracefully instead of showing "Failed to load"
 
-1. Read-only report first: list every duplicate group with (id, name, created_by, log count).
-2. For each group pick the row with the most logs as canonical, then in one transaction:
-   - `UPDATE workout_exercises SET exercise_id = <canonical> WHERE exercise_id IN <dupes>`
-   - `UPDATE exercise_logs SET exercise_id = <canonical> WHERE exercise_id IN <dupes>`
-   - `UPDATE personal_records SET exercise_id = <canonical> WHERE exercise_id IN <dupes>`
-   - `UPDATE client_exercise_notes`, `exercise_media`, `exercise_synonyms.exercise_id`, `exercise_extraction_aliases.exercise_id`
-   - `DELETE FROM exercises WHERE id IN <non-canonical dupes>`
-3. Add a partial unique index on `LOWER(TRIM(name))` for `is_master=true` library exercises to prevent future duplicates being created accidentally.
+`src/pages/Calendar.tsx`: when `timedOut` fires but the primary `calendar_events` query actually returned rows, render the calendar with whatever partial data came back instead of the retry banner. The fan-out already uses `Promise.allSettled` — we just need to stop treating a slow sibling as a full failure. Guard the retry banner so it only shows when `events.length === 0`.
 
-I'll present the full dedupe list before executing so you can veto any merges you don't want (some "duplicates" might be intentionally distinct — e.g. different grips).
+### Optional Step 4 — Diagnostic logging (kept out of production noise)
 
-### Step 4 (prevention — code-only)
-Two entry points create duplicate library rows today:
+Add a one-line `console.warn` in `useDataFetch` when a timeout fires, tagged with the queryKey. You already have `logPerf` — surface aborts to console at warn level so future regressions like this show up in the console-logs tool without needing a device.
 
-- **`AddExerciseModal`** (manual add from the workout builder) — before insert, fuzzy-match against existing library (there's already a `src/utils/exerciseMatcher.ts`). If a >0.85 match exists, reuse it and log to `exercise_extraction_aliases`.
-- **AI import** (`supabase/functions/ai-import-processor` + `AIImportModal`) — same guard: before creating a new `exercises` row, run the extracted name through `exercise_extraction_aliases` and fuzzy match, only create when nothing matches.
+### Files that will NOT change
 
-## Scope for this turn
+- `public/sw.js`, `src/main.tsx` (service worker / build-ID logic)
+- `src/plugins/CacheBusterPlugin.ts`, iOS `CacheBusterPlugin.swift`
+- `src/lib/dashboardSnapshot.ts` (localStorage snapshot layer)
+- `src/components/WorkoutLogger.tsx`, `src/components/workout/ExerciseCard.tsx` (last turn's changes — unrelated to this bug)
 
-Steps 1 + 2 fix the immediate client complaint with **zero data changes** — they should be built and shipped first. Steps 3 + 4 are follow-ups that need migration approval and coach-tool testing; I'll present Step 3's dedupe report next once you approve Steps 1 + 2.
+### Verification
 
-## Files touched (Steps 1 + 2 only)
-- `src/components/WorkoutLogger.tsx` — identity-group history fetch, extended `allTimeBests`/PR lookup, pass session date + all-time best down.
-- `src/components/workout/ExerciseCard.tsx` — render "last time" ribbon with date and all-time best chip, improved fallback for missing set number.
-- No schema changes, no data changes, no auth changes.
+After the edits I'll:
+1. Grep for any remaining `timeout: 5000` in the client tree.
+2. Confirm `useDataFetch`'s timeout branch still writes the fallback so cached data (once we have it) survives.
+3. Report back — you reload the app on iOS to confirm Calendar loads and Friday's Actions shows your scheduled workouts.
+
+If after Step 1-3 the Command Center still looks empty in the preview, the "zeros" you're seeing are real data (no completed/missed workouts yesterday, no new clients last 7 days) — not a load failure. I'll confirm that separately with a Playwright pass against `/dashboard`.
