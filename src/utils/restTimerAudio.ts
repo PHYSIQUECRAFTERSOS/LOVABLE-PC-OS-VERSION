@@ -3,15 +3,22 @@
  *
  * SINGLE SOURCE OF TRUTH for the rest-timer completion sound.
  *
- * Two firing paths — both keyed to a wall-clock `endTime`:
- *   A. Foreground (native): our own AudioMixPlugin plays the bundled
- *      `rest-timer-complete.mp3` through an AVAudioPlayer that we own,
- *      with AVAudioSession forced to `.playback + .mixWithOthers`. This
- *      mixes with Spotify / Apple Music without pausing or ducking.
- *      Foreground (web): HTMLAudioElement.
- *   B. Background / locked screen: LocalNotifications scheduled at endTime
- *      with the bundled MP3 as notification sound. Cancelled the moment
- *      Path A successfully fires to prevent double-play.
+ * Platform routing:
+ *   - iOS (native): custom AudioMixPlugin plays the bundled MP3 through
+ *     an AVAudioPlayer with AVAudioSession `.playback + .mixWithOthers`
+ *     so audio layers over Spotify / Apple Music without ducking.
+ *   - Android (native) + Web/PWA: HTMLAudioElement pointed at the bundled
+ *     `/sounds/rest-timer-complete.mp3`. The Capacitor Android WebView
+ *     plays it fine as long as the element is created ahead of time
+ *     (during a user gesture) so the eventual `.play()` call is not
+ *     blocked by autoplay policy.
+ *
+ * Background / locked screen: LocalNotifications scheduled at endTime.
+ *   - iOS: bundled `rest-timer-complete.caf` at bundle root.
+ *   - Android: references `rest_timer_complete` (no extension) from
+ *     `android/app/src/main/res/raw/`. If that raw resource is absent,
+ *     Android falls back to the default system notification sound so the
+ *     user still hears an audible cue.
  *
  * We intentionally do NOT use @capacitor-community/native-audio — it
  * re-asserts AVAudioSession without .mixWithOthers and stops Spotify.
@@ -22,19 +29,32 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 import AudioMixPlugin from "@/plugins/AudioMixPlugin";
 
 const WEB_ASSET_URL = "/sounds/rest-timer-complete.mp3";
-// LocalNotifications iOS sound name — file must exist at bundle ROOT
-// (ios/App/App/rest-timer-complete.caf). Survives `cap copy`.
-// MUST be a .caf/.aiff/.wav with PCM/IMA4/μ-law/a-law under 30s — iOS
-// silently drops MP3 notification sounds, which is why the previous
-// rest-timer-complete.mp3 reference was inaudible in background.
-const NOTIFICATION_SOUND = "rest-timer-complete.caf";
+
+// iOS notification sound — must exist at ios bundle ROOT
+// (ios/App/App/rest-timer-complete.caf). MUST be .caf/.aiff/.wav under 30s;
+// iOS silently drops MP3 notification sounds.
+const IOS_NOTIFICATION_SOUND = "rest-timer-complete.caf";
+
+// Android notification sound — references res/raw/rest_timer_complete.mp3
+// (lowercase + underscores per Android resource naming rules). Pass the
+// resource name WITHOUT extension. If this raw resource is missing, we
+// omit the field entirely so Android uses the default notification sound.
+// One-time setup after `npx cap sync android`: copy
+// `public/sounds/rest-timer-complete.mp3` to
+// `android/app/src/main/res/raw/rest_timer_complete.mp3`.
+const ANDROID_NOTIFICATION_SOUND = "rest_timer_complete";
 
 let preloaded = false;
 let preloadPromise: Promise<void> | null = null;
 let notifPermissionRequested = false;
 let webAudio: HTMLAudioElement | null = null;
 
+const platform = () => Capacitor.getPlatform();
+const isIOS = () => platform() === "ios";
+const isAndroid = () => platform() === "android";
 const isNative = () => Capacitor.isNativePlatform();
+/** Everything that should use the HTMLAudioElement path. */
+const usesWebAudio = () => !isIOS();
 
 /** Preload the cue. Idempotent. Safe to call from any user gesture. */
 export async function preloadRestTimerAudio(): Promise<void> {
@@ -43,12 +63,14 @@ export async function preloadRestTimerAudio(): Promise<void> {
 
   preloadPromise = (async () => {
     try {
-      if (isNative()) {
+      if (isIOS()) {
         await AudioMixPlugin.enableMixing().catch(() => undefined);
         await AudioMixPlugin.preloadRestTimerCue().catch((err) => {
           console.warn("[RestTimerAudio] preloadRestTimerCue failed:", err);
         });
       } else {
+        // Android + Web: build the HTMLAudioElement now so the eventual
+        // .play() call inherits the user-gesture grant.
         webAudio = new Audio(WEB_ASSET_URL);
         webAudio.preload = "auto";
         webAudio.load();
@@ -88,20 +110,26 @@ export async function scheduleBackgroundCompletion(endTime: number): Promise<num
 
   const id = Math.floor(Math.random() * 2_000_000_000);
   try {
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          id,
-          // Non-empty title/body required — some iOS versions suppress the
-          // custom sound when both are blank.
-          title: "Rest complete",
-          body: "Time for your next set 💪",
-          schedule: { at: new Date(endTime), allowWhileIdle: true },
-          sound: NOTIFICATION_SOUND,
-          smallIcon: "ic_stat_icon_config_sample",
-        },
-      ],
-    });
+    const notification: Parameters<typeof LocalNotifications.schedule>[0]["notifications"][number] = {
+      id,
+      // Non-empty title/body required — some iOS versions suppress the
+      // custom sound when both are blank.
+      title: "Rest complete",
+      body: "Time for your next set 💪",
+      schedule: { at: new Date(endTime), allowWhileIdle: true },
+      smallIcon: "ic_stat_icon_config_sample",
+    };
+
+    if (isIOS()) {
+      notification.sound = IOS_NOTIFICATION_SOUND;
+    } else if (isAndroid()) {
+      // Reference res/raw/rest_timer_complete.(mp3|ogg|wav). If the raw
+      // resource is missing at runtime, Android falls back to the default
+      // system notification sound rather than crashing.
+      notification.sound = ANDROID_NOTIFICATION_SOUND;
+    }
+
+    await LocalNotifications.schedule({ notifications: [notification] });
     return id;
   } catch (err) {
     console.warn("[RestTimerAudio] schedule failed:", err);
@@ -121,7 +149,7 @@ export async function cancelBackgroundCompletion(id: number | null): Promise<voi
 /** Play the bundled completion sound (foreground path). Mixes with other audio. */
 export async function playCompletionSound(): Promise<void> {
   try {
-    if (isNative()) {
+    if (isIOS()) {
       if (!preloaded) await preloadRestTimerAudio();
       await AudioMixPlugin.enableMixing().catch(() => undefined);
       await AudioMixPlugin.playRestTimerCue().catch(async (err) => {
@@ -134,8 +162,11 @@ export async function playCompletionSound(): Promise<void> {
       return;
     }
 
-    // Web fallback
-    if (!webAudio) webAudio = new Audio(WEB_ASSET_URL);
+    // Android (native WebView) + Web fallback — HTMLAudioElement.
+    if (!webAudio) {
+      webAudio = new Audio(WEB_ASSET_URL);
+      webAudio.preload = "auto";
+    }
     try { webAudio.currentTime = 0; } catch { /* ignore */ }
     await webAudio.play().catch((err) => {
       console.warn("[RestTimerAudio] web play failed:", err);
@@ -144,3 +175,6 @@ export async function playCompletionSound(): Promise<void> {
     console.error("[RestTimerAudio] playCompletionSound error:", err);
   }
 }
+
+// Kept for reference / potential future consumers.
+void usesWebAudio;
