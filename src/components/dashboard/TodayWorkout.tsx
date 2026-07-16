@@ -24,7 +24,6 @@ const TodayWorkout = () => {
     queryKey: `today-workout-${user?.id}-${today}`,
     enabled: !!user && !!session,
     staleTime: 2 * 60 * 1000,
-    timeout: 5000,
     fallback: null,
     queryFn: async (signal) => {
       if (!user) return null;

@@ -32,7 +32,6 @@ const UpcomingEvents = () => {
     queryKey: `upcoming-events-${user?.id}-${today}`,
     enabled: !!user,
     staleTime: 3 * 60 * 1000,
-    timeout: 5000,
     fallback: [],
     queryFn: async (signal) => {
       if (!user) return [];

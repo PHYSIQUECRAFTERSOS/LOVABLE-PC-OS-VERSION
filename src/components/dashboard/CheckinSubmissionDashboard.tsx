@@ -184,7 +184,6 @@ const CheckinSubmissionDashboard = () => {
     queryKey,
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
-    timeout: 5000,
     fallback: { buckets: [], notSubmitted: [], offWeek: [], isPastLastDay: false },
     queryFn: async (signal) => {
       if (!user) throw new Error("No user");

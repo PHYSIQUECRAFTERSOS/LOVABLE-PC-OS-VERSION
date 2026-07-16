@@ -34,7 +34,6 @@ const Training = () => {
     queryKey: cacheKey,
     enabled: !!user && !!session,
     staleTime: 3 * 60 * 1000,
-    timeout: 5000,
     fallback: [],
     queryFn: async (signal) => {
       if (!user) return [];

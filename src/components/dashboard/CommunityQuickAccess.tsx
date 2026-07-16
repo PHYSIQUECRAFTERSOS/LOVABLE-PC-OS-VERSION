@@ -23,7 +23,6 @@ const CommunityQuickAccess = () => {
   const { data: posts, loading } = useDataFetch<CommunityPost[]>({
     queryKey: "community-quick-access",
     staleTime: 2 * 60 * 1000,
-    timeout: 5000,
     fallback: [],
     queryFn: async (signal) => {
       const { data: rawPosts, error } = await supabase

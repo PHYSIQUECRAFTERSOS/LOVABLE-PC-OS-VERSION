@@ -9,7 +9,10 @@
 // ── Timeouts ──
 export const TIMEOUTS = {
   SPINNER_MAX: 3000,
-  STANDARD_API: 5000,
+  // Raised from 5s → 15s. 5s was too aggressive for mobile LTE fan-outs (calendar,
+  // today's actions, program list). Cold-boot iOS wipes in-memory cache, so a 5s
+  // abort with no cached fallback rendered as "Failed to load" / infinite spinner.
+  STANDARD_API: 15000,
   UPLOAD: 5000,
   AI_PROCESS: 10000,
 } as const;

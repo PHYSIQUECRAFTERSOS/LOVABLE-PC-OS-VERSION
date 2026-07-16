@@ -16,7 +16,6 @@ export function useConsistencyStreak() {
     queryKey: `consistency-streak-${user?.id}-${today}`,
     enabled: !!user,
     staleTime: 3 * 60 * 1000,
-    timeout: 5000,
     fallback: { streak: 0, last30: [] },
     queryFn: async (signal) => {
       if (!user) return { streak: 0, last30: [] };

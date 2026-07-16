@@ -23,7 +23,6 @@ const TodayCardio = () => {
     queryKey: `today-cardio-${user?.id}-${today}`,
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
-    timeout: 5000,
     fallback: [],
     queryFn: async (signal) => {
       if (!user) return [];

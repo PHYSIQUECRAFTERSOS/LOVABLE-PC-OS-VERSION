@@ -137,6 +137,7 @@ export function useDataFetch<T>({
       const elapsed = Math.round(performance.now() - startTime);
 
       if (err.name === "AbortError") {
+        console.warn(`[useDataFetch] ⏱ timeout after ${elapsed}ms — ${queryKey}`);
         logPerf({ queryKey, durationMs: elapsed, success: false, error: "timeout", timestamp: Date.now() });
         if (cached) {
           setData(cached.data as T);
