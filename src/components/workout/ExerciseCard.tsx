@@ -37,6 +37,7 @@ interface PreviousSet {
   reps: number | null;
   rir: number | null;
   weight_unit?: string;
+  session_created_at?: string;
 }
 
 interface ExerciseCardProps {
