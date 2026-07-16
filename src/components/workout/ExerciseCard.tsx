@@ -37,6 +37,7 @@ interface PreviousSet {
   reps: number | null;
   rir: number | null;
   weight_unit?: string;
+  session_created_at?: string;
 }
 
 interface ExerciseCardProps {
@@ -483,7 +484,15 @@ const ExerciseCard = ({
         </div>
 
         {logs.map((log, setIdx) => {
-          const prev = previousSets.find(p => p.set_number === log.setNumber);
+          // Prefer exact set-number match; fall back to nearest lower set,
+          // then to the last recorded set. Ensures set 4 today shows set 3
+          // from last week rather than "—".
+          const prev =
+            previousSets.find((p) => p.set_number === log.setNumber) ||
+            [...previousSets]
+              .filter((p) => p.set_number < log.setNumber)
+              .sort((a, b) => b.set_number - a.set_number)[0] ||
+            previousSets[previousSets.length - 1];
           const prevW = prev && prev.weight !== null && prev.weight !== undefined
             ? (prev.weight === 0 ? "BW" : String(displayPrevWeight(prev.weight, prev.weight_unit)))
             : (isBW ? "BW" : "0");

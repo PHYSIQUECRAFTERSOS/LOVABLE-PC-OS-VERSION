@@ -1,44 +1,69 @@
 ## Diagnosis
 
-The rest-timer "ding" is silent on Android because the audio path is hard-coded to an **iOS-only** native plugin.
+Your client is right — history is lookup-by-`exercise_id`, and that ID silently changes between phases.
 
-**Flow today** (`src/utils/restTimerAudio.ts`):
-- `isNative() === true` on both iOS and Android.
-- Foreground: calls `AudioMixPlugin.playRestTimerCue()`.
-- Background: schedules a `LocalNotifications` entry with sound `rest-timer-complete.caf`.
+**Where the lookup happens** (`src/components/WorkoutLogger.tsx`, lines 502–546):
+```
+select ... from exercise_logs
+where exercise_id in (<current workout's exercise ids>)
+  and workout_sessions.client_id = user.id
+  and workout_sessions.status = 'completed'
+```
+Then it groups by exercise, picks the newest session per exercise, and passes that as `previousSets` → `ExerciseCard`.
 
-**Why it breaks on Android:**
-1. `AudioMixPlugin` is defined only in `ios-plugin/AudioMixPlugin.swift` and registered only in `ios-plugin/MainViewController.swift`. There is no Kotlin counterpart in `android-plugin/`. On Android, `registerPlugin("AudioMixPlugin")` falls through to the web fallback, which throws `UNIMPLEMENTED`. The catch in `playRestTimerCue` retries once, fails again, and logs — no sound.
-2. The HTMLAudioElement fallback (`/sounds/rest-timer-complete.mp3`) is only reached when `isNative() === false`, so Android never uses it even though the Capacitor WebView could play it fine.
-3. The background `LocalNotifications` sound is `rest-timer-complete.caf` — a Core Audio Format file iOS-only. Android needs an `.mp3`/`.ogg` placed in `android/app/src/main/res/raw/` and referenced without extension. Result: no background ding either.
+**Why it misses history:** the `exercises` table has duplicates for the same lift. A live count shows this today:
+- `incline cable chest press` → 3 rows
+- `tibialis raises` → 3 rows
+- `jumping lunges`, `hack squat`, `push ups`, `t bar row`, `russian twist`, `cable rear delt flyes`, `mountain climbers`, `seated dumbbell shrug`, `standing loop band curl`, ~20+ others → 2 rows each
 
-The client reports the foreground case ("when the timer hits zero"), so fixing the foreground path restores the ding immediately. Background is a smaller follow-up.
+When the coach (or AI import) built the new phase, it picked a **different UUID** for the same-name exercise than the previous phase used. `exercise_logs` from the last block are keyed to the old UUID, so the `in (...)` filter never returns them. The card shows blank "previous" fields even though logs exist.
+
+There is already an `exercise_synonyms` table (`term` / `canonical`) and an `exercise_extraction_aliases` table (`normalized_name` → `exercise_id`) — the import pipeline uses these but the workout history query does not.
 
 ## Fix Plan
 
-### 1. Split platform routing in `src/utils/restTimerAudio.ts`
-- Add `isIOS()` and `isAndroid()` helpers using `Capacitor.getPlatform()`.
-- **Preload:**
-  - iOS: keep current `AudioMixPlugin.enableMixing()` + `preloadRestTimerCue()`.
-  - Android + Web: build the `HTMLAudioElement` once with `preload = "auto"` and `load()`. (Same code that already exists in the web branch — just include Android in it.)
-- **Play (`playCompletionSound`):**
-  - iOS: unchanged (AudioMixPlugin path).
-  - Android + Web: use the shared `HTMLAudioElement`, reset `currentTime = 0`, call `.play()`. This works in the Capacitor Android WebView because timer start is a user gesture and the audio element is created ahead of time (already the pattern in the knowledge snippet about Android async audio).
+### Step 1 (primary fix — code-only, safe)
+Expand the history lookup in `WorkoutLogger.tsx` so it matches by **exercise identity**, not just UUID:
 
-### 2. Background path on Android (`scheduleBackgroundCompletion`)
-- iOS: unchanged, keep `rest-timer-complete.caf`.
-- Android: pass sound as `"rest_timer_complete"` (no extension, lowercase + underscores per Android resource rules). Only include the `sound` field if the raw resource is present; otherwise fall back to the default notification sound so we still get an audible cue on lock screen.
-- Document (in code comment) the one-time asset copy the user must do after `npx cap sync android`: place `rest-timer-complete.mp3` at `android/app/src/main/res/raw/rest_timer_complete.mp3`. If that file is missing, notification just uses the default system sound — still audible, no crash.
+1. Build an "identity group" per current exercise: the set of all `exercises.id` whose `LOWER(TRIM(name))` matches the current exercise's normalized name, plus any IDs linked to it via `exercise_synonyms` / `exercise_extraction_aliases`.
+2. Fetch a single grouped set of IDs, then query `exercise_logs` with `.in("exercise_id", allRelatedIds)`.
+3. When grouping results, map each log back to the **current** exercise it should attach to (via `identity → current UUID` map), so `previousPerformance[currentExerciseId]` is populated even when the log used a sibling UUID.
+4. Apply the same identity expansion to `personal_records` and `allTimeBests` so PR alerts and all-time bests carry across phases.
 
-### 3. No changes to
-- `InlineRestTimer.tsx` (call sites already correct).
-- `ios-plugin/*` (iOS behavior preserved).
-- `useAuth`, CacheBuster, service worker, localStorage — untouched per prior guardrails.
+Result: history immediately starts flowing across programs/phases without touching data.
 
-## Verification
-- Web preview: confirm foreground ding via `playCompletionSound` in dev.
-- Android: after next build, timer finish in foreground plays `/sounds/rest-timer-complete.mp3` through WebView. Background plays default system notification sound until the raw resource is added.
-- iOS: regression-check that `AudioMixPlugin` path is untouched (same code, just guarded by `isIOS()` instead of `isNative()`).
+### Step 2 (UX improvement, code-only)
+Right now `previousSets` is "latest completed session for this exercise". Add:
 
-## Files touched
-- `src/utils/restTimerAudio.ts` — platform-split routing (only file with logic changes).
+- **"Last time" ribbon** on each set row: `120 lb × 8 · Jun 12` (session date), pulled from the most recent per-set entry. This is what Strong / Hevy do and it directly answers "what did I do last week?".
+- **Fallback ladder** when no exact set-number match exists: use `set_number - 1`, else the highest set from the previous session, so the placeholder is never empty when history exists.
+- **All-time best chip**: show top-lbs × reps small chip under the exercise name (already computed as `allTimeBests`, just not surfaced per-set).
+
+### Step 3 (data hygiene — requires migration approval)
+Merge the ~20+ duplicate library rows into a single canonical row per exercise:
+
+1. Read-only report first: list every duplicate group with (id, name, created_by, log count).
+2. For each group pick the row with the most logs as canonical, then in one transaction:
+   - `UPDATE workout_exercises SET exercise_id = <canonical> WHERE exercise_id IN <dupes>`
+   - `UPDATE exercise_logs SET exercise_id = <canonical> WHERE exercise_id IN <dupes>`
+   - `UPDATE personal_records SET exercise_id = <canonical> WHERE exercise_id IN <dupes>`
+   - `UPDATE client_exercise_notes`, `exercise_media`, `exercise_synonyms.exercise_id`, `exercise_extraction_aliases.exercise_id`
+   - `DELETE FROM exercises WHERE id IN <non-canonical dupes>`
+3. Add a partial unique index on `LOWER(TRIM(name))` for `is_master=true` library exercises to prevent future duplicates being created accidentally.
+
+I'll present the full dedupe list before executing so you can veto any merges you don't want (some "duplicates" might be intentionally distinct — e.g. different grips).
+
+### Step 4 (prevention — code-only)
+Two entry points create duplicate library rows today:
+
+- **`AddExerciseModal`** (manual add from the workout builder) — before insert, fuzzy-match against existing library (there's already a `src/utils/exerciseMatcher.ts`). If a >0.85 match exists, reuse it and log to `exercise_extraction_aliases`.
+- **AI import** (`supabase/functions/ai-import-processor` + `AIImportModal`) — same guard: before creating a new `exercises` row, run the extracted name through `exercise_extraction_aliases` and fuzzy match, only create when nothing matches.
+
+## Scope for this turn
+
+Steps 1 + 2 fix the immediate client complaint with **zero data changes** — they should be built and shipped first. Steps 3 + 4 are follow-ups that need migration approval and coach-tool testing; I'll present Step 3's dedupe report next once you approve Steps 1 + 2.
+
+## Files touched (Steps 1 + 2 only)
+- `src/components/WorkoutLogger.tsx` — identity-group history fetch, extended `allTimeBests`/PR lookup, pass session date + all-time best down.
+- `src/components/workout/ExerciseCard.tsx` — render "last time" ribbon with date and all-time best chip, improved fallback for missing set number.
+- No schema changes, no data changes, no auth changes.

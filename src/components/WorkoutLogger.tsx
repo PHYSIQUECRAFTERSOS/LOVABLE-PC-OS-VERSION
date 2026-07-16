@@ -484,12 +484,62 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     if (!user) return;
     const loadData = async () => {
       const exerciseIds = initialExercises.map(e => e.id);
+
+      // ── Identity expansion ─────────────────────────────────────────────
+      // The library has duplicate exercise rows for the same lift (e.g.
+      // "Incline Cable Chest Press" exists under 3 UUIDs). When a new
+      // phase is built with a different UUID than the last phase, history
+      // lookups by exercise_id silently miss the prior logs. To fix this
+      // we build an id set that includes every library row whose
+      // normalized name matches any current exercise's normalized name,
+      // then remap each fetched log back to the CURRENT exercise UUID
+      // via `siblingToCurrent`.
+      const normalize = (s: string) =>
+        (s || "").toLowerCase().trim().replace(/\s+/g, " ");
+      const currentByNorm = new Map<string, string>(); // norm → current id
+      initialExercises.forEach((ex) => {
+        const n = normalize(ex.name || "");
+        if (n && !currentByNorm.has(n)) currentByNorm.set(n, ex.id);
+      });
+      const currentNorms = new Set(currentByNorm.keys());
+
+      const expandedIds = new Set<string>(exerciseIds);
+      const siblingToCurrent = new Map<string, string>();
+      exerciseIds.forEach((id) => siblingToCurrent.set(id, id));
+
+      if (currentNorms.size > 0) {
+        const { data: libRows } = await supabase
+          .from("exercises")
+          .select("id, name");
+        (libRows || []).forEach((row: { id: string; name: string | null }) => {
+          const n = normalize(row.name || "");
+          const cur = currentByNorm.get(n);
+          if (cur) {
+            expandedIds.add(row.id);
+            // Only remap if not already pointing to a current id
+            if (!siblingToCurrent.has(row.id)) siblingToCurrent.set(row.id, cur);
+          }
+        });
+      }
+
+      const expandedIdArr = Array.from(expandedIds);
+
       const { data } = await supabase
         .from("personal_records")
         .select("exercise_id, weight, reps")
         .eq("client_id", user.id)
-        .in("exercise_id", exerciseIds);
-      setPersonalRecords((data as PersonalRecord[]) || []);
+        .in("exercise_id", expandedIdArr);
+      // Remap PRs to current exercise ids and keep the best per current id
+      const prByCurrent = new Map<string, PersonalRecord>();
+      (data as PersonalRecord[] | null)?.forEach((pr) => {
+        const curId = siblingToCurrent.get(pr.exercise_id);
+        if (!curId) return;
+        const existing = prByCurrent.get(curId);
+        if (!existing || (pr.weight || 0) > (existing.weight || 0)) {
+          prByCurrent.set(curId, { ...pr, exercise_id: curId });
+        }
+      });
+      setPersonalRecords(Array.from(prByCurrent.values()));
 
       // Check if first session
       const { count } = await supabase
@@ -499,46 +549,50 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         .eq("status", "completed");
       setIsFirstSession((count || 0) === 0);
 
-      // Fetch previous performance per exercise across ALL completed sessions
-      if (exerciseIds.length > 0) {
+      // Fetch previous performance across ALL completed sessions for the
+      // expanded id set (matches history from prior phases / duplicate
+      // library rows).
+      if (expandedIdArr.length > 0) {
         const { data: allLogs } = await supabase
           .from("exercise_logs")
           .select("exercise_id, set_number, weight, reps, rir, session_id, weight_unit, workout_sessions!inner(created_at, status)")
-          .in("exercise_id", exerciseIds)
+          .in("exercise_id", expandedIdArr)
           .eq("workout_sessions.client_id", user.id)
           .eq("workout_sessions.status", "completed")
           .order("set_number", { ascending: true });
 
         if (allLogs && allLogs.length > 0) {
-          // Build all-time bests per exercise — ALWAYS in lbs for PR comparison
+          // Build all-time bests per CURRENT exercise — ALWAYS in lbs for PR comparison
           const bestsMap: Record<string, { weight: number; reps: number }[]> = {};
-          const byExercise: Record<string, Record<string, { created_at: string; logs: any[] }>> = {};
+          // Group per current exercise id → per session
+          const byCurrent: Record<string, Record<string, { created_at: string; logs: any[] }>> = {};
           allLogs.forEach((l: any) => {
-            const eid = l.exercise_id;
+            const curId = siblingToCurrent.get(l.exercise_id);
+            if (!curId) return;
             const sid = l.session_id;
             const sessionCreated = l.workout_sessions?.created_at || "";
-            if (!byExercise[eid]) byExercise[eid] = {};
-            if (!byExercise[eid][sid]) byExercise[eid][sid] = { created_at: sessionCreated, logs: [] };
-            byExercise[eid][sid].logs.push(l);
+            if (!byCurrent[curId]) byCurrent[curId] = {};
+            if (!byCurrent[curId][sid]) byCurrent[curId][sid] = { created_at: sessionCreated, logs: [] };
+            byCurrent[curId][sid].logs.push({ ...l, session_created_at: sessionCreated });
             // Normalize to lbs for all-time best comparison
-            const logUnit = l.weight_unit || 'lbs';
+            const logUnit = l.weight_unit || "lbs";
             const w = l.weight ?? 0;
             const wLbs = weightToLbs(w, logUnit);
             const r = l.reps ?? 0;
             if (wLbs > 0 && r > 0) {
-              if (!bestsMap[eid]) bestsMap[eid] = [];
-              bestsMap[eid].push({ weight: wLbs, reps: r });
+              if (!bestsMap[curId]) bestsMap[curId] = [];
+              bestsMap[curId].push({ weight: wLbs, reps: r });
             }
           });
           setAllTimeBests(bestsMap);
 
           const grouped: Record<string, any[]> = {};
-          Object.entries(byExercise).forEach(([eid, sessions]) => {
+          Object.entries(byCurrent).forEach(([curId, sessions]) => {
             const latestSession = Object.values(sessions).sort(
               (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             )[0];
             if (latestSession) {
-              grouped[eid] = latestSession.logs.sort(
+              grouped[curId] = latestSession.logs.sort(
                 (a: any, b: any) => (a.set_number || 0) - (b.set_number || 0)
               );
             }
