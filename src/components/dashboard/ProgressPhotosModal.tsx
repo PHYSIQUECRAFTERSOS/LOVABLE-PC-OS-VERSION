@@ -124,10 +124,19 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewingIdx(null)}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <span className="text-sm font-medium text-foreground truncate">
+              <span className="text-sm font-medium text-foreground truncate flex-1">
                 {format(new Date(photo.photo_date), "MMM d, yyyy")} — {mapPoseToAngle(photo.pose)}
               </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-primary shrink-0"
+                onClick={() => downloadPhoto(photo.url, photoFilename(mapPoseToAngle(photo.pose), photo.photo_date))}
+              >
+                <Download className="h-4 w-4" /> Save
+              </Button>
             </div>
+
             <div className="flex-1 flex items-center justify-center bg-background/90 overflow-auto p-4 touch-manipulation">
               <img
                 src={photo.url}
