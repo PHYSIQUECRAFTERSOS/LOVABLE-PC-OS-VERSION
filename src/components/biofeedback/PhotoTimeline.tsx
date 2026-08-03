@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
-import { ImageIcon } from "lucide-react";
+import { ImageIcon, Download } from "lucide-react";
+import { downloadPhoto, photoFilename } from "@/lib/downloadPhoto";
+
 
 interface Photo {
   id: string;
