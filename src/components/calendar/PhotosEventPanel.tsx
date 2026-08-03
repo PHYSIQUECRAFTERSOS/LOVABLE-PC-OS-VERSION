@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Camera, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Camera, ChevronLeft, ChevronRight, X, Download } from "lucide-react";
+import { downloadPhoto, photoFilename } from "@/lib/downloadPhoto";
+
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -239,6 +241,18 @@ const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
           >
             <X className="h-6 w-6" />
           </button>
+
+          <button
+            className="absolute top-4 left-4 flex items-center gap-1.5 text-primary z-10 p-2 text-sm font-medium"
+            onClick={(e) => {
+              e.stopPropagation();
+              const p = orderedPhotos[lightboxIdx!];
+              downloadPhoto(p.signedUrl!, photoFilename(mapPose(p.pose), p.photo_date));
+            }}
+          >
+            <Download className="h-5 w-5" /> Save
+          </button>
+
 
           <p className="absolute top-4 left-1/2 -translate-x-1/2 text-sm text-foreground font-medium capitalize">
             {mapPose(orderedPhotos[lightboxIdx].pose)}

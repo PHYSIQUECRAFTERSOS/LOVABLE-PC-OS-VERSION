@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
-import { ImageIcon } from "lucide-react";
+import { ImageIcon, Download } from "lucide-react";
+import { downloadPhoto, photoFilename } from "@/lib/downloadPhoto";
+
 
 interface Photo {
   id: string;
@@ -60,6 +62,14 @@ const PhotoTimeline = () => {
             className="w-full aspect-[3/4] object-cover"
             loading="lazy"
           />
+          <button
+            type="button"
+            aria-label="Download photo"
+            onClick={() => downloadPhoto(photo.url, photoFilename(photo.pose, photo.photo_date))}
+            className="absolute top-2 right-2 p-1.5 rounded-full bg-background/70 text-foreground hover:bg-background active:scale-95 transition"
+          >
+            <Download className="h-4 w-4" />
+          </button>
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/70 to-transparent px-2 py-2">
             <p className="text-xs font-medium text-foreground capitalize">{photo.pose.replace("-", " ")}</p>
             <p className="text-[10px] text-foreground/70">{format(new Date(photo.photo_date), "MMM d, yyyy")}</p>

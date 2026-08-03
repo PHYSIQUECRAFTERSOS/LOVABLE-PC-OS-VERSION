@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Camera, ArrowLeftRight, X, RotateCcw } from "lucide-react";
+import { ArrowLeft, Camera, ArrowLeftRight, X, RotateCcw, Download } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { downloadPhoto, photoFilename } from "@/lib/downloadPhoto";
+
 
 interface Photo {
   id: string;
@@ -122,10 +124,19 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewingIdx(null)}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <span className="text-sm font-medium text-foreground truncate">
+              <span className="text-sm font-medium text-foreground truncate flex-1">
                 {format(new Date(photo.photo_date), "MMM d, yyyy")} — {mapPoseToAngle(photo.pose)}
               </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-primary shrink-0"
+                onClick={() => downloadPhoto(photo.url, photoFilename(mapPoseToAngle(photo.pose), photo.photo_date))}
+              >
+                <Download className="h-4 w-4" /> Save
+              </Button>
             </div>
+
             <div className="flex-1 flex items-center justify-center bg-background/90 overflow-auto p-4 touch-manipulation">
               <img
                 src={photo.url}
@@ -272,6 +283,28 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
                     <span className="absolute bottom-8 left-1.5 text-[9px] font-medium px-1.5 py-0.5 rounded bg-background/60 text-foreground">
                       {mapPoseToAngle(photo.pose)}
                     </span>
+                    {/* Download */}
+                    {!compareMode && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Download photo"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadPhoto(photo.url, photoFilename(mapPoseToAngle(photo.pose), photo.photo_date));
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.stopPropagation();
+                            downloadPhoto(photo.url, photoFilename(mapPoseToAngle(photo.pose), photo.photo_date));
+                          }
+                        }}
+                        className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-background/70 text-foreground hover:bg-background active:scale-95 transition"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </span>
+                    )}
+
                     {/* Date */}
                     <p className="text-[10px] text-muted-foreground py-1 text-center bg-card">
                       {format(new Date(photo.photo_date), "MMM d, yyyy")}
