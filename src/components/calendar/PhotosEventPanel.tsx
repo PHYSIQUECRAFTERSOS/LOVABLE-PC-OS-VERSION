@@ -242,6 +242,18 @@ const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
             <X className="h-6 w-6" />
           </button>
 
+          <button
+            className="absolute top-4 left-4 flex items-center gap-1.5 text-primary z-10 p-2 text-sm font-medium"
+            onClick={(e) => {
+              e.stopPropagation();
+              const p = orderedPhotos[lightboxIdx!];
+              downloadPhoto(p.signedUrl!, photoFilename(mapPose(p.pose), p.photo_date));
+            }}
+          >
+            <Download className="h-5 w-5" /> Save
+          </button>
+
+
           <p className="absolute top-4 left-1/2 -translate-x-1/2 text-sm text-foreground font-medium capitalize">
             {mapPose(orderedPhotos[lightboxIdx].pose)}
           </p>
