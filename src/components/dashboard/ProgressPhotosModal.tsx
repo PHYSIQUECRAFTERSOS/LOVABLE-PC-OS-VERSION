@@ -283,6 +283,28 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
                     <span className="absolute bottom-8 left-1.5 text-[9px] font-medium px-1.5 py-0.5 rounded bg-background/60 text-foreground">
                       {mapPoseToAngle(photo.pose)}
                     </span>
+                    {/* Download */}
+                    {!compareMode && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Download photo"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadPhoto(photo.url, photoFilename(mapPoseToAngle(photo.pose), photo.photo_date));
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.stopPropagation();
+                            downloadPhoto(photo.url, photoFilename(mapPoseToAngle(photo.pose), photo.photo_date));
+                          }
+                        }}
+                        className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-background/70 text-foreground hover:bg-background active:scale-95 transition"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </span>
+                    )}
+
                     {/* Date */}
                     <p className="text-[10px] text-muted-foreground py-1 text-center bg-card">
                       {format(new Date(photo.photo_date), "MMM d, yyyy")}
