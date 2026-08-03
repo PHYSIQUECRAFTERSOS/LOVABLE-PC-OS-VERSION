@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Camera, ArrowLeftRight, X, RotateCcw } from "lucide-react";
+import { ArrowLeft, Camera, ArrowLeftRight, X, RotateCcw, Download } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { downloadPhoto, photoFilename } from "@/lib/downloadPhoto";
+
 
 interface Photo {
   id: string;
