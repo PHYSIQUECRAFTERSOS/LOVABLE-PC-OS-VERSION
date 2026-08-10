@@ -120,69 +120,49 @@ const Training = () => {
     checkActiveSession();
   }, [user, session, showLogger, location.state]); // eslint-disable-line react-hooks/exhaustive-deps
   const loadWorkoutExercises = async (workoutId: string, resumeSessionId?: string, calendarEventId?: string) => {
-    try {
-      const data = await fetchWorkoutExerciseDetails(workoutId);
-      const exerciseLogs = data.map((we) => {
-        const equipment = we.exercise?.equipment || null;
-        const isBodyweight = !!equipment && ["bodyweight", "none", "body weight"].includes(equipment.toLowerCase());
-
-        return {
-          id: we.exercise?.id || we.exercise_id,
-          name: we.exercise?.name || "Exercise",
-          sets: we.sets,
-          reps: we.reps,
-          tempo: we.tempo,
-          restSeconds: we.rest_seconds ?? 90,
-          rir: we.rir,
-          notes: we.notes,
-          videoUrl: we.video_override || we.exercise?.youtube_url || we.exercise?.video_url || null,
-          equipment,
-          groupingType: we.grouping_type,
-          groupingId: we.grouping_id,
-          progression: {
-            progressionType: we.progression_type || "double",
-            weightIncrement: we.weight_increment || 5,
-            incrementType: we.increment_type || "fixed",
-            rpeThreshold: we.rpe_threshold || 8,
-            progressionMode: we.progression_mode || "moderate",
-          },
-          logs: Array.from({ length: we.sets }, (_, idx) => ({
-            setNumber: idx + 1,
-            weight: isBodyweight ? 0 : undefined,
-            reps: undefined,
-            tempo: undefined,
-            rir: undefined,
-            notes: undefined,
-          })),
-        };
-      });
-
-      let workout = workouts.find(w => w.id === workoutId);
-      if (!workout) {
-        const { data: w, error: workoutError } = await supabase
-          .from("workouts")
-          .select("name, instructions")
-          .eq("id", workoutId)
-          .maybeSingle();
-        if (workoutError) throw workoutError;
-        workout = w;
-      }
-
+    // Snapshot-first: open instantly if we have a local copy of this plan.
+    const snap = readWorkoutSnapshot(user?.id, workoutId);
+    if (snap) {
       setSelectedWorkout({
-        id: workoutId,
-        name: workout?.name || "Workout",
-        instructions: workout?.instructions || null,
-        exercises: exerciseLogs,
-        resumeSessionId: resumeSessionId || null,
-        calendarEventId: calendarEventId || null,
+        id: snap.workoutId,
+        name: snap.workoutName,
+        instructions: snap.instructions,
+        exercises: snap.exercises,
+        resumeSessionId: resumeSessionId || snap.resumeSessionId || null,
+        calendarEventId: calendarEventId || snap.calendarEventId || null,
       });
       setShowLogger(true);
+    }
+
+    try {
+      const loaded = await loadWorkoutForLogger(workoutId, { resumeSessionId, calendarEventId });
+      saveWorkoutSnapshot(user?.id, {
+        workoutId: loaded.id,
+        workoutName: loaded.name,
+        instructions: loaded.instructions,
+        exercises: loaded.exercises,
+        resumeSessionId: loaded.resumeSessionId,
+        calendarEventId: loaded.calendarEventId,
+      });
+      if (!snap) {
+        setSelectedWorkout(loaded);
+        setShowLogger(true);
+      }
     } catch (err: any) {
       console.error("[Training] loadWorkoutExercises error:", err);
+      if (snap) return; // already running from the snapshot
       toast({
         title: "Couldn't load workout",
-        description: err?.message || "Please try again.",
+        description: "Connection hiccup — tap Retry.",
         variant: "destructive",
+        action: (
+          <ToastAction
+            altText="Retry"
+            onClick={() => { void loadWorkoutExercises(workoutId, resumeSessionId, calendarEventId); }}
+          >
+            Retry
+          </ToastAction>
+        ),
       });
     }
   };
