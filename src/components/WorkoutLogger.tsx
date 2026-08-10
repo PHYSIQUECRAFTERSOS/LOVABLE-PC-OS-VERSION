@@ -32,6 +32,7 @@ import WorkoutSummary from "@/components/workout/WorkoutSummary";
 import ExerciseLibrary from "@/components/training/ExerciseLibrary";
 import { useNavigate } from "react-router-dom";
 import { invalidateCache } from "@/hooks/useDataFetch";
+import { saveWorkoutSnapshot, clearWorkoutSnapshot } from "@/lib/workoutSnapshot";
 import { format } from "date-fns";
 
 interface ProgressionSettings {
@@ -275,6 +276,23 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     }, 1000);
     return () => clearInterval(interval);
   }, [startTime]);
+
+  // Persist a local snapshot of the live workout so a background webview
+  // reload can re-open the tracker instantly (no spinner, no network).
+  useEffect(() => {
+    if (!user || alreadyCompletedToday || showSummary) return;
+    const t = setTimeout(() => {
+      saveWorkoutSnapshot(user.id, {
+        workoutId,
+        workoutName,
+        instructions: workoutInstructions ?? null,
+        exercises,
+        resumeSessionId: sessionId,
+        calendarEventId: calendarEventId ?? null,
+      });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [user, exercises, sessionId, workoutId, workoutName, workoutInstructions, calendarEventId, alreadyCompletedToday, showSummary]);
 
   // Helper to restore exercise logs from DB into exercise state
   const restoreLogsIntoState = (logs: any[], clientUnit: string) => {
@@ -1275,6 +1293,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         .eq("id", sessionId);
     }
     clearRetryQueue();
+    clearWorkoutSnapshot(user?.id);
     setShowCancelDialog(false);
     window.dispatchEvent(new CustomEvent("workout-session-ended"));
     onComplete?.();
@@ -1327,6 +1346,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
           document.body.style.pointerEvents = '';
           clearRetryQueue();
+          clearWorkoutSnapshot(user?.id);
 
           // Defensive: ensure the in-progress session row is no longer "in_progress"
           // so the auto-resume guard in Training.tsx will never re-hydrate it.
