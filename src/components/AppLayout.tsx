@@ -1,5 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   Dumbbell,
   UtensilsCrossed,
@@ -37,6 +37,9 @@ import UnfinishedWorkoutBanner from "@/components/workout/UnfinishedWorkoutBanne
 import { Button } from "@/components/ui/button";
 import MilestoneRoot from "@/components/milestones/MilestoneRoot";
 import { prefetchRoute, warmCoachRoutes, warmClientRoutes } from "@/lib/routePrefetch";
+import { useWorkoutLauncher } from "@/hooks/useWorkoutLauncher";
+import { readWorkoutSnapshot } from "@/lib/workoutSnapshot";
+import { useRef } from "react";
 
 interface NavItem {
   to: string;
@@ -49,6 +52,23 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { activeSession, online, dismiss: dismissBanner } = useActiveSession();
+  const location = useLocation();
+  const workoutLauncher = useWorkoutLauncher();
+  const autoReopenedRef = useRef(false);
+
+  // Webview reload recovery: if a workout is still in progress and we hold a
+  // local snapshot of its plan, re-open the tracker immediately instead of
+  // stranding the user on the dashboard with only a banner.
+  useEffect(() => {
+    if (autoReopenedRef.current) return;
+    if (!activeSession || !user) return;
+    if (location.pathname === "/training") return;
+    if (workoutLauncher.isActive) return;
+    const snap = readWorkoutSnapshot(user.id, activeSession.workout_id);
+    if (!snap) return;
+    autoReopenedRef.current = true;
+    void workoutLauncher.launch(activeSession.workout_id, undefined, activeSession.id);
+  }, [activeSession, user, location.pathname, workoutLauncher]);
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Warm the top nav destinations after first paint so the first click after
@@ -354,12 +374,19 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </header>
 
         {activeSession && (
-          <UnfinishedWorkoutBanner session={activeSession} online={online} onDismiss={dismissBanner} />
+          <UnfinishedWorkoutBanner
+            session={activeSession}
+            online={online}
+            onDismiss={dismissBanner}
+            onResume={() => { void workoutLauncher.launch(activeSession.workout_id, undefined, activeSession.id); }}
+          />
         )}
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
           {children}
         </main>
+
+        {workoutLauncher.WorkoutOverlay}
 
         {/* Mobile Bottom Nav — safe-area aware */}
         <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card pb-[env(safe-area-inset-bottom,0px)]" style={{ transform: 'translateZ(0)' }}>

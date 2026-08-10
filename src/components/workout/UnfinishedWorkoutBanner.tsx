@@ -8,9 +8,11 @@ interface Props {
   session: ActiveSession;
   online: boolean;
   onDismiss: () => void;
+  /** Opens the tracker overlay in place (instant, snapshot-first). */
+  onResume?: () => void;
 }
 
-const UnfinishedWorkoutBanner = ({ session, online, onDismiss }: Props) => {
+const UnfinishedWorkoutBanner = ({ session, online, onDismiss, onResume }: Props) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -29,6 +31,7 @@ const UnfinishedWorkoutBanner = ({ session, online, onDismiss }: Props) => {
   if (isOnTraining) return null;
 
   const handleResume = () => {
+    if (onResume) { onResume(); onDismiss(); return; }
     navigate("/training", { state: { resumeSessionId: session.id, startWorkoutId: session.workout_id } });
     onDismiss();
   };
@@ -36,6 +39,7 @@ const UnfinishedWorkoutBanner = ({ session, online, onDismiss }: Props) => {
   const handleFinish = () => {
     // Navigate to training with resume state — the workout logger will handle
     // showing the finish flow and summary screen properly
+    if (onResume) { onResume(); onDismiss(); return; }
     navigate("/training", { state: { resumeSessionId: session.id, startWorkoutId: session.workout_id } });
     onDismiss();
   };
