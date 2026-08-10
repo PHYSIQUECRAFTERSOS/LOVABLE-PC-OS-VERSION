@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { loadWorkoutForLogger } from "@/lib/loadWorkoutForLogger";
 import { readWorkoutSnapshot, saveWorkoutSnapshot } from "@/lib/workoutSnapshot";
 import WorkoutLogger from "@/components/WorkoutLogger";
-import { Button } from "@/components/ui/button";
+import { ToastAction } from "@/components/ui/toast";
 
 interface WorkoutData {
   id: string;
@@ -85,14 +85,13 @@ export function useWorkoutLauncher() {
           description: "Connection hiccup — tap Retry.",
           variant: "destructive",
           action: (
-            <Button
-              variant="secondary"
-              size="sm"
+            <ToastAction
+              altText="Retry"
               onClick={() => { void launch(workoutId, calendarEventId, resumeSessionId); }}
             >
               Retry
-            </Button>
-          ) as any,
+            </ToastAction>
+          ),
         });
       }
     } finally {
