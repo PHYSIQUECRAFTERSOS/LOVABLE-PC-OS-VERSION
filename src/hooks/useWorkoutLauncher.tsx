@@ -1,9 +1,10 @@
 import { useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
 import { useToast } from "@/hooks/use-toast";
-import { invalidateCache } from "@/hooks/useDataFetch";
+import { useAuth } from "@/hooks/useAuth";
+import { loadWorkoutForLogger } from "@/lib/loadWorkoutForLogger";
+import { readWorkoutSnapshot, saveWorkoutSnapshot } from "@/lib/workoutSnapshot";
 import WorkoutLogger from "@/components/WorkoutLogger";
+import { Button } from "@/components/ui/button";
 
 interface WorkoutData {
   id: string;
@@ -17,11 +18,16 @@ interface WorkoutData {
 /**
  * Hook to launch the WorkoutLogger as a fullscreen overlay from any page
  * (dashboard, calendar, etc.) without navigating to the Training tab.
+ *
+ * Resume is snapshot-first: if a local copy of the workout plan exists the
+ * tracker opens instantly, then the server copy revalidates in the background.
  */
 export function useWorkoutLauncher() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [workout, setWorkout] = useState<WorkoutData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState<null | { workoutId: string; calendarEventId?: string; resumeSessionId?: string }>(null);
 
   const launch = useCallback(async (
     workoutId: string,
@@ -29,79 +35,78 @@ export function useWorkoutLauncher() {
     resumeSessionId?: string,
   ) => {
     if (loading) return;
-    setLoading(true);
-    try {
-      const [exSettled, workoutSettled] = await Promise.allSettled([
-        fetchWorkoutExerciseDetails(workoutId),
-        supabase
-          .from("workouts")
-          .select("name, instructions")
-          .eq("id", workoutId)
-          .maybeSingle(),
-      ]);
+    setFailed(null);
 
-      if (exSettled.status === "rejected") throw exSettled.reason;
-      const exerciseDetails = exSettled.value;
-      const workoutRes = workoutSettled.status === "fulfilled" ? workoutSettled.value : { data: null as any };
-
-      const exerciseLogs = exerciseDetails.map((we) => {
-        const equipment = we.exercise?.equipment || null;
-        const isBodyweight = !!equipment && ["bodyweight", "none", "body weight"].includes(equipment.toLowerCase());
-        return {
-          id: we.exercise?.id || we.exercise_id,
-          name: we.exercise?.name || "Exercise",
-          sets: we.sets,
-          reps: we.reps,
-          tempo: we.tempo,
-          restSeconds: we.rest_seconds ?? 90,
-          rir: we.rir,
-          notes: we.notes,
-          videoUrl: we.video_override || we.exercise?.youtube_url || we.exercise?.video_url || null,
-          equipment,
-          groupingType: we.grouping_type,
-          groupingId: we.grouping_id,
-          progression: {
-            progressionType: we.progression_type || "double",
-            weightIncrement: we.weight_increment || 5,
-            incrementType: we.increment_type || "fixed",
-            rpeThreshold: we.rpe_threshold || 8,
-            progressionMode: we.progression_mode || "moderate",
-          },
-          logs: Array.from({ length: we.sets }, (_, idx) => ({
-            setNumber: idx + 1,
-            weight: isBodyweight ? 0 : undefined,
-            reps: undefined,
-            tempo: undefined,
-            rir: undefined,
-            notes: undefined,
-          })),
-        };
-      });
-
+    // 1. Instant open from local snapshot when available.
+    const snap = readWorkoutSnapshot(user?.id, workoutId);
+    const openedFromSnapshot = !!snap;
+    if (snap) {
       setWorkout({
-        id: workoutId,
-        name: workoutRes.data?.name || "Workout",
-        instructions: workoutRes.data?.instructions || null,
-        exercises: exerciseLogs,
-        resumeSessionId: resumeSessionId || null,
-        calendarEventId: calendarEventId || null,
+        id: snap.workoutId,
+        name: snap.workoutName,
+        instructions: snap.instructions,
+        exercises: snap.exercises,
+        resumeSessionId: resumeSessionId || snap.resumeSessionId || null,
+        calendarEventId: calendarEventId || snap.calendarEventId || null,
       });
+    } else {
+      setLoading(true);
+    }
+
+    // 2. Always revalidate from the server (retried on transient failures).
+    try {
+      const loaded = await loadWorkoutForLogger(workoutId, { resumeSessionId, calendarEventId });
+      saveWorkoutSnapshot(user?.id, {
+        workoutId: loaded.id,
+        workoutName: loaded.name,
+        instructions: loaded.instructions,
+        exercises: loaded.exercises,
+        resumeSessionId: loaded.resumeSessionId,
+        calendarEventId: loaded.calendarEventId,
+      });
+      // Only swap in fresh data if we hadn't already opened the tracker —
+      // replacing exercises mid-session would discard in-progress input.
+      if (!openedFromSnapshot) {
+        setWorkout({
+          id: loaded.id,
+          name: loaded.name,
+          instructions: loaded.instructions,
+          exercises: loaded.exercises,
+          resumeSessionId: loaded.resumeSessionId,
+          calendarEventId: loaded.calendarEventId,
+        });
+      }
     } catch (err: any) {
       console.error("[useWorkoutLauncher] error:", err);
-      toast({
-        title: "Couldn't load workout",
-        description: err?.message || "Please try again.",
-        variant: "destructive",
-      });
+      if (!openedFromSnapshot) {
+        setFailed({ workoutId, calendarEventId, resumeSessionId });
+        toast({
+          title: "Couldn't load workout",
+          description: "Connection hiccup — tap Retry.",
+          variant: "destructive",
+          action: (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => { void launch(workoutId, calendarEventId, resumeSessionId); }}
+            >
+              Retry
+            </Button>
+          ) as any,
+        });
+      }
     } finally {
       setLoading(false);
     }
-  }, [loading, toast]);
+  }, [loading, toast, user?.id]);
+
+  const retry = useCallback(() => {
+    if (!failed) return;
+    void launch(failed.workoutId, failed.calendarEventId, failed.resumeSessionId);
+  }, [failed, launch]);
 
   const close = useCallback(() => {
     setWorkout(null);
-    // Invalidate today-actions so completion state refreshes
-    // Cache keys are invalidated by the components that own them on re-render
   }, []);
 
   const isActive = !!workout;
@@ -124,5 +129,5 @@ export function useWorkoutLauncher() {
     </div>
   ) : null;
 
-  return { launch, close, loading, isActive, WorkoutOverlay };
+  return { launch, close, retry, loading, isActive, failed: !!failed, WorkoutOverlay };
 }
