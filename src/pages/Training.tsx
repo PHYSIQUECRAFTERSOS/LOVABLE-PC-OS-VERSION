@@ -13,7 +13,9 @@ import WorkoutHistory from "@/components/training/WorkoutHistory";
 import ClientProgramView from "@/components/training/ClientProgramView";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { GridSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
-import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
+import { loadWorkoutForLogger } from "@/lib/loadWorkoutForLogger";
+import { readWorkoutSnapshot, saveWorkoutSnapshot } from "@/lib/workoutSnapshot";
+import { ToastAction } from "@/components/ui/toast";
 
 import { useAuth } from "@/hooks/useAuth";
 
