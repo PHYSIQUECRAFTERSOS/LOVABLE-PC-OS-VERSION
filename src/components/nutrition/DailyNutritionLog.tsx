@@ -960,7 +960,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       </div>
 
       {/* Bottom Remaining Summary */}
-      {logs.length > 0 && (
+      {logs.length > 0 && targetsLoaded && (
         <div className="rounded-lg border border-border bg-card p-4">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Remaining</h3>
           <div className="grid grid-cols-4 gap-2">
