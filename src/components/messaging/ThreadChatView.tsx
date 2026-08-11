@@ -452,7 +452,7 @@ const ThreadChatView = ({
       });
     }
 
-    await markThreadSeen();
+    void markThreadSeen();
     setNewMessage("");
     setSending(false);
 
