@@ -55,6 +55,10 @@ const ForgotPassword = () => {
               <p className="text-sm text-muted-foreground">
                 If an account exists with this email, a reset link has been sent. The link expires in 1 hour.
               </p>
+              <p className="text-xs text-muted-foreground">
+                Open the newest link in your normal browser (not a preview window), and don't reuse
+                an older reset email — each link only works once.
+              </p>
               <Link
                 to="/auth"
                 className="inline-flex items-center gap-2 text-sm text-primary hover:underline mt-4"
