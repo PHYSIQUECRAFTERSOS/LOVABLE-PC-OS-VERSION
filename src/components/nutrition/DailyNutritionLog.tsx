@@ -762,17 +762,36 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
       {/* Daily Macro Summary */}
       <div ref={macroRingsRef} className="rounded-lg border border-border bg-card p-4">
-        {targets.is_refeed && (
+        {targetsLoaded && targets.is_refeed && (
           <div className="mb-3 rounded bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary text-center">
             🔥 Refeed Day
           </div>
         )}
-        <div className="flex justify-around">
-          <MacroRing label="Calories" current={totals.calories} target={targets.calories} color="hsl(var(--primary))" unit="kcal" />
-          <MacroRing label="Protein" current={totals.protein} target={targets.protein} color="hsl(var(--macro-protein))" />
-          <MacroRing label="Carbs" current={totals.carbs} target={targets.carbs} color="hsl(var(--macro-carbs))" />
-          <MacroRing label="Fat" current={totals.fat} target={targets.fat} color="hsl(var(--macro-fat))" />
-        </div>
+        {targetsLoaded ? (
+          <div className="flex justify-around">
+            <MacroRing label="Calories" current={totals.calories} target={targets.calories} color="hsl(var(--primary))" unit="kcal" />
+            <MacroRing label="Protein" current={totals.protein} target={targets.protein} color="hsl(var(--macro-protein))" />
+            <MacroRing label="Carbs" current={totals.carbs} target={targets.carbs} color="hsl(var(--macro-carbs))" />
+            <MacroRing label="Fat" current={totals.fat} target={targets.fat} color="hsl(var(--macro-fat))" />
+          </div>
+        ) : targetsError ? (
+          <button
+            type="button"
+            onClick={() => { setTargetsError(false); void fetchTargets(); }}
+            className="w-full py-6 text-center text-xs text-muted-foreground hover:text-foreground"
+          >
+            Couldn't load your targets — tap to retry
+          </button>
+        ) : (
+          <div className="flex justify-around">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex flex-col items-center gap-2">
+                <div className="h-16 w-16 rounded-full bg-muted animate-pulse" />
+                <div className="h-2.5 w-12 rounded bg-muted animate-pulse" />
+              </div>
+            ))}
+          </div>
+        )}
         {/* Day type indicator moved to the single pill below — keeps one clean indicator */}
       </div>
 
