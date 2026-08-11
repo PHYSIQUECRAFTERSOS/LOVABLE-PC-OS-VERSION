@@ -294,35 +294,69 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const fetchTargets = useCallback(async () => {
     if (!user) return;
 
-    // Resolve day type from calendar
-    const resolvedDayType = await resolveDayType(user.id, selectedDate);
-    setDayType(resolvedDayType);
-
-    const { data, error } = await supabase
-      .from("nutrition_targets")
-      .select("*, rest_calories, rest_protein, rest_carbs, rest_fat")
-      .eq("client_id", user.id)
-      .lte("effective_date", dateStr)
-      .order("effective_date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    if (error) {
-      console.error("[fetchTargets] Query error:", error);
-      return;
-    }
-
-    if (data && data.length > 0) {
-      const row = data[0];
-      const resolved = resolveTargetsForDayType(row as any, resolvedDayType);
+    // 1) Instant paint from the last known-good targets for this date.
+    const cached = readSnapshotSlice(user.id, "nutritionTargets", dateStr);
+    if (cached) {
+      setDayType(cached.dayType);
       setTargets({
-        ...resolved,
-        is_refeed: row.is_refeed,
+        calories: cached.calories,
+        protein: cached.protein,
+        carbs: cached.carbs,
+        fat: cached.fat,
+        is_refeed: cached.is_refeed,
       });
-      return;
+      setTargetsLoaded(true);
+      setTargetsError(false);
     }
 
-    setTargets(DEFAULT_TARGETS);
+    // 2) Revalidate — day type + targets in parallel, with retry on transient failures.
+    try {
+      const { resolvedDayType, row } = await withRetry(
+        async () => {
+          const [dayTypeResult, targetsResult] = await Promise.all([
+            resolveDayType(user.id, selectedDate),
+            supabase
+              .from("nutrition_targets")
+              .select("*, rest_calories, rest_protein, rest_carbs, rest_fat")
+              .eq("client_id", user.id)
+              .lte("effective_date", dateStr)
+              .order("effective_date", { ascending: false })
+              .order("created_at", { ascending: false })
+              .limit(1),
+          ]);
+          if (targetsResult.error) throw targetsResult.error;
+          return { resolvedDayType: dayTypeResult, row: targetsResult.data?.[0] ?? null };
+        },
+        { label: "nutrition-targets" }
+      );
+
+      setDayType(resolvedDayType);
+
+      const resolved = row
+        ? { ...resolveTargetsForDayType(row as any, resolvedDayType), is_refeed: !!row.is_refeed }
+        : DEFAULT_TARGETS;
+
+      setTargets(resolved);
+      setTargetsLoaded(true);
+      setTargetsError(false);
+
+      if (row) {
+        writeSnapshotSlice(
+          user.id,
+          "nutritionTargets",
+          { ...resolved, is_refeed: !!row.is_refeed, dayType: resolvedDayType },
+          dateStr
+        );
+      }
+    } catch (error: any) {
+      console.error("[fetchTargets] Query error:", error);
+      // Never fall back to placeholder targets — that makes the day read as
+      // "way overboard". Keep cached values if we have them, otherwise flag.
+      if (!cached) {
+        setTargetsLoaded(false);
+        setTargetsError(true);
+      }
+    }
   }, [user, dateStr, selectedDate]);
 
   useEffect(() => {
