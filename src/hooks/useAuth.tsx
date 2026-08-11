@@ -295,30 +295,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription = data.subscription;
     };
 
-    withAuthTimeout(
-      supabase.auth.getSession(),
-      AUTH_RESTORE_TIMEOUT_MS,
-      "Saved session restore timed out."
-    )
-      .then(({ data: { session: currentSession } }) => {
+    const restoreSession = async (attempt = 1): Promise<void> => {
+      try {
+        const { data: { session: currentSession } } = await withAuthTimeout(
+          supabase.auth.getSession(),
+          AUTH_RESTORE_TIMEOUT_MS,
+          "Saved session restore timed out."
+        );
         if (cancelled) return;
         console.log("[auth] getSession:", currentSession ? "has session" : "no session");
         enqueueResolution(currentSession);
-      })
-      .catch((error) => {
-        console.error("[auth] getSession failed:", error);
-        if (mountedRef.current) {
-          if (error instanceof AuthTimeoutError) {
-            clearLocalAuthState();
-          }
-          enqueueResolution(null);
-          setLoading(false);
-          setRoleLoading(false);
+      } catch (error) {
+        if (cancelled || !mountedRef.current) return;
+        console.error(`[auth] getSession failed (attempt ${attempt}):`, error);
+
+        // A slow network at boot must NEVER delete the saved login — that used
+        // to strand clients on an empty app (screens gated on `session`) until
+        // a background token refresh eventually landed, minutes later.
+        if (error instanceof AuthTimeoutError && attempt < 3) {
+          await new Promise((r) => setTimeout(r, 1000 * attempt));
+          if (cancelled) return;
+          return restoreSession(attempt + 1);
         }
-      })
-      .finally(() => {
-        subscribeToAuthChanges();
-      });
+
+        enqueueResolution(null);
+        setLoading(false);
+        setRoleLoading(false);
+      }
+    };
+
+    // Subscribe first so a TOKEN_REFRESHED / INITIAL_SESSION event can rescue
+    // the app even while the initial getSession is still in flight.
+    subscribeToAuthChanges();
+    void restoreSession();
+
 
     return () => {
       cancelled = true;
