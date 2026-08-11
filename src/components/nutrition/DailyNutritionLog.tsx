@@ -982,7 +982,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       )}
 
       {/* Suggested Foods Based on Remaining Macros */}
-      {user && logs.length > 0 && (
+      {user && logs.length > 0 && targetsLoaded && (
         <SuggestedFoods
           remaining={remaining}
           userId={user.id}
