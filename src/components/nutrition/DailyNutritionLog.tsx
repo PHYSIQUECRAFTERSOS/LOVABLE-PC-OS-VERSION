@@ -75,6 +75,8 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const isCoach = role === "coach" || role === "admin";
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [targets, setTargets] = useState<Targets>(DEFAULT_TARGETS);
+  const [targetsLoaded, setTargetsLoaded] = useState(false);
+  const [targetsError, setTargetsError] = useState(false);
   const [foodNames, setFoodNames] = useState<Record<string, string>>({});
   const [foodServingInfo, setFoodServingInfo] = useState<Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }>>({});
   const [internalSelectedDate, setInternalSelectedDate] = useState(new Date());
