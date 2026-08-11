@@ -27,6 +27,8 @@ import EditFoodModal from "./EditFoodModal";
 import { getLocalDateString, toLocalDateString } from "@/utils/localDate";
 import { formatServingDisplay } from "@/utils/formatServingDisplay";
 import { resolveDayType, resolveTargetsForDayType, type DayType } from "@/utils/resolveDayType";
+import { withRetry } from "@/lib/resilientFetch";
+import { readSnapshotSlice, writeSnapshotSlice } from "@/lib/dashboardSnapshot";
 
 interface NutritionLog {
   id: string;
@@ -73,6 +75,8 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const isCoach = role === "coach" || role === "admin";
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [targets, setTargets] = useState<Targets>(DEFAULT_TARGETS);
+  const [targetsLoaded, setTargetsLoaded] = useState(false);
+  const [targetsError, setTargetsError] = useState(false);
   const [foodNames, setFoodNames] = useState<Record<string, string>>({});
   const [foodServingInfo, setFoodServingInfo] = useState<Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }>>({});
   const [internalSelectedDate, setInternalSelectedDate] = useState(new Date());
@@ -294,35 +298,69 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const fetchTargets = useCallback(async () => {
     if (!user) return;
 
-    // Resolve day type from calendar
-    const resolvedDayType = await resolveDayType(user.id, selectedDate);
-    setDayType(resolvedDayType);
-
-    const { data, error } = await supabase
-      .from("nutrition_targets")
-      .select("*, rest_calories, rest_protein, rest_carbs, rest_fat")
-      .eq("client_id", user.id)
-      .lte("effective_date", dateStr)
-      .order("effective_date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    if (error) {
-      console.error("[fetchTargets] Query error:", error);
-      return;
-    }
-
-    if (data && data.length > 0) {
-      const row = data[0];
-      const resolved = resolveTargetsForDayType(row as any, resolvedDayType);
+    // 1) Instant paint from the last known-good targets for this date.
+    const cached = readSnapshotSlice(user.id, "nutritionTargets", dateStr);
+    if (cached) {
+      setDayType(cached.dayType);
       setTargets({
-        ...resolved,
-        is_refeed: row.is_refeed,
+        calories: cached.calories,
+        protein: cached.protein,
+        carbs: cached.carbs,
+        fat: cached.fat,
+        is_refeed: cached.is_refeed,
       });
-      return;
+      setTargetsLoaded(true);
+      setTargetsError(false);
     }
 
-    setTargets(DEFAULT_TARGETS);
+    // 2) Revalidate — day type + targets in parallel, with retry on transient failures.
+    try {
+      const { resolvedDayType, row } = await withRetry(
+        async () => {
+          const [dayTypeResult, targetsResult] = await Promise.all([
+            resolveDayType(user.id, selectedDate),
+            supabase
+              .from("nutrition_targets")
+              .select("*, rest_calories, rest_protein, rest_carbs, rest_fat")
+              .eq("client_id", user.id)
+              .lte("effective_date", dateStr)
+              .order("effective_date", { ascending: false })
+              .order("created_at", { ascending: false })
+              .limit(1),
+          ]);
+          if (targetsResult.error) throw targetsResult.error;
+          return { resolvedDayType: dayTypeResult, row: targetsResult.data?.[0] ?? null };
+        },
+        { label: "nutrition-targets" }
+      );
+
+      setDayType(resolvedDayType);
+
+      const resolved = row
+        ? { ...resolveTargetsForDayType(row as any, resolvedDayType), is_refeed: !!row.is_refeed }
+        : DEFAULT_TARGETS;
+
+      setTargets(resolved);
+      setTargetsLoaded(true);
+      setTargetsError(false);
+
+      if (row) {
+        writeSnapshotSlice(
+          user.id,
+          "nutritionTargets",
+          { ...resolved, is_refeed: !!row.is_refeed, dayType: resolvedDayType },
+          dateStr
+        );
+      }
+    } catch (error: any) {
+      console.error("[fetchTargets] Query error:", error);
+      // Never fall back to placeholder targets — that makes the day read as
+      // "way overboard". Keep cached values if we have them, otherwise flag.
+      if (!cached) {
+        setTargetsLoaded(false);
+        setTargetsError(true);
+      }
+    }
   }, [user, dateStr, selectedDate]);
 
   useEffect(() => {
@@ -724,17 +762,36 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
       {/* Daily Macro Summary */}
       <div ref={macroRingsRef} className="rounded-lg border border-border bg-card p-4">
-        {targets.is_refeed && (
+        {targetsLoaded && targets.is_refeed && (
           <div className="mb-3 rounded bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary text-center">
             🔥 Refeed Day
           </div>
         )}
-        <div className="flex justify-around">
-          <MacroRing label="Calories" current={totals.calories} target={targets.calories} color="hsl(var(--primary))" unit="kcal" />
-          <MacroRing label="Protein" current={totals.protein} target={targets.protein} color="hsl(var(--macro-protein))" />
-          <MacroRing label="Carbs" current={totals.carbs} target={targets.carbs} color="hsl(var(--macro-carbs))" />
-          <MacroRing label="Fat" current={totals.fat} target={targets.fat} color="hsl(var(--macro-fat))" />
-        </div>
+        {targetsLoaded ? (
+          <div className="flex justify-around">
+            <MacroRing label="Calories" current={totals.calories} target={targets.calories} color="hsl(var(--primary))" unit="kcal" />
+            <MacroRing label="Protein" current={totals.protein} target={targets.protein} color="hsl(var(--macro-protein))" />
+            <MacroRing label="Carbs" current={totals.carbs} target={targets.carbs} color="hsl(var(--macro-carbs))" />
+            <MacroRing label="Fat" current={totals.fat} target={targets.fat} color="hsl(var(--macro-fat))" />
+          </div>
+        ) : targetsError ? (
+          <button
+            type="button"
+            onClick={() => { setTargetsError(false); void fetchTargets(); }}
+            className="w-full py-6 text-center text-xs text-muted-foreground hover:text-foreground"
+          >
+            Couldn't load your targets — tap to retry
+          </button>
+        ) : (
+          <div className="flex justify-around">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex flex-col items-center gap-2">
+                <div className="h-16 w-16 rounded-full bg-muted animate-pulse" />
+                <div className="h-2.5 w-12 rounded bg-muted animate-pulse" />
+              </div>
+            ))}
+          </div>
+        )}
         {/* Day type indicator moved to the single pill below — keeps one clean indicator */}
       </div>
 
@@ -903,7 +960,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       </div>
 
       {/* Bottom Remaining Summary */}
-      {logs.length > 0 && (
+      {logs.length > 0 && targetsLoaded && (
         <div className="rounded-lg border border-border bg-card p-4">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Remaining</h3>
           <div className="grid grid-cols-4 gap-2">
@@ -925,7 +982,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       )}
 
       {/* Suggested Foods Based on Remaining Macros */}
-      {user && logs.length > 0 && (
+      {user && logs.length > 0 && targetsLoaded && (
         <SuggestedFoods
           remaining={remaining}
           userId={user.id}
@@ -935,7 +992,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       )}
 
 
-      {!ringsVisible && !editMode && !loggerOpen && (
+      {!ringsVisible && !editMode && !loggerOpen && targetsLoaded && (
         <div className="fixed bottom-[4.5rem] left-0 right-0 z-[50] px-3 pb-[env(safe-area-inset-bottom,0px)] pointer-events-none">
           <div className="mx-auto max-w-lg rounded-xl border border-border/50 bg-card/95 backdrop-blur-sm px-4 py-2.5 flex items-center justify-between pointer-events-auto shadow-lg">
             {[

@@ -58,11 +58,22 @@ export interface ProgressWidgetSlice {
   photoUrls: string[];
 }
 
+/** Last successfully loaded coach-set macro targets for a given local date. */
+export interface NutritionTargetsSlice {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  is_refeed: boolean;
+  dayType: "training_day" | "rest_day";
+}
+
 export interface SnapshotSlices {
   macros?: MacrosSlice;
   todayActions?: TodayActionsSlice;
   progressMomentum?: ProgressMomentumSlice;
   progressWidget?: ProgressWidgetSlice;
+  nutritionTargets?: NutritionTargetsSlice;
 }
 
 export type SliceKey = keyof SnapshotSlices;
@@ -142,11 +153,21 @@ function validProgressWidget(s: any): s is ProgressWidgetSlice {
   );
 }
 
+function validNutritionTargets(s: any): s is NutritionTargetsSlice {
+  return (
+    s && typeof s === "object" &&
+    isNum(s.calories) && isNum(s.protein) && isNum(s.carbs) && isNum(s.fat) &&
+    isBool(s.is_refeed) &&
+    (s.dayType === "training_day" || s.dayType === "rest_day")
+  );
+}
+
 const VALIDATORS: Record<SliceKey, (s: any) => boolean> = {
   macros: validMacros,
   todayActions: validTodayActions,
   progressMomentum: validProgressMomentum,
   progressWidget: validProgressWidget,
+  nutritionTargets: validNutritionTargets,
 };
 
 // ── Envelope read/write ──────────────────────────────────────────────────────
