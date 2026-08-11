@@ -707,11 +707,20 @@ const ThreadChatView = ({
 
       {/* ── Messages ── */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
-        {messages.length === 0 && (
+        {messages.length === 0 && loadFailed && (
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+            <p className="text-sm">Couldn't load messages.</p>
+            <Button variant="outline" size="sm" onClick={() => void fetchMessages()}>
+              Retry
+            </Button>
+          </div>
+        )}
+        {messages.length === 0 && !loadFailed && (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <p className="text-sm">No messages yet. Start the conversation!</p>
           </div>
         )}
+
         {messages.map((msg, idx) => {
           const isOwn = msg.sender_id === user?.id;
           const msgReactions = reactions[msg.id] || [];
