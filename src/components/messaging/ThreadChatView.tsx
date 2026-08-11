@@ -27,6 +27,7 @@ import MessageContent from "./MessageContent";
 import { type LinkPreview } from "./LinkPreviewCard";
 import { clearPushBadge, sendPushToUser } from "@/hooks/usePushNotifications";
 import DeleteThreadDialog from "./DeleteThreadDialog";
+import { withRetry } from "@/lib/resilientFetch";
 
 interface Message {
   id: string;
@@ -71,6 +72,7 @@ const ThreadChatView = ({
   const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -177,12 +179,22 @@ const ThreadChatView = ({
   };
 
   const fetchMessages = async () => {
-    const { data } = await supabase
-      .from("thread_messages")
-      .select("*")
-      .eq("thread_id", threadId)
-      .order("created_at", { ascending: true });
-    setMessages((data as unknown as Message[]) || []);
+    try {
+      const data = await withRetry(async () => {
+        const { data, error } = await supabase
+          .from("thread_messages")
+          .select("*")
+          .eq("thread_id", threadId)
+          .order("created_at", { ascending: true });
+        if (error) throw error;
+        return data;
+      }, { label: "thread-messages" });
+      setMessages((data as unknown as Message[]) || []);
+      setLoadFailed(false);
+    } catch (err: any) {
+      console.error("[ThreadChatView] fetchMessages failed:", err?.message || err);
+      setLoadFailed(true);
+    }
   };
 
   const fetchReactions = async () => {
@@ -405,20 +417,25 @@ const ThreadChatView = ({
         .then(() => {});
     }
     const messageContent = newMessage.trim();
-    const { data: insertedMsg, error: insertError } = await supabase
-      .from("thread_messages")
-      .insert({
-        thread_id: threadId,
-        sender_id: user.id,
-        content: messageContent,
-      })
-      .select("*")
-      .single();
-
-    if (insertError) {
+    let insertedMsg: any = null;
+    try {
+      insertedMsg = await withRetry(async () => {
+        const { data, error } = await supabase
+          .from("thread_messages")
+          .insert({
+            thread_id: threadId,
+            sender_id: user.id,
+            content: messageContent,
+          })
+          .select("*")
+          .single();
+        if (error) throw error;
+        return data;
+      }, { label: "send-message" });
+    } catch (insertError: any) {
       toast({
         title: "Failed to send",
-        description: insertError.message,
+        description: insertError?.message || "Connection hiccup — try again.",
         variant: "destructive",
       });
       setSending(false);
