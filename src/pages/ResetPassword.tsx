@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
+import { clearLocalAuthState } from "@/lib/authRecovery";
 
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
@@ -15,33 +16,95 @@ const ResetPassword = () => {
   const [expired, setExpired] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const settledRef = useRef(false);
 
   const minLength = password.length >= 8;
   const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setReady(true);
-      }
+    let cancelled = false;
+
+    const markReady = () => {
+      if (cancelled || settledRef.current) return;
+      settledRef.current = true;
+      setExpired(false);
+      setReady(true);
+    };
+
+    const markExpired = () => {
+      if (cancelled || settledRef.current) return;
+      settledRef.current = true;
+      setReady(false);
+      setExpired(true);
+    };
+
+    // A genuine recovery event always wins.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" && session) markReady();
     });
 
-    // Check if we already have a session from recovery
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setReady(true);
-      } else {
-        // Give the auth state change a moment to fire
-        setTimeout(() => {
-          setReady((prev) => {
-            if (!prev) setExpired(true);
-            return prev;
+    const establishRecoverySession = async () => {
+      const url = new URL(window.location.href);
+      const query = url.searchParams;
+      const hash = new URLSearchParams(url.hash.replace(/^#/, ""));
+
+      const tokenHash = query.get("token_hash") ?? query.get("token");
+      const type = query.get("type") ?? hash.get("type");
+      const code = query.get("code");
+      const accessToken = hash.get("access_token");
+      const refreshToken = hash.get("refresh_token");
+      const errorDescription = query.get("error_description") ?? hash.get("error_description");
+
+      if (errorDescription) {
+        markExpired();
+        return;
+      }
+
+      const hasCredential = Boolean(tokenHash || code || (accessToken && refreshToken));
+
+      // No recovery credential in the link — a leftover stale session must never
+      // make this page look usable.
+      if (!hasCredential) {
+        markExpired();
+        return;
+      }
+
+      // Drop any stale/expired token before exchanging the recovery credential.
+      clearLocalAuthState();
+
+      try {
+        if (accessToken && refreshToken) {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
           });
-        }, 3000);
-      }
-    });
+          if (error || !data.session) throw error ?? new Error("No session");
+        } else if (tokenHash) {
+          const { data, error } = await supabase.auth.verifyOtp({
+            type: (type as "recovery") || "recovery",
+            token_hash: tokenHash,
+          });
+          if (error || !data.session) throw error ?? new Error("No session");
+        } else if (code) {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error || !data.session) throw error ?? new Error("No session");
+        }
 
-    return () => subscription.unsubscribe();
+        // Clean the credential out of the URL so a refresh can't re-use it.
+        window.history.replaceState({}, "", `${url.origin}${url.pathname}`);
+        markReady();
+      } catch (err) {
+        console.error("[reset-password] recovery exchange failed:", err);
+        markExpired();
+      }
+    };
+
+    establishRecoverySession();
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -61,11 +124,22 @@ const ResetPassword = () => {
       await supabase.auth.signOut();
       navigate("/auth");
     } catch (error: any) {
+      const message: string = error?.message || "";
+      const sessionIssue = /session/i.test(message);
+
       toast({
-        title: "Error",
-        description: error.message,
+        title: sessionIssue ? "Reset link no longer valid" : "Error",
+        description: sessionIssue
+          ? "Open the reset link again from your email in the same browser, or request a new link."
+          : message,
         variant: "destructive",
       });
+
+      if (sessionIssue) {
+        settledRef.current = true;
+        setReady(false);
+        setExpired(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -81,7 +155,8 @@ const ResetPassword = () => {
               Reset Link Expired
             </h2>
             <p className="text-sm text-muted-foreground">
-              This reset link has expired or is invalid. Please request a new one.
+              This reset link has expired, was already used, or was opened in a different browser.
+              Request a new one and open it in your normal browser.
             </p>
             <Button variant="outline" onClick={() => navigate("/forgot-password")} className="mt-2">
               Request New Link
