@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Lock } from "lucide-react";
+import { Lock, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { withRetry } from "@/lib/resilientFetch";
 import ThreadChatView from "./ThreadChatView";
 
 const ClientMessaging = () => {
@@ -13,18 +15,26 @@ const ClientMessaging = () => {
   const [coachAvatar, setCoachAvatar] = useState<string | null>(null);
   const [noCoach, setNoCoach] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    const init = async () => {
-      if (!user) return;
+  const init = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    setFailed(false);
+    setNoCoach(false);
 
-      const { data: assignment } = await supabase
-        .from("coach_clients")
-        .select("coach_id")
-        .eq("client_id", user.id)
-        .eq("status", "active")
-        .limit(1)
-        .single();
+    try {
+      const assignment = await withRetry(async () => {
+        const { data, error } = await supabase
+          .from("coach_clients")
+          .select("coach_id")
+          .eq("client_id", user.id)
+          .eq("status", "active")
+          .limit(1)
+          .maybeSingle();
+        if (error) throw error;
+        return data;
+      }, { label: "coach-assignment" });
 
       if (!assignment) {
         setNoCoach(true);
@@ -43,34 +53,57 @@ const ClientMessaging = () => {
       setCoachName(coachProfile?.full_name?.trim() || "Your Coach");
       setCoachAvatar(coachProfile?.avatar_url || null);
 
-      const { data: existingThread } = await supabase
-        .from("message_threads")
-        .select("id")
-        .eq("coach_id", coachId)
-        .eq("client_id", user.id)
-        .single();
+      const existingThread = await withRetry(async () => {
+        const { data, error } = await supabase
+          .from("message_threads")
+          .select("id")
+          .eq("coach_id", coachId)
+          .eq("client_id", user.id)
+          .maybeSingle();
+        if (error) throw error;
+        return data;
+      }, { label: "message-thread" });
 
       if (existingThread) {
         setThreadId(existingThread.id);
       } else {
-        const { data: newThread } = await supabase
+        const { data: newThread, error } = await supabase
           .from("message_threads")
           .insert({ coach_id: coachId, client_id: user.id })
           .select("id")
           .single();
-        if (newThread) setThreadId(newThread.id);
+        if (error || !newThread) throw error || new Error("Could not create thread");
+        setThreadId(newThread.id);
       }
-
+    } catch (err: any) {
+      console.error("[ClientMessaging] init failed:", err?.message || err);
+      setFailed(true);
+    } finally {
       setLoading(false);
-    };
-
-    init();
+    }
   }, [user]);
+
+  useEffect(() => {
+    void init();
+  }, [init]);
 
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (failed) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-muted-foreground">
+        <p className="text-sm text-center max-w-xs">
+          Couldn't load your messages — connection hiccup.
+        </p>
+        <Button onClick={() => void init()} variant="outline" size="sm">
+          <RefreshCw className="mr-2 h-4 w-4" /> Retry
+        </Button>
       </div>
     );
   }
@@ -91,11 +124,15 @@ const ClientMessaging = () => {
 
   if (!threadId) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        <p className="text-sm">Unable to initialize messaging. Please try again.</p>
+      <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-muted-foreground">
+        <p className="text-sm text-center">Unable to initialize messaging.</p>
+        <Button onClick={() => void init()} variant="outline" size="sm">
+          <RefreshCw className="mr-2 h-4 w-4" /> Retry
+        </Button>
       </div>
     );
   }
+
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
