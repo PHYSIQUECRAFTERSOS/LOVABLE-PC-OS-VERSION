@@ -58,11 +58,22 @@ export interface ProgressWidgetSlice {
   photoUrls: string[];
 }
 
+/** Last successfully loaded coach-set macro targets for a given local date. */
+export interface NutritionTargetsSlice {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  is_refeed: boolean;
+  dayType: "training_day" | "rest_day";
+}
+
 export interface SnapshotSlices {
   macros?: MacrosSlice;
   todayActions?: TodayActionsSlice;
   progressMomentum?: ProgressMomentumSlice;
   progressWidget?: ProgressWidgetSlice;
+  nutritionTargets?: NutritionTargetsSlice;
 }
 
 export type SliceKey = keyof SnapshotSlices;
