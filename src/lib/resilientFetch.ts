@@ -16,6 +16,8 @@ const RETRYABLE_PATTERNS = [
   "statement timeout",
   "canceling statement",
   "timeout",
+  "timed out",
+
   "socket",
   "connection",
   "aborted",
