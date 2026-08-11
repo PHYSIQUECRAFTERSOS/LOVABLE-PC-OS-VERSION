@@ -16,6 +16,8 @@ import { GridSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 import { loadWorkoutForLogger } from "@/lib/loadWorkoutForLogger";
 import { readWorkoutSnapshot, saveWorkoutSnapshot } from "@/lib/workoutSnapshot";
 import { ToastAction } from "@/components/ui/toast";
+import { withRetry } from "@/lib/resilientFetch";
+
 
 import { useAuth } from "@/hooks/useAuth";
 
@@ -40,22 +42,27 @@ const Training = () => {
     queryFn: async (signal) => {
       if (!user) return [];
       if (isCoachOrAdmin) {
-        const { data, error } = await supabase
-          .from("workouts")
-          .select("id, name, description, phase, is_template, instructions")
-          .eq("coach_id", user.id)
-          .abortSignal(signal);
-        if (error) throw error;
-        return data || [];
+        return await withRetry(async () => {
+          const { data, error } = await supabase
+            .from("workouts")
+            .select("id, name, description, phase, is_template, instructions")
+            .eq("coach_id", user.id)
+            .abortSignal(signal);
+          if (error) throw error;
+          return data || [];
+        }, { label: "coach-workouts", attempts: 2, timeoutMs: 6000 });
       }
       // Client: single RPC returns program workouts (or fallback to direct client_id).
       // Replaces 4 sequential round-trips (assignments → phases/weeks → program_workouts → workouts).
-      const { data, error } = await (supabase as any).rpc("get_client_training_workouts", {
-        _client_id: user.id,
-      });
-      if (error) throw error;
-      return data || [];
+      return await withRetry(async () => {
+        const { data, error } = await (supabase as any).rpc("get_client_training_workouts", {
+          _client_id: user.id,
+        });
+        if (error) throw error;
+        return data || [];
+      }, { label: "client-workouts", attempts: 2, timeoutMs: 6000 });
     },
+
   });
 
   const reloadWorkouts = () => { invalidateCache(cacheKey); refetch(); };
