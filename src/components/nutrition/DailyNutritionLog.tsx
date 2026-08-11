@@ -992,7 +992,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       )}
 
 
-      {!ringsVisible && !editMode && !loggerOpen && (
+      {!ringsVisible && !editMode && !loggerOpen && targetsLoaded && (
         <div className="fixed bottom-[4.5rem] left-0 right-0 z-[50] px-3 pb-[env(safe-area-inset-bottom,0px)] pointer-events-none">
           <div className="mx-auto max-w-lg rounded-xl border border-border/50 bg-card/95 backdrop-blur-sm px-4 py-2.5 flex items-center justify-between pointer-events-auto shadow-lg">
             {[
