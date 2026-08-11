@@ -62,11 +62,38 @@ export interface RetryOptions {
   baseDelayMs?: number;
   waitForOnline?: boolean;
   label?: string;
+  /** Per-attempt hard timeout. A suspended iOS webview can leave a fetch
+   *  pending forever — without this the retry ladder never runs and the UI
+   *  spins indefinitely. */
+  timeoutMs?: number;
+}
+
+class RequestTimeoutError extends Error {
+  constructor(label: string, ms: number) {
+    super(`${label} timed out after ${ms}ms`);
+    this.name = "RequestTimeoutError";
+  }
+}
+
+export function withTimeout<T>(promise: Promise<T>, ms: number, label = "request"): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new RequestTimeoutError(label, ms)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
 }
 
 export async function withRetry<T>(
   fn: () => Promise<T>,
-  { attempts = 3, baseDelayMs = 400, waitForOnline = true, label = "request" }: RetryOptions = {},
+  {
+    attempts = 3,
+    baseDelayMs = 400,
+    waitForOnline = true,
+    label = "request",
+    timeoutMs = 12000,
+  }: RetryOptions = {},
 ): Promise<T> {
   let lastErr: any;
 
@@ -75,7 +102,7 @@ export async function withRetry<T>(
       if (waitForOnline && !navigator.onLine) {
         await waitForOnlineOnce(4000);
       }
-      return await fn();
+      return await withTimeout(Promise.resolve(fn()), timeoutMs, label);
     } catch (err: any) {
       lastErr = err;
       if (attempt === attempts || !isRetryableError(err)) break;
@@ -87,3 +114,4 @@ export async function withRetry<T>(
 
   throw lastErr;
 }
+
