@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { MessageSquare } from "lucide-react";
 import ThreadChatView from "@/components/messaging/ThreadChatView";
+import { withRetry } from "@/lib/resilientFetch";
 
 const MessagingTab = ({ clientId }: { clientId: string }) => {
   const { user } = useAuth();
@@ -28,12 +29,24 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
       setClientName(profile?.full_name?.trim() || "Client");
       setClientAvatar(profile?.avatar_url || null);
 
-      const { data: existingThread } = await supabase
-        .from("message_threads")
-        .select("id")
-        .eq("coach_id", user.id)
-        .eq("client_id", clientId)
-        .maybeSingle();
+      let existingThread: { id: string } | null = null;
+      try {
+        existingThread = await withRetry(async () => {
+          const { data, error } = await supabase
+            .from("message_threads")
+            .select("id")
+            .eq("coach_id", user.id)
+            .eq("client_id", clientId)
+            .maybeSingle();
+          if (error) throw error;
+          return data;
+        }, { label: "coach-thread" });
+      } catch (err: any) {
+        console.error("[MessagingTab] thread lookup failed:", err?.message || err);
+        toast({ title: "Error", description: "Couldn't load this conversation. Try again.", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
 
       if (existingThread) {
         // Unhide if this coach previously deleted the conversation from their inbox
