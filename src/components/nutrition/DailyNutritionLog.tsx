@@ -27,6 +27,8 @@ import EditFoodModal from "./EditFoodModal";
 import { getLocalDateString, toLocalDateString } from "@/utils/localDate";
 import { formatServingDisplay } from "@/utils/formatServingDisplay";
 import { resolveDayType, resolveTargetsForDayType, type DayType } from "@/utils/resolveDayType";
+import { withRetry } from "@/lib/resilientFetch";
+import { readSnapshotSlice, writeSnapshotSlice } from "@/lib/dashboardSnapshot";
 
 interface NutritionLog {
   id: string;
