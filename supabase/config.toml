@@ -53,6 +53,8 @@ project_id = "aeiypruqgzqauvyftitw"
     verify_jwt = false
   [functions.send-client-invite]
     verify_jwt = false
+  [functions.send-client-password-reset]
+    verify_jwt = false
   [functions.send-transactional-email]
     verify_jwt = false
   [functions.staff-invite]
