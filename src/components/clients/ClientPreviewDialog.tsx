@@ -398,6 +398,10 @@ const ClientPreviewDialog = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setResetPasswordOpen(true)} className="text-primary">
+                  <KeyRound className="h-4 w-4 mr-2" />
+                  Reset Password
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setTransferOpen(true)} className="text-primary">
                   <ArrowRightLeft className="h-4 w-4 mr-2" />
                   Transfer Client
