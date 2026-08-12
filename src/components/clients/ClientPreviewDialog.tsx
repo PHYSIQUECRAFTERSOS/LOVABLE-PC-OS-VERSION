@@ -58,6 +58,7 @@ import {
   ChevronDown,
   ClipboardList,
   ArrowRightLeft,
+  KeyRound,
 } from "lucide-react";
 import TransferClientDialog from "./TransferClientDialog";
 import { format, subDays, formatDistanceToNow } from "date-fns";
@@ -177,6 +178,28 @@ const ClientPreviewDialog = ({
   const [actionLoading, setActionLoading] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleSendPasswordReset = async () => {
+    if (!clientId) return;
+    setResetLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-client-password-reset", {
+        body: { clientId, redirectTo: `${window.location.origin}/reset-password` },
+      });
+      if (error || (data as any)?.error) {
+        toast.error((data as any)?.error || "Failed to send reset email");
+        return;
+      }
+      toast.success(`Password reset email sent to ${(data as any)?.email ?? clientName}`);
+      setResetPasswordOpen(false);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to send reset email");
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!clientId || !open) return;
