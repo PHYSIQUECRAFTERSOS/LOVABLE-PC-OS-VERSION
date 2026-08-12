@@ -114,8 +114,19 @@ const ResetPassword = () => {
 
     setLoading(true);
     try {
+      const pending = pendingTokenRef.current;
+      if (pending) {
+        const { data, error: otpError } = await supabase.auth.verifyOtp({
+          type: (pending.type as "recovery") || "recovery",
+          token_hash: pending.token_hash,
+        });
+        if (otpError || !data.session) throw otpError ?? new Error("Auth session missing!");
+        pendingTokenRef.current = null;
+      }
+
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+
 
       toast({
         title: "Password successfully updated",
