@@ -40,6 +40,20 @@ const SITE_NAME = "physique-crafters-os"
 const SENDER_DOMAIN = "notify.physiquecrafters.com"
 const ROOT_DOMAIN = "physiquecrafters.com"
 const FROM_DOMAIN = "physiquecrafters.com" // Domain shown in From address (may be root or sender subdomain)
+const APP_URL = "https://app.physiquecrafters.com"
+
+// Password reset links must point straight at the app (carrying token_hash) instead of
+// the GoTrue /verify endpoint. Mail scanners and link previewers issue a GET on every
+// link in an email; hitting /verify consumes the one-time token before the user clicks,
+// which is why recovery links kept arriving "already used / expired".
+function buildRecoveryUrl(data: Record<string, any>): string {
+  const tokenHash = data?.token_hash
+  if (!tokenHash) return data?.url
+  const base = typeof data?.redirect_to === 'string' && data.redirect_to.startsWith('http')
+    ? new URL(data.redirect_to).origin
+    : APP_URL
+  return `${base}/reset-password?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`
+}
 
 // Sample data for preview mode ONLY (not used in actual email sending).
 // URLs are baked in at scaffold time from the project's real data.
