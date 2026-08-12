@@ -36,7 +36,7 @@ export const RecoveryEmail = ({
         <Text style={text}>
           We received a request to reset your password for {siteName}. Tap the
           button below to choose a new one. This link works once and expires in
-          one hour.
+          24 hours.
         </Text>
         <Button style={button} href={confirmationUrl}>
           Reset Password
