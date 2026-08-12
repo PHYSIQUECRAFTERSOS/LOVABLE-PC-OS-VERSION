@@ -17,6 +17,9 @@ const ResetPassword = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const settledRef = useRef(false);
+  // A token_hash is only redeemed when the user submits the form, so mail
+  // scanners that pre-open the link can never burn the one-time token.
+  const pendingTokenRef = useRef<{ token_hash: string; type: string } | null>(null);
 
   const minLength = password.length >= 8;
   const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
@@ -73,16 +76,13 @@ const ResetPassword = () => {
       clearLocalAuthState();
 
       try {
-        if (accessToken && refreshToken) {
+        if (tokenHash) {
+          // Defer redemption to submit time (scanner-safe).
+          pendingTokenRef.current = { token_hash: tokenHash, type: type || "recovery" };
+        } else if (accessToken && refreshToken) {
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
-          });
-          if (error || !data.session) throw error ?? new Error("No session");
-        } else if (tokenHash) {
-          const { data, error } = await supabase.auth.verifyOtp({
-            type: (type as "recovery") || "recovery",
-            token_hash: tokenHash,
           });
           if (error || !data.session) throw error ?? new Error("No session");
         } else if (code) {
@@ -106,6 +106,7 @@ const ResetPassword = () => {
       subscription.unsubscribe();
     };
   }, []);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
