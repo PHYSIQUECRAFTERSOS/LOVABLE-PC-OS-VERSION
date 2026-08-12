@@ -47,11 +47,30 @@ const APP_URL = "https://app.physiquecrafters.com"
 // link in an email; hitting /verify consumes the one-time token before the user clicks,
 // which is why recovery links kept arriving "already used / expired".
 function buildRecoveryUrl(data: Record<string, any>): string {
-  const tokenHash = data?.token_hash
-  if (!tokenHash) return data?.url
-  const base = typeof data?.redirect_to === 'string' && data.redirect_to.startsWith('http')
-    ? new URL(data.redirect_to).origin
-    : APP_URL
+  let tokenHash = data?.token_hash
+
+  // Fall back to the token embedded in GoTrue's raw verify URL.
+  if (!tokenHash && typeof data?.url === 'string') {
+    try {
+      const params = new URL(data.url).searchParams
+      tokenHash = params.get('token_hash') || params.get('token') || undefined
+    } catch (_) {
+      // ignore malformed URL
+    }
+  }
+
+  // Never surface preview/lovableproject origins in branded emails.
+  let base = APP_URL
+  if (typeof data?.redirect_to === 'string' && data.redirect_to.startsWith('http')) {
+    try {
+      const origin = new URL(data.redirect_to).origin
+      if (!/lovableproject\.com|lovable\.app|localhost/i.test(origin)) base = origin
+    } catch (_) {
+      // keep APP_URL
+    }
+  }
+
+  if (!tokenHash) return `${base}/forgot-password`
   return `${base}/reset-password?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`
 }
 
