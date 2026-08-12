@@ -137,7 +137,7 @@ const ResetPassword = () => {
       navigate("/auth");
     } catch (error: any) {
       const message: string = error?.message || "";
-      const sessionIssue = /session/i.test(message);
+      const sessionIssue = /session|token|expired|invalid/i.test(message);
 
       toast({
         title: sessionIssue ? "Reset link no longer valid" : "Error",
