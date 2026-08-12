@@ -58,6 +58,7 @@ import {
   ChevronDown,
   ClipboardList,
   ArrowRightLeft,
+  KeyRound,
 } from "lucide-react";
 import TransferClientDialog from "./TransferClientDialog";
 import { format, subDays, formatDistanceToNow } from "date-fns";
@@ -177,6 +178,28 @@ const ClientPreviewDialog = ({
   const [actionLoading, setActionLoading] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleSendPasswordReset = async () => {
+    if (!clientId) return;
+    setResetLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-client-password-reset", {
+        body: { clientId, redirectTo: `${window.location.origin}/reset-password` },
+      });
+      if (error || (data as any)?.error) {
+        toast.error((data as any)?.error || "Failed to send reset email");
+        return;
+      }
+      toast.success(`Password reset email sent to ${(data as any)?.email ?? clientName}`);
+      setResetPasswordOpen(false);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to send reset email");
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!clientId || !open) return;
@@ -398,6 +421,10 @@ const ClientPreviewDialog = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setResetPasswordOpen(true)} className="text-primary">
+                  <KeyRound className="h-4 w-4 mr-2" />
+                  Reset Password
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setTransferOpen(true)} className="text-primary">
                   <ArrowRightLeft className="h-4 w-4 mr-2" />
                   Transfer Client
@@ -500,6 +527,32 @@ const ClientPreviewDialog = ({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Reset Password Confirmation */}
+      <AlertDialog open={resetPasswordOpen} onOpenChange={setResetPasswordOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send password reset to {clientName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              We'll email them a secure link to set a new password. The link works once and
+              expires in one hour — any older reset links will stop working.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleSendPasswordReset();
+              }}
+              disabled={resetLoading}
+            >
+              {resetLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <KeyRound className="h-4 w-4 mr-2" />}
+              Send Reset Email
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Deactivate Confirmation */}
       <AlertDialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
