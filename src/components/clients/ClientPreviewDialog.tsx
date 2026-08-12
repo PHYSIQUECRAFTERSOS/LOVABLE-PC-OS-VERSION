@@ -528,6 +528,32 @@ const ClientPreviewDialog = ({
         </DialogContent>
       </Dialog>
 
+      {/* Reset Password Confirmation */}
+      <AlertDialog open={resetPasswordOpen} onOpenChange={setResetPasswordOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send password reset to {clientName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              We'll email them a secure link to set a new password. The link works once and
+              expires in one hour — any older reset links will stop working.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleSendPasswordReset();
+              }}
+              disabled={resetLoading}
+            >
+              {resetLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <KeyRound className="h-4 w-4 mr-2" />}
+              Send Reset Email
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Deactivate Confirmation */}
       <AlertDialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
         <AlertDialogContent>
