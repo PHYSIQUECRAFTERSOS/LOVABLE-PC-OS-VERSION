@@ -33,6 +33,7 @@ import ExerciseLibrary from "@/components/training/ExerciseLibrary";
 import { useNavigate } from "react-router-dom";
 import { invalidateCache } from "@/hooks/useDataFetch";
 import { saveWorkoutSnapshot, clearWorkoutSnapshot } from "@/lib/workoutSnapshot";
+import { fetchExerciseHistory } from "@/lib/exerciseHistory";
 import { format } from "date-fns";
 
 interface ProgressionSettings {
