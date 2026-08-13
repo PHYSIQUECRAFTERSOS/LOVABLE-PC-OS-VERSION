@@ -90,6 +90,21 @@ const ComplianceBadge = ({ status, pct }: NutritionCompliance) => {
   );
 };
 
+/**
+ * Warm the client workspace chunks on hover/touch so opening a client lands on
+ * already-downloaded code. Vite dedupes these imports, so repeat calls are free.
+ */
+let workspaceWarmed = false;
+const prefetchClientWorkspace = () => {
+  if (workspaceWarmed) return;
+  workspaceWarmed = true;
+  Promise.all([
+    import("@/pages/ClientDetail"),
+    import("@/components/clients/workspace/SummaryTab"),
+  ]).catch(() => { workspaceWarmed = false; });
+};
+
+
 const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatusChanged }: SelectableClientCardsProps) => {
   const { user, role } = useAuth();
   const navigate = useNavigate();
