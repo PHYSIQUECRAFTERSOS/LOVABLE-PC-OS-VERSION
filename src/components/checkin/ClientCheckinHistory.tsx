@@ -15,6 +15,7 @@ import { ChevronDown, ChevronRight, ClipboardCheck, TrendingUp, TrendingDown, Mi
 import { format } from "date-fns";
 import { toast } from "sonner";
 import CoachNoteText from "./CoachNoteText";
+import { withRetry } from "@/lib/resilientFetch";
 
 type Submission = {
   id: string;
@@ -167,7 +168,7 @@ const ClientCheckinHistory = ({ clientId }: { clientId: string }) => {
         .eq("client_id", clientId)
         .not("submitted_at", "is", null)
         .order("submitted_at", { ascending: false })
-        .limit(50);
+        .limit(12);
       if (error) throw error;
       return data;
     },
