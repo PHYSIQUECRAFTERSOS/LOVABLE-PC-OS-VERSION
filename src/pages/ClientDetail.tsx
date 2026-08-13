@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,18 +20,42 @@ import {
   LayoutDashboard, Target, ClipboardList, BarChart3, BookOpen, Pill, Tag,
   ExternalLink, Hourglass, X,
 } from "lucide-react";
-import ClientWorkspaceSummary from "@/components/clients/workspace/SummaryTab";
-import ClientWorkspaceTraining from "@/components/clients/workspace/TrainingTab";
-import NutritionTargetsTab from "@/components/clients/workspace/NutritionTargetsTab";
-import MealPlanTab from "@/components/clients/workspace/MealPlanTab";
-import CalendarTab from "@/components/clients/workspace/CalendarTab";
-import ClientWorkspaceProgress from "@/components/clients/workspace/ProgressTab";
 import MessagesPopup from "@/components/clients/workspace/MessagesPopup";
-import ClientCheckinHistory from "@/components/checkin/ClientCheckinHistory";
-import OnboardingTab from "@/components/clients/workspace/OnboardingTab";
-import ClientSupplementPlan from "@/components/nutrition/ClientSupplementPlan";
-import PlanTab from "@/components/clients/workspace/PlanTab";
 import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
+import { getClientHeader, setClientHeader, type ClientHeaderData } from "@/lib/clientHeaderCache";
+
+/* Lazy tab bundles — only the tab a coach actually opens is downloaded. */
+const tabLoaders = {
+  dash: () => import("@/components/clients/workspace/SummaryTab"),
+  checkins: () => import("@/components/checkin/ClientCheckinHistory"),
+  onboarding: () => import("@/components/clients/workspace/OnboardingTab"),
+  calendar: () => import("@/components/clients/workspace/CalendarTab"),
+  training: () => import("@/components/clients/workspace/TrainingTab"),
+  nutrition: () => import("@/components/clients/workspace/NutritionTargetsTab"),
+  mealplan: () => import("@/components/clients/workspace/MealPlanTab"),
+  supps: () => import("@/components/nutrition/ClientSupplementPlan"),
+  plan: () => import("@/components/clients/workspace/PlanTab"),
+  progress: () => import("@/components/clients/workspace/ProgressTab"),
+} as const;
+
+const ClientWorkspaceSummary = lazy(tabLoaders.dash);
+const ClientCheckinHistory = lazy(tabLoaders.checkins);
+const OnboardingTab = lazy(tabLoaders.onboarding);
+const CalendarTab = lazy(tabLoaders.calendar);
+const ClientWorkspaceTraining = lazy(tabLoaders.training);
+const NutritionTargetsTab = lazy(tabLoaders.nutrition);
+const MealPlanTab = lazy(tabLoaders.mealplan);
+const ClientSupplementPlan = lazy(tabLoaders.supps);
+const PlanTab = lazy(tabLoaders.plan);
+const ClientWorkspaceProgress = lazy(tabLoaders.progress);
+
+const TabFallback = () => (
+  <div className="space-y-3">
+    <Skeleton className="h-24 w-full rounded-xl" />
+    <Skeleton className="h-64 w-full rounded-xl" />
+  </div>
+);
+
 
 
 interface ClientProfile {
