@@ -430,36 +430,38 @@ const ClientDetail = () => {
             ))}
           </TabsList>
 
-          <TabsContent value="dash">
-            <ClientWorkspaceSummary clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="checkins">
-            <ClientCheckinHistory clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="onboarding">
-            <OnboardingTab clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="calendar">
-            <CalendarTab clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="training">
-            <ClientWorkspaceTraining clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="nutrition">
-            <NutritionTargetsTab clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="mealplan">
-            <MealPlanTab clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="supps">
-            <ClientSupplementPlan clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="plan">
-            <PlanTab clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="progress">
-            <ClientWorkspaceProgress clientId={clientId!} />
-          </TabsContent>
+          <Suspense fallback={<TabFallback />}>
+            <TabsContent value="dash">
+              <ClientWorkspaceSummary clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="checkins">
+              <ClientCheckinHistory clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="onboarding">
+              <OnboardingTab clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="calendar">
+              <CalendarTab clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="training">
+              <ClientWorkspaceTraining clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="nutrition">
+              <NutritionTargetsTab clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="mealplan">
+              <MealPlanTab clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="supps">
+              <ClientSupplementPlan clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="plan">
+              <PlanTab clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="progress">
+              <ClientWorkspaceProgress clientId={clientId!} />
+            </TabsContent>
+          </Suspense>
           {/* Messages tab content intentionally omitted — opens in MessagesPopup */}
         </Tabs>
       </div>
@@ -468,16 +470,17 @@ const ClientDetail = () => {
         open={tagDialogOpen}
         onOpenChange={setTagDialogOpen}
         clientId={clientId!}
-        clientName={profile.full_name || "Client"}
+        clientName={displayName || "Client"}
         onTagsChanged={loadClientData}
       />
       <MessagesPopup
         open={messagesOpen}
         onOpenChange={handleMessagesOpenChange}
         clientId={clientId!}
-        clientName={profile.full_name || "Client"}
-        clientAvatar={profile.avatar_url}
+        clientName={displayName || "Client"}
+        clientAvatar={profile?.avatar_url ?? null}
       />
+
     </AppLayout>
   );
 };
