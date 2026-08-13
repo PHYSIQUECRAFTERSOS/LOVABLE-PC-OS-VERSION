@@ -145,6 +145,11 @@ const ExerciseThumb = ({ src }: { src: string | null | undefined }) => {
   );
 };
 
+// Short-lived cache for a day's nutrition logs so re-opening a day's food
+// details paints instantly while revalidating in the background.
+const nutritionFoodsCache = new Map<string, { data: any[]; ts: number }>();
+
+
 const EventDetailModal = ({
   event, open, onClose, onComplete, onDelete, isCoach, onStartWorkout, clientId,
 }: EventDetailModalProps) => {
@@ -171,11 +176,21 @@ const EventDetailModal = ({
     // Load nutrition foods for nutrition events
     if (event.event_type === "nutrition" && event.id.startsWith("nut-")) {
       const dateStr = event.event_date;
-      const loadFoods = async () => {
+      const uid = clientId || user?.id;
+      if (!uid) return;
+      const cacheKey = `${uid}|${dateStr}`;
+
+      // Paint instantly from cache, then revalidate in the background.
+      const cached = nutritionFoodsCache.get(cacheKey);
+      if (cached) {
+        setNutritionFoods(cached.data);
+        setLoadingNutrition(false);
+      } else {
         setLoadingNutrition(true);
+      }
+
+      const loadFoods = async () => {
         try {
-          const uid = clientId || (await supabase.auth.getUser()).data.user?.id;
-          if (!uid) return;
           const { data } = await supabase
             .from("nutrition_logs")
             .select("id, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit, servings, food_items(name, brand, serving_size, serving_unit, serving_label)")
@@ -183,7 +198,10 @@ const EventDetailModal = ({
             .eq("logged_at", dateStr)
             .order("meal_type")
             .order("created_at");
-          setNutritionFoods(data || []);
+          if (data) {
+            nutritionFoodsCache.set(cacheKey, { data, ts: Date.now() });
+            setNutritionFoods(data);
+          }
         } catch (err) {
           console.error("Failed to load nutrition foods:", err);
         }
@@ -192,6 +210,7 @@ const EventDetailModal = ({
       loadFoods();
       return;
     }
+
     if (event.event_type !== "workout" || !event.linked_workout_id) return;
 
     const loadExercises = async () => {

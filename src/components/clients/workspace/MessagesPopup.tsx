@@ -34,8 +34,17 @@ const MessagesPopup = ({
     if (!open || !user || !clientId) return;
     let cancelled = false;
 
+    // Paint the conversation instantly if we already resolved this thread.
+    const cacheKey = `pc.thread.${user.id}.${clientId}`;
+    let cachedId: string | null = null;
+    try { cachedId = sessionStorage.getItem(cacheKey); } catch { /* ignore */ }
+    if (cachedId) {
+      setThreadId(cachedId);
+      setLoading(false);
+    }
+
     const init = async () => {
-      setLoading(true);
+      if (!cachedId) setLoading(true);
       const { data: existingThread } = await supabase
         .from("message_threads")
         .select("id")
@@ -46,11 +55,14 @@ const MessagesPopup = ({
       if (cancelled) return;
 
       if (existingThread) {
-        await supabase
+        // Fire-and-forget — unhiding must never block the chat from rendering.
+        supabase
           .from("message_threads")
           .update({ coach_hidden_at: null } as any)
           .eq("id", existingThread.id)
-          .eq("coach_id", user.id);
+          .eq("coach_id", user.id)
+          .then(undefined, () => {});
+        try { sessionStorage.setItem(cacheKey, existingThread.id); } catch { /* ignore */ }
         setThreadId(existingThread.id);
       } else {
         const { data: newThread, error } = await supabase
@@ -60,12 +72,16 @@ const MessagesPopup = ({
           .single();
         if (cancelled) return;
         if (error || !newThread) {
-          toast({
-            title: "Error",
-            description: error?.message || "Could not create thread",
-            variant: "destructive",
-          });
+          try { sessionStorage.removeItem(cacheKey); } catch { /* ignore */ }
+          if (!cachedId) {
+            toast({
+              title: "Error",
+              description: error?.message || "Could not create thread",
+              variant: "destructive",
+            });
+          }
         } else {
+          try { sessionStorage.setItem(cacheKey, newThread.id); } catch { /* ignore */ }
           setThreadId(newThread.id);
         }
       }
@@ -77,6 +93,7 @@ const MessagesPopup = ({
       cancelled = true;
     };
   }, [open, user, clientId, toast]);
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
