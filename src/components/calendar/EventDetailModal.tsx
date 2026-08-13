@@ -145,6 +145,11 @@ const ExerciseThumb = ({ src }: { src: string | null | undefined }) => {
   );
 };
 
+// Short-lived cache for a day's nutrition logs so re-opening a day's food
+// details paints instantly while revalidating in the background.
+const nutritionFoodsCache = new Map<string, { data: any[]; ts: number }>();
+
+
 const EventDetailModal = ({
   event, open, onClose, onComplete, onDelete, isCoach, onStartWorkout, clientId,
 }: EventDetailModalProps) => {
