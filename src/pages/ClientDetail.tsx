@@ -326,16 +326,17 @@ const ClientDetail = () => {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <Avatar className="h-12 w-12 border-2 border-primary/20">
-            <AvatarImage src={profile.avatar_url || undefined} alt={profile.full_name || ""} />
+            <AvatarImage src={profile?.avatar_url || undefined} alt={displayName} />
             <AvatarFallback className="text-lg font-bold bg-primary/10 text-primary">
-              {(profile.full_name || "C").charAt(0)}
+              {(displayName || "C").charAt(0)}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="font-display text-xl font-bold text-foreground truncate">
-                {profile.full_name || "Client"}
+                {displayName || (loading ? <Skeleton className="h-5 w-40 inline-block align-middle" /> : "Client")}
               </h1>
+
               <Button
                 variant="outline"
                 size="sm"
