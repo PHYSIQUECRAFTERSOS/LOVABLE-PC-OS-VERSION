@@ -105,6 +105,11 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("embla-carousel")) return "carousel";
           if (id.includes("browser-image-compression")) return "imgcompress";
           if (id.includes("/date-fns/")) return "dates";
+          if (id.includes("react-day-picker")) return "daypicker";
+          if (id.includes("/lodash/") || id.includes("/lodash-es/")) return "lodash";
+          // Markdown/sanitizer stack — only the community + messaging screens.
+          if (/micromark|mdast|remark|unified|vfile|hast|react-markdown|dompurify|property-information|character-entities|decode-named|unist-|zwitch|trim-lines|space-separated|comma-separated|bail|is-plain-obj|trough|devlop|longest-streak|markdown-table|ccount|escape-string-regexp/.test(id))
+            return "markdown";
           // Everything else shares one bucket. Do NOT return undefined here:
           // ubiquitous helpers (clsx, preload-helper, commonjs shims) would get
           // folded into whichever heavy chunk claimed them first and drag it
