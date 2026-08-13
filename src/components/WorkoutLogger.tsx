@@ -903,6 +903,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     // Close dialog BEFORE clearing switchingExIdx
     setShowAddExercise(false);
     setSwitchingExIdx(null);
+    // Pull the substituted exercise's own history so "last time" numbers and
+    // PR detection work even though it wasn't part of the program.
+    void hydrateExerciseHistory({ id: exercise.id, name: exercise.name });
     toast({ title: `Switched to ${exercise.name}` });
   };
 
