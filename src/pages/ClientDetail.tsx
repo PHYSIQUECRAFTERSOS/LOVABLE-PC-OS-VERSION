@@ -280,12 +280,22 @@ const ClientDetail = () => {
   ];
 
   const renderTrigger = (tab: typeof tabItems[number]) => {
+    const prefetch = () => {
+      const loader = (tabLoaders as Record<string, (() => Promise<unknown>) | undefined>)[tab.value];
+      loader?.().catch(() => { /* ignore — Suspense retries on click */ });
+    };
     const trigger = (
-      <TabsTrigger value={tab.value} className="gap-1.5 shrink-0">
+      <TabsTrigger
+        value={tab.value}
+        className="gap-1.5 shrink-0"
+        onMouseEnter={prefetch}
+        onTouchStart={prefetch}
+      >
         <tab.icon className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">{tab.label}</span>
       </TabsTrigger>
     );
+
 
     if (isTouchDevice) return trigger;
 
