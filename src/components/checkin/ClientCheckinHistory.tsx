@@ -51,51 +51,60 @@ const CoachNoteEditor: React.FC<{
   }, [value, submission.id]);
 
   const handleSave = async () => {
-    setSaving(true);
     const trimmed = value.trim();
+    const saved = value;
     const payload: Record<string, any> = {
       coach_response: trimmed.length === 0 ? null : value,
       coach_response_updated_at: new Date().toISOString(),
       // Reset read status so the client gets the unread indicator again
       coach_response_read_at: null,
     };
-    const { error } = await supabase
-      .from("checkin_submissions")
-      .update(payload)
-      .eq("id", submission.id)
-      .select()
-      .single();
-    if (error) {
-      console.error("[CoachNote] save failed", error);
-      toast.error("Could not save note");
-      setSaving(false);
-      return;
-    }
-    lastSavedRef.current = value;
+
+    // Optimistic: confirm immediately, write in the background.
+    lastSavedRef.current = saved;
     sessionStorage.removeItem(draftKey(submission.id));
-
-    // Fire push notification (non-blocking)
-    if (trimmed.length > 0) {
-      const week = submission.week_number;
-      supabase.functions
-        .invoke("send-push-notification", {
-          body: {
-            user_id: clientId,
-            title: "New coach note",
-            body: week
-              ? `Your coach left a note on your Week ${week} check-in.`
-              : "Your coach left a note on your check-in.",
-            notification_type: "checkin",
-            data: { route: "/progress?tab=forms", submission_id: submission.id },
-          },
-        })
-        .catch((e) => console.warn("[CoachNote] push failed (non-fatal)", e));
-    }
-
     toast.success(trimmed.length === 0 ? "Note cleared" : "Note saved");
-    setSaving(false);
-    onSaved();
+    setSaving(true);
+
+    withRetry(
+      async () => {
+        const { error } = await supabase
+          .from("checkin_submissions")
+          .update(payload)
+          .eq("id", submission.id);
+        if (error) throw error;
+      },
+      { label: "save coach note", attempts: 3, timeoutMs: 8000 },
+    )
+      .then(() => {
+        // Fire push notification (non-blocking)
+        if (trimmed.length > 0) {
+          const week = submission.week_number;
+          supabase.functions
+            .invoke("send-push-notification", {
+              body: {
+                user_id: clientId,
+                title: "New coach note",
+                body: week
+                  ? `Your coach left a note on your Week ${week} check-in.`
+                  : "Your coach left a note on your check-in.",
+                notification_type: "checkin",
+                data: { route: "/progress?tab=forms", submission_id: submission.id },
+              },
+            })
+            .catch((e) => console.warn("[CoachNote] push failed (non-fatal)", e));
+        }
+        onSaved();
+      })
+      .catch((error) => {
+        console.error("[CoachNote] save failed", error);
+        lastSavedRef.current = initial;
+        sessionStorage.setItem(draftKey(submission.id), saved);
+        toast.error("Could not save note — your text was kept, try again");
+      })
+      .finally(() => setSaving(false));
   };
+
 
   // Enter inserts newline (default browser behavior). We only block any
   // accidental "submit on Enter" by NOT adding a keydown handler.
