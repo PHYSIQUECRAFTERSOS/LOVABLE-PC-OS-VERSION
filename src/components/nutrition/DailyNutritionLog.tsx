@@ -407,6 +407,33 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     };
   }, [dateStr, fetchLogs, refreshSuggestions, user]);
 
+  /** Optimistic edit: UI updates instantly, write happens in the background. */
+  const updateLog = useCallback(async (id: string, patch: Record<string, any>) => {
+    if (!user) {
+      toast({ title: "Please sign in again", variant: "destructive" });
+      return;
+    }
+
+    const previous = logs;
+    setLogs((current) => current.map((log) => (log.id === id ? { ...log, ...patch } as any : log)));
+
+    try {
+      await withRetry(async () => {
+        const { error } = await supabase
+          .from("nutrition_logs")
+          .update(patch)
+          .eq("id", id)
+          .eq("client_id", user.id);
+        if (error) throw error;
+      }, { label: "update nutrition log", attempts: 3, timeoutMs: 8000 });
+      refreshSuggestions();
+    } catch (err: any) {
+      console.error("[updateLog] failed:", err);
+      setLogs(previous);
+      toast({ title: "Couldn't save the change", description: "Check your connection and try again.", variant: "destructive" });
+    }
+  }, [logs, user, toast, refreshSuggestions]);
+
   const deleteLog = useCallback(async (id: string): Promise<boolean> => {
     if (!user) {
       toast({ title: "Please sign in again", variant: "destructive" });
