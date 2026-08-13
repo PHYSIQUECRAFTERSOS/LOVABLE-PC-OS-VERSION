@@ -87,7 +87,8 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("react-router")) return "vendor";
           if (id.match(/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/)) return "vendor";
           if (id.includes("@radix-ui")) return "radix";
-          if (id.includes("recharts") || id.includes("d3-") || id.includes("victory-vendor"))
+          if (id.includes("recharts") || id.includes("d3-") || id.includes("victory-vendor") ||
+              id.includes("decimal.js-light") || id.includes("react-smooth"))
             return "charts";
           if (id.includes("@supabase")) return "supabase";
           if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("/fast-png/") ||
