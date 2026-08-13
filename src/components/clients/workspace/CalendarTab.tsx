@@ -201,18 +201,23 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     const start = format(calStart, "yyyy-MM-dd");
     const end = format(calEnd, "yyyy-MM-dd");
 
-    const workoutLabelMap = new Map<string, string>();
+    // Workout-label lookup (assignment -> phase -> program workouts) runs in
+    // parallel with the main data wave so its 2-3 round trips stay off the
+    // critical path.
+    const labelPromise = (async () => {
+      const workoutLabelMap = new Map<string, string>();
 
-    const { data: assignment } = await supabase
-      .from("client_program_assignments")
-      .select("program_id, current_phase_id")
-      .eq("client_id", clientId)
-      .in("status", ["active", "subscribed"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      const { data: assignment } = await supabase
+        .from("client_program_assignments")
+        .select("program_id, current_phase_id")
+        .eq("client_id", clientId)
+        .in("status", ["active", "subscribed"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (assignment?.program_id) {
+      if (!assignment?.program_id) return workoutLabelMap;
+
       let phaseId = assignment.current_phase_id;
       if (!phaseId) {
         const { data: firstPhase } = await supabase
@@ -225,51 +230,57 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         phaseId = firstPhase?.id ?? null;
       }
 
-      if (phaseId) {
-        const { data: pws } = await supabase
-          .from("program_workouts")
-          .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
-          .eq("phase_id", phaseId)
-          .order("sort_order", { ascending: true });
+      if (!phaseId) return workoutLabelMap;
 
-        const rows = (pws || []).map((pw: any) => ({
-          id: pw.workout_id,
-          sort_order: pw.sort_order,
-          exclude_from_numbering: pw.exclude_from_numbering || false,
-          custom_tag: pw.custom_tag || null,
-          name: (pw.workouts as any)?.name || "Workout",
-        }));
+      const { data: pws } = await supabase
+        .from("program_workouts")
+        .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
+        .eq("phase_id", phaseId)
+        .order("sort_order", { ascending: true });
 
-        sortWorkoutsChronologically(rows).forEach((w: any) => {
-          const label = w.exclude_from_numbering && w.custom_tag
-            ? `${w.custom_tag}: ${w.name}`
-            : w.name;
-          workoutLabelMap.set(w.id, label);
-        });
-      }
-    }
+      const rows = (pws || []).map((pw: any) => ({
+        id: pw.workout_id,
+        sort_order: pw.sort_order,
+        exclude_from_numbering: pw.exclude_from_numbering || false,
+        custom_tag: pw.custom_tag || null,
+        name: (pw.workouts as any)?.name || "Workout",
+      }));
 
-    const [eventsResult, sessionsResult, nutResult, weightResult] = await Promise.allSettled([
-      supabase.from("calendar_events")
-        .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id, description, notes, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time, user_id")
-        .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
-      supabase.from("workout_sessions")
-        .select("id, workout_id, session_date, created_at, completed_at, workouts(name)")
-        .eq("client_id", clientId)
-        // Fetch by session_date (client-local YYYY-MM-DD) so coach-timezone drift
-        // does not exclude or duplicate sessions across day boundaries.
-        // Pad ±1 day to catch any legacy rows where session_date may be missing.
-        .gte("session_date", start).lte("session_date", end),
-      supabase.from("nutrition_logs")
-        .select("id, logged_at, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit")
-        .eq("client_id", clientId)
-        .gte("logged_at", start).lte("logged_at", end),
-      supabase.from("weight_logs")
-        .select("weight, logged_at")
-        .eq("client_id", clientId)
-        .gte("logged_at", start).lte("logged_at", end)
-        .order("logged_at", { ascending: true }),
+      sortWorkoutsChronologically(rows).forEach((w: any) => {
+        const label = w.exclude_from_numbering && w.custom_tag
+          ? `${w.custom_tag}: ${w.name}`
+          : w.name;
+        workoutLabelMap.set(w.id, label);
+      });
+
+      return workoutLabelMap;
+    })();
+
+    const [workoutLabelMap, [eventsResult, sessionsResult, nutResult, weightResult]] = await Promise.all([
+      labelPromise,
+      Promise.allSettled([
+        supabase.from("calendar_events")
+          .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id, description, notes, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time, user_id")
+          .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
+        supabase.from("workout_sessions")
+          .select("id, workout_id, session_date, created_at, completed_at, workouts(name)")
+          .eq("client_id", clientId)
+          // Fetch by session_date (client-local YYYY-MM-DD) so coach-timezone drift
+          // does not exclude or duplicate sessions across day boundaries.
+          // Pad ±1 day to catch any legacy rows where session_date may be missing.
+          .gte("session_date", start).lte("session_date", end),
+        supabase.from("nutrition_logs")
+          .select("id, logged_at, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit")
+          .eq("client_id", clientId)
+          .gte("logged_at", start).lte("logged_at", end),
+        supabase.from("weight_logs")
+          .select("weight, logged_at")
+          .eq("client_id", clientId)
+          .gte("logged_at", start).lte("logged_at", end)
+          .order("logged_at", { ascending: true }),
+      ]),
     ]);
+
 
     const eventsRes = eventsResult.status === "fulfilled" ? eventsResult.value : { data: null };
     const sessionsRes = sessionsResult.status === "fulfilled" ? sessionsResult.value : { data: null };
