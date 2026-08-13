@@ -34,6 +34,8 @@ interface EditFoodModalProps {
   foodName: string;
   onUpdated: () => void;
   onDeleteLog?: (id: string) => Promise<boolean>;
+  /** Optimistic update handler — closes instantly and persists in background. */
+  onUpdateLog?: (id: string, patch: Record<string, any>) => Promise<void>;
 }
 
 type Unit = "g" | "oz" | "serving";
