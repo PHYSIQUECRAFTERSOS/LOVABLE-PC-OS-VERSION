@@ -849,6 +849,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     };
     setExercises(prev => [...prev, newExercise]);
     setShowAddExercise(false);
+    void hydrateExerciseHistory({ id: exercise.id, name: exercise.name });
     toast({ title: `${exercise.name} added to workout` });
   };
 
