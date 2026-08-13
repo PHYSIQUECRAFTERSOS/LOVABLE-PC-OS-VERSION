@@ -12,6 +12,7 @@ import {
 import { Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { withRetry } from "@/lib/resilientFetch";
 
 interface EditFoodModalProps {
   open: boolean;
@@ -34,11 +35,13 @@ interface EditFoodModalProps {
   foodName: string;
   onUpdated: () => void;
   onDeleteLog?: (id: string) => Promise<boolean>;
+  /** Optimistic update handler — closes instantly and persists in background. */
+  onUpdateLog?: (id: string, patch: Record<string, any>) => Promise<void>;
 }
 
 type Unit = "g" | "oz" | "serving";
 
-const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDeleteLog }: EditFoodModalProps) => {
+const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDeleteLog, onUpdateLog }: EditFoodModalProps) => {
   const { toast } = useToast();
   const [quantity, setQuantity] = useState("");
   const [unit, setUnit] = useState<Unit>("g");
@@ -157,33 +160,43 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
 
   const handleSave = async () => {
     if (!logEntry) return;
-    setSaving(true);
     const qtyDisplay = parseFloat(quantity) || 0;
 
-    const { error } = await supabase
-      .from("nutrition_logs")
-      .update({
-        servings: multiplier,
-        calories: liveCalories,
-        protein: liveProtein,
-        carbs: liveCarbs,
-        fat: liveFat,
-        fiber: liveFiber,
-        sugar: liveSugar,
-        sodium: liveSodium,
-        quantity_display: qtyDisplay,
-        quantity_unit: isCustom ? customUnit : unit,
-      })
-      .eq("id", logEntry.id);
-    setSaving(false);
+    const patch = {
+      servings: multiplier,
+      calories: liveCalories,
+      protein: liveProtein,
+      carbs: liveCarbs,
+      fat: liveFat,
+      fiber: liveFiber,
+      sugar: liveSugar,
+      sodium: liveSodium,
+      quantity_display: qtyDisplay,
+      quantity_unit: isCustom ? customUnit : unit,
+    };
 
-    if (error) {
-      console.error("[EditFood] Update error:", error);
-      toast({ title: "Couldn't update. Please try again." });
-    } else {
-      toast({ title: "Updated" });
+    // Optimistic path: close instantly, parent persists in the background.
+    if (onUpdateLog) {
+      const id = logEntry.id;
       onOpenChange(false);
       onUpdated();
+      void onUpdateLog(id, patch);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await withRetry(async () => {
+        const { error } = await supabase.from("nutrition_logs").update(patch).eq("id", logEntry.id);
+        if (error) throw error;
+      }, { label: "update nutrition log", attempts: 3, timeoutMs: 8000 });
+      onOpenChange(false);
+      onUpdated();
+    } catch (err: any) {
+      console.error("[EditFood] Update error:", err);
+      toast({ title: "Couldn't update. Please try again.", variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
   };
 
