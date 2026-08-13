@@ -91,17 +91,25 @@ const ClientDetail = () => {
     if (t === "messaging") return "dash";
     return t && VALID_TABS.has(t) ? t : "dash";
   })();
-  const [profile, setProfile] = useState<ClientProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  // Name passed from the client list (router state) lets the header paint
+  // before the profile query resolves.
+  const hintedName = (location.state as { clientName?: string } | null)?.clientName || null;
+  const cached = useMemo(() => getClientHeader(clientId), [clientId]);
+
+  const [profile, setProfile] = useState<ClientProfile | null>(cached?.profile ?? null);
+  const [loading, setLoading] = useState(!cached);
+  const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [programName, setProgramName] = useState<string | null>(null);
-  const [programType, setProgramType] = useState<string | null>(null);
-  const [tags, setTags] = useState<string[]>([]);
+  const [programName, setProgramName] = useState<string | null>(cached?.programName ?? null);
+  const [programType, setProgramType] = useState<string | null>(cached?.programType ?? null);
+  const [tags, setTags] = useState<string[]>(cached?.tags ?? []);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
-  const [isPending, setIsPending] = useState(false);
+  const [isPending, setIsPending] = useState(cached?.isPending ?? false);
   const [pendingBannerDismissed, setPendingBannerDismissed] = useState(false);
-  const [lookaheadDays, setLookaheadDays] = useState<number>(14);
+  const [lookaheadDays, setLookaheadDays] = useState<number>(cached?.lookaheadDays ?? 14);
+
   const previousTabRef = useRef<string>(initialTab);
 
   // Detect touch-only devices (skip context menu on mobile)
