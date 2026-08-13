@@ -95,10 +95,10 @@ export function useClientProgram(clientId: string | undefined) {
     setError(null);
 
     try {
-      // Step 1: Get active assignment
+      // Step 1: Active assignment + its program in a single round-trip (joined).
       const { data: assignData, error: assignErr } = await supabase
         .from("client_program_assignments")
-        .select("*")
+        .select("*, programs(id, name, description, goal_type, version_number, is_master, start_date, end_date, duration_weeks)")
         .eq("client_id", clientId)
         .eq("status", "active")
         .order("created_at", { ascending: false })
@@ -115,7 +115,9 @@ export function useClientProgram(clientId: string | undefined) {
         return;
       }
 
-      if (!assignData) {
+      const prog = (assignData as any)?.programs || null;
+
+      if (!assignData || !prog) {
         const empty = { assignment: null, program: null, phases: [], weeks: [] };
         programCache.set(clientId, { data: empty, ts: Date.now() });
         setData(empty);
@@ -123,27 +125,12 @@ export function useClientProgram(clientId: string | undefined) {
         return;
       }
 
-      // Step 2: Get program
-      const { data: prog, error: progErr } = await supabase
-        .from("programs")
-        .select("id, name, description, goal_type, version_number, is_master, start_date, end_date, duration_weeks")
-        .eq("id", assignData.program_id)
-        .maybeSingle();
-
-      if (progErr || !prog) {
-        console.error("[useClientProgram] program error:", progErr);
-        const empty = { assignment: null, program: null, phases: [], weeks: [] };
-        programCache.set(clientId, { data: empty, ts: Date.now() });
-        setData(empty);
-        setLoading(false);
-        return;
-      }
-
-      // Step 3: Fetch phases and weeks in parallel using Promise.allSettled
+      // Step 2: Fetch phases and weeks in parallel using Promise.allSettled
       const [phasesResult, weeksResult] = await Promise.allSettled([
         supabase.from("program_phases").select("*").eq("program_id", prog.id).order("phase_order"),
         supabase.from("program_weeks").select("id, week_number, name, phase_id").eq("program_id", prog.id).order("week_number"),
       ]);
+
 
       const phaseData = phasesResult.status === "fulfilled" ? phasesResult.value.data || [] : [];
       const weekData = weeksResult.status === "fulfilled" ? weeksResult.value.data || [] : [];
