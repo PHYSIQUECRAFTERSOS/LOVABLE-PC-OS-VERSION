@@ -722,10 +722,13 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
               className={`cursor-pointer transition-all ${
                 isSelected ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20" : "hover:border-primary/20"
               }`}
+              onMouseEnter={prefetchClientWorkspace}
+              onTouchStart={prefetchClientWorkspace}
               onClick={(e) => {
                 if ((e.target as HTMLElement).closest('[role="checkbox"]')) return;
                 setPreviewClient(client);
               }}
+
             >
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-center gap-3">
