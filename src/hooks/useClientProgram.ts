@@ -138,31 +138,44 @@ export function useClientProgram(clientId: string | undefined) {
       if (phasesResult.status === "rejected") console.error("[useClientProgram] phases fetch failed:", phasesResult.reason);
       if (weeksResult.status === "rejected") console.error("[useClientProgram] weeks fetch failed:", weeksResult.reason);
 
-      // Step 4: Fetch phase workouts
+      // Step 3: Fetch phase workouts and week workouts in one parallel wave.
       const phaseIds = phaseData.map((p: any) => p.id);
-      let phaseDirectMap: Record<string, ProgramWorkoutItem[]> = {};
+      const weekIds = weekData.map((w: any) => w.id);
 
-      if (phaseIds.length > 0) {
-        const { data: directPWs } = await supabase
-          .from("program_workouts")
-          .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name)")
-          .in("phase_id", phaseIds)
-          .order("sort_order");
+      const [phasePwRes, weekPwRes] = await Promise.allSettled([
+        phaseIds.length > 0
+          ? supabase
+              .from("program_workouts")
+              .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name)")
+              .in("phase_id", phaseIds)
+              .order("sort_order")
+          : Promise.resolve({ data: [] as any[] }),
+        weekIds.length > 0
+          ? supabase
+              .from("program_workouts")
+              .select("id, week_id, workout_id, day_of_week, day_label, sort_order, workouts(id, name)")
+              .in("week_id", weekIds)
+              .order("sort_order")
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
 
-        for (const pw of directPWs || []) {
-          const pid = (pw as any).phase_id;
-          if (!phaseDirectMap[pid]) phaseDirectMap[pid] = [];
-          phaseDirectMap[pid].push({
-            id: pw.id,
-            workout_id: pw.workout_id,
-            workout_name: (pw.workouts as any)?.name || "Workout",
-            day_of_week: pw.day_of_week ?? 0,
-            day_label: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
-            sort_order: pw.sort_order,
-            exclude_from_numbering: (pw as any).exclude_from_numbering || false,
-            custom_tag: (pw as any).custom_tag || null,
-          });
-        }
+      const directPWs = phasePwRes.status === "fulfilled" ? (phasePwRes.value as any).data || [] : [];
+      const pwData = weekPwRes.status === "fulfilled" ? (weekPwRes.value as any).data || [] : [];
+
+      const phaseDirectMap: Record<string, ProgramWorkoutItem[]> = {};
+      for (const pw of directPWs) {
+        const pid = (pw as any).phase_id;
+        if (!phaseDirectMap[pid]) phaseDirectMap[pid] = [];
+        phaseDirectMap[pid].push({
+          id: pw.id,
+          workout_id: pw.workout_id,
+          workout_name: (pw.workouts as any)?.name || "Workout",
+          day_of_week: pw.day_of_week ?? 0,
+          day_label: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
+          sort_order: pw.sort_order,
+          exclude_from_numbering: (pw as any).exclude_from_numbering || false,
+          custom_tag: (pw as any).custom_tag || null,
+        });
       }
 
       const phases: ProgramPhase[] = phaseData.map((p: any) => ({
@@ -170,29 +183,19 @@ export function useClientProgram(clientId: string | undefined) {
         directWorkouts: phaseDirectMap[p.id] || [],
       }));
 
-      // Step 5: Fetch week workouts
-      let weeks: ProgramWeek[] = [];
-      if (weekData.length > 0) {
-        const weekIds = weekData.map((w: any) => w.id);
-        const { data: pwData } = await supabase
-          .from("program_workouts")
-          .select("id, week_id, workout_id, day_of_week, day_label, sort_order, workouts(id, name)")
-          .in("week_id", weekIds)
-          .order("sort_order");
+      const weeks: ProgramWeek[] = weekData.map((w: any) => ({
+        ...w,
+        workouts: pwData
+          .filter((pw: any) => pw.week_id === w.id)
+          .map((pw: any) => ({
+            id: pw.id,
+            workout_id: pw.workout_id,
+            workout_name: (pw.workouts as any)?.name || "Workout",
+            day_of_week: pw.day_of_week ?? 0,
+            day_label: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
+          })),
+      }));
 
-        weeks = weekData.map((w: any) => ({
-          ...w,
-          workouts: (pwData || [])
-            .filter((pw: any) => pw.week_id === w.id)
-            .map((pw: any) => ({
-              id: pw.id,
-              workout_id: pw.workout_id,
-              workout_name: (pw.workouts as any)?.name || "Workout",
-              day_of_week: pw.day_of_week ?? 0,
-              day_label: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
-            })),
-        }));
-      }
 
       const next = { assignment: assignData, program: prog, phases, weeks };
       programCache.set(clientId, { data: next, ts: Date.now() });
