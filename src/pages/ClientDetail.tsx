@@ -243,24 +243,13 @@ const ClientDetail = () => {
 
   useEffect(() => { loadClientData(); }, [loadClientData]);
 
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="space-y-6 animate-fade-in">
-          <div className="flex items-center gap-4">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <div className="space-y-2">
-              <Skeleton className="h-5 w-48" />
-              <Skeleton className="h-3 w-32" />
-            </div>
-          </div>
-          <Skeleton className="h-[400px] w-full rounded-xl" />
-        </div>
-      </AppLayout>
-    );
-  }
+  // Kick off the active tab's chunk download in parallel with the header fetch.
+  useEffect(() => {
+    const loader = (tabLoaders as Record<string, (() => Promise<unknown>) | undefined>)[activeTab];
+    loader?.().catch(() => { /* retried by Suspense on render */ });
+  }, [activeTab]);
 
-  if (!profile) {
+  if (notFound) {
     return (
       <AppLayout>
         <div className="text-center py-20">
@@ -272,6 +261,9 @@ const ClientDetail = () => {
       </AppLayout>
     );
   }
+
+  const displayName = profile?.full_name || hintedName || "";
+
 
   const tabItems = [
     { value: "dash", label: "Dash", icon: LayoutDashboard },
