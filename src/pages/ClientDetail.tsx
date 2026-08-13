@@ -182,9 +182,10 @@ const ClientDetail = () => {
 
   const loadClientData = useCallback(async () => {
     if (!clientId || !userId) return;
-    setLoading(true);
+    // Never blank an already-painted header: only show the skeleton on a cold load.
+    if (!getClientHeader(clientId)) setLoading(true);
     const [profileRes, tagsRes, programRes, coachClientRes] = await Promise.all([
-      supabase.from("profiles").select("user_id, full_name, avatar_url, phone").eq("user_id", clientId).single(),
+      supabase.from("profiles").select("user_id, full_name, avatar_url, phone").eq("user_id", clientId).maybeSingle(),
       supabase.from("client_tags").select("tag").eq("client_id", clientId).eq("coach_id", userId),
       supabase
         .from("client_program_assignments")
@@ -195,15 +196,35 @@ const ClientDetail = () => {
         .maybeSingle(),
       supabase.from("coach_clients").select("program_type, status, calendar_lookahead_days").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
     ]);
-    setProfile(profileRes.data as ClientProfile | null);
-    setTags((tagsRes.data || []).map((t: any) => t.tag));
-    setProgramName((programRes.data as any)?.programs?.name || null);
-    setProgramType((coachClientRes.data as any)?.program_type || null);
-    setIsPending((coachClientRes.data as any)?.status === "pending");
+    const nextProfile = (profileRes.data as ClientProfile | null) ?? null;
+    const nextTags = (tagsRes.data || []).map((t: any) => t.tag);
+    const nextProgramName = (programRes.data as any)?.programs?.name || null;
+    const nextProgramType = (coachClientRes.data as any)?.program_type || null;
+    const nextPending = (coachClientRes.data as any)?.status === "pending";
     const la = (coachClientRes.data as any)?.calendar_lookahead_days;
-    if (typeof la === "number" && la > 0) setLookaheadDays(la);
+    const nextLookahead = typeof la === "number" && la > 0 ? la : 14;
+
+    setProfile(nextProfile);
+    setNotFound(!nextProfile);
+    setTags(nextTags);
+    setProgramName(nextProgramName);
+    setProgramType(nextProgramType);
+    setIsPending(nextPending);
+    setLookaheadDays(nextLookahead);
     setLoading(false);
+
+    if (nextProfile) {
+      setClientHeader(clientId, {
+        profile: nextProfile,
+        tags: nextTags,
+        programName: nextProgramName,
+        programType: nextProgramType,
+        isPending: nextPending,
+        lookaheadDays: nextLookahead,
+      });
+    }
   }, [clientId, userId]);
+
 
   const handleLookaheadChange = async (newDays: number) => {
     if (!clientId || !userId) return;
