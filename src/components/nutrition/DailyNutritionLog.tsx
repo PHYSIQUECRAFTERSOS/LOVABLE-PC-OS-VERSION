@@ -1062,7 +1062,8 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         logEntry={editingLog}
         foodName={editingLog?.food_item_id ? (foodNames[editingLog.food_item_id] || "Food") : (editingLog?.custom_name || "Food")}
         onDeleteLog={deleteLog}
-        onUpdated={() => { setEditingLog(null); fetchLogs(); }}
+        onUpdateLog={updateLog}
+        onUpdated={() => { setEditingLog(null); }}
       />
 
       {/* Edit Mode: Action Sticky Bar */}
