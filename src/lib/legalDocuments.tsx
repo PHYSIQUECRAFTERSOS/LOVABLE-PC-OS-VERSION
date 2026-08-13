@@ -1,4 +1,3 @@
-import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 
 /**
@@ -158,13 +157,15 @@ export function SignatureFooter({ data }: { data: SignatureFooterData }) {
  * Used when no stored PDF exists on the signature record (legacy waivers,
  * older signatures created before PDF generation was added, etc).
  */
-export function generateDocumentPdf(options: {
+export async function generateDocumentPdf(options: {
   title: string;
   body: string;
   footer: SignatureFooterData;
   filename: string;
 }) {
   const { title, body, footer, filename } = options;
+  // Loaded on demand — jsPDF is ~500KB and must never be in the initial bundle.
+  const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();

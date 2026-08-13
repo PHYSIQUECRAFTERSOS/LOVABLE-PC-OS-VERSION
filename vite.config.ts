@@ -84,10 +84,27 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("react-router")) return "vendor";
           if (id.match(/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/)) return "vendor";
           if (id.includes("@radix-ui")) return "radix";
-          if (id.includes("recharts") || id.includes("d3-")) return "charts";
+          if (id.includes("recharts") || id.includes("d3-") || id.includes("victory-vendor"))
+            return "charts";
           if (id.includes("@supabase")) return "supabase";
-          if (id.includes("jspdf") || id.includes("html2canvas")) return "pdf";
+          if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("/fast-png/") ||
+              id.includes("/canvg/") || id.includes("/pako/") || id.includes("/fflate/") ||
+              id.includes("/iobuffer/") || id.includes("/rgbcolor/") || id.includes("/stackblur-canvas/") ||
+              id.includes("/svg-pathdata/"))
+            return "pdf";
           if (id.includes("@tanstack")) return "query";
+          // Heavy, route-scoped libraries: their own async chunks so the initial
+          // download doesn't carry them.
+          if (id.includes("framer-motion") || id.includes("motion-dom") || id.includes("motion-utils"))
+            return "motion";
+          if (id.includes("@dnd-kit")) return "dnd";
+          if (id.includes("embla-carousel")) return "carousel";
+          if (id.includes("browser-image-compression")) return "imgcompress";
+          if (id.includes("/date-fns/")) return "dates";
+          // Everything else shares one bucket. Do NOT return undefined here:
+          // ubiquitous helpers (clsx, preload-helper, commonjs shims) would get
+          // folded into whichever heavy chunk claimed them first and drag it
+          // into the eager initial download.
           return "deps";
         },
       },
