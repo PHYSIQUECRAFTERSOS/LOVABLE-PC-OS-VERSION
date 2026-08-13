@@ -77,6 +77,9 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("emoji-picker-react")) return undefined;
           if (id.includes("pdfjs-dist")) return undefined;
           if (id.includes("@ffmpeg")) return undefined;
+          // lucide-react: 771KB of icon modules. Left unbucketed so Rollup
+          // attaches each icon to the route chunk that uses it.
+          if (id.includes("lucide-react")) return undefined;
           // Keep the big shared runtime libs in dedicated chunks so a route
           // switch only pays for the diff. Do NOT bucket lucide-react — that
           // forces every icon into a single up-front chunk. Leaving it out
