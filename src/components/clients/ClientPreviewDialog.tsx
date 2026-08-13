@@ -447,7 +447,9 @@ const ClientPreviewDialog = ({
               className="w-full gap-2"
               onClick={() => {
                 onOpenChange(false);
-                navigate(`/clients/${clientId}`);
+                // Pass the name so the profile header paints before its query resolves.
+                navigate(`/clients/${clientId}`, { state: { clientName } });
+
               }}
             >
               <ExternalLink className="h-4 w-4" />
