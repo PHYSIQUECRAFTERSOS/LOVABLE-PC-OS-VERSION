@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,18 +20,42 @@ import {
   LayoutDashboard, Target, ClipboardList, BarChart3, BookOpen, Pill, Tag,
   ExternalLink, Hourglass, X,
 } from "lucide-react";
-import ClientWorkspaceSummary from "@/components/clients/workspace/SummaryTab";
-import ClientWorkspaceTraining from "@/components/clients/workspace/TrainingTab";
-import NutritionTargetsTab from "@/components/clients/workspace/NutritionTargetsTab";
-import MealPlanTab from "@/components/clients/workspace/MealPlanTab";
-import CalendarTab from "@/components/clients/workspace/CalendarTab";
-import ClientWorkspaceProgress from "@/components/clients/workspace/ProgressTab";
 import MessagesPopup from "@/components/clients/workspace/MessagesPopup";
-import ClientCheckinHistory from "@/components/checkin/ClientCheckinHistory";
-import OnboardingTab from "@/components/clients/workspace/OnboardingTab";
-import ClientSupplementPlan from "@/components/nutrition/ClientSupplementPlan";
-import PlanTab from "@/components/clients/workspace/PlanTab";
 import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
+import { getClientHeader, setClientHeader, type ClientHeaderData } from "@/lib/clientHeaderCache";
+
+/* Lazy tab bundles — only the tab a coach actually opens is downloaded. */
+const tabLoaders = {
+  dash: () => import("@/components/clients/workspace/SummaryTab"),
+  checkins: () => import("@/components/checkin/ClientCheckinHistory"),
+  onboarding: () => import("@/components/clients/workspace/OnboardingTab"),
+  calendar: () => import("@/components/clients/workspace/CalendarTab"),
+  training: () => import("@/components/clients/workspace/TrainingTab"),
+  nutrition: () => import("@/components/clients/workspace/NutritionTargetsTab"),
+  mealplan: () => import("@/components/clients/workspace/MealPlanTab"),
+  supps: () => import("@/components/nutrition/ClientSupplementPlan"),
+  plan: () => import("@/components/clients/workspace/PlanTab"),
+  progress: () => import("@/components/clients/workspace/ProgressTab"),
+} as const;
+
+const ClientWorkspaceSummary = lazy(tabLoaders.dash);
+const ClientCheckinHistory = lazy(tabLoaders.checkins);
+const OnboardingTab = lazy(tabLoaders.onboarding);
+const CalendarTab = lazy(tabLoaders.calendar);
+const ClientWorkspaceTraining = lazy(tabLoaders.training);
+const NutritionTargetsTab = lazy(tabLoaders.nutrition);
+const MealPlanTab = lazy(tabLoaders.mealplan);
+const ClientSupplementPlan = lazy(tabLoaders.supps);
+const PlanTab = lazy(tabLoaders.plan);
+const ClientWorkspaceProgress = lazy(tabLoaders.progress);
+
+const TabFallback = () => (
+  <div className="space-y-3">
+    <Skeleton className="h-24 w-full rounded-xl" />
+    <Skeleton className="h-64 w-full rounded-xl" />
+  </div>
+);
+
 
 
 interface ClientProfile {
@@ -67,17 +91,25 @@ const ClientDetail = () => {
     if (t === "messaging") return "dash";
     return t && VALID_TABS.has(t) ? t : "dash";
   })();
-  const [profile, setProfile] = useState<ClientProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  // Name passed from the client list (router state) lets the header paint
+  // before the profile query resolves.
+  const hintedName = (location.state as { clientName?: string } | null)?.clientName || null;
+  const cached = useMemo(() => getClientHeader(clientId), [clientId]);
+
+  const [profile, setProfile] = useState<ClientProfile | null>(cached?.profile ?? null);
+  const [loading, setLoading] = useState(!cached);
+  const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [programName, setProgramName] = useState<string | null>(null);
-  const [programType, setProgramType] = useState<string | null>(null);
-  const [tags, setTags] = useState<string[]>([]);
+  const [programName, setProgramName] = useState<string | null>(cached?.programName ?? null);
+  const [programType, setProgramType] = useState<string | null>(cached?.programType ?? null);
+  const [tags, setTags] = useState<string[]>(cached?.tags ?? []);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
-  const [isPending, setIsPending] = useState(false);
+  const [isPending, setIsPending] = useState(cached?.isPending ?? false);
   const [pendingBannerDismissed, setPendingBannerDismissed] = useState(false);
-  const [lookaheadDays, setLookaheadDays] = useState<number>(14);
+  const [lookaheadDays, setLookaheadDays] = useState<number>(cached?.lookaheadDays ?? 14);
+
   const previousTabRef = useRef<string>(initialTab);
 
   // Detect touch-only devices (skip context menu on mobile)
@@ -150,9 +182,10 @@ const ClientDetail = () => {
 
   const loadClientData = useCallback(async () => {
     if (!clientId || !userId) return;
-    setLoading(true);
+    // Never blank an already-painted header: only show the skeleton on a cold load.
+    if (!getClientHeader(clientId)) setLoading(true);
     const [profileRes, tagsRes, programRes, coachClientRes] = await Promise.all([
-      supabase.from("profiles").select("user_id, full_name, avatar_url, phone").eq("user_id", clientId).single(),
+      supabase.from("profiles").select("user_id, full_name, avatar_url, phone").eq("user_id", clientId).maybeSingle(),
       supabase.from("client_tags").select("tag").eq("client_id", clientId).eq("coach_id", userId),
       supabase
         .from("client_program_assignments")
@@ -163,15 +196,35 @@ const ClientDetail = () => {
         .maybeSingle(),
       supabase.from("coach_clients").select("program_type, status, calendar_lookahead_days").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
     ]);
-    setProfile(profileRes.data as ClientProfile | null);
-    setTags((tagsRes.data || []).map((t: any) => t.tag));
-    setProgramName((programRes.data as any)?.programs?.name || null);
-    setProgramType((coachClientRes.data as any)?.program_type || null);
-    setIsPending((coachClientRes.data as any)?.status === "pending");
+    const nextProfile = (profileRes.data as ClientProfile | null) ?? null;
+    const nextTags = (tagsRes.data || []).map((t: any) => t.tag);
+    const nextProgramName = (programRes.data as any)?.programs?.name || null;
+    const nextProgramType = (coachClientRes.data as any)?.program_type || null;
+    const nextPending = (coachClientRes.data as any)?.status === "pending";
     const la = (coachClientRes.data as any)?.calendar_lookahead_days;
-    if (typeof la === "number" && la > 0) setLookaheadDays(la);
+    const nextLookahead = typeof la === "number" && la > 0 ? la : 14;
+
+    setProfile(nextProfile);
+    setNotFound(!nextProfile);
+    setTags(nextTags);
+    setProgramName(nextProgramName);
+    setProgramType(nextProgramType);
+    setIsPending(nextPending);
+    setLookaheadDays(nextLookahead);
     setLoading(false);
+
+    if (nextProfile) {
+      setClientHeader(clientId, {
+        profile: nextProfile,
+        tags: nextTags,
+        programName: nextProgramName,
+        programType: nextProgramType,
+        isPending: nextPending,
+        lookaheadDays: nextLookahead,
+      });
+    }
   }, [clientId, userId]);
+
 
   const handleLookaheadChange = async (newDays: number) => {
     if (!clientId || !userId) return;
@@ -190,24 +243,13 @@ const ClientDetail = () => {
 
   useEffect(() => { loadClientData(); }, [loadClientData]);
 
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="space-y-6 animate-fade-in">
-          <div className="flex items-center gap-4">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <div className="space-y-2">
-              <Skeleton className="h-5 w-48" />
-              <Skeleton className="h-3 w-32" />
-            </div>
-          </div>
-          <Skeleton className="h-[400px] w-full rounded-xl" />
-        </div>
-      </AppLayout>
-    );
-  }
+  // Kick off the active tab's chunk download in parallel with the header fetch.
+  useEffect(() => {
+    const loader = (tabLoaders as Record<string, (() => Promise<unknown>) | undefined>)[activeTab];
+    loader?.().catch(() => { /* retried by Suspense on render */ });
+  }, [activeTab]);
 
-  if (!profile) {
+  if (notFound) {
     return (
       <AppLayout>
         <div className="text-center py-20">
@@ -219,6 +261,9 @@ const ClientDetail = () => {
       </AppLayout>
     );
   }
+
+  const displayName = profile?.full_name || hintedName || "";
+
 
   const tabItems = [
     { value: "dash", label: "Dash", icon: LayoutDashboard },
@@ -235,12 +280,22 @@ const ClientDetail = () => {
   ];
 
   const renderTrigger = (tab: typeof tabItems[number]) => {
+    const prefetch = () => {
+      const loader = (tabLoaders as Record<string, (() => Promise<unknown>) | undefined>)[tab.value];
+      loader?.().catch(() => { /* ignore — Suspense retries on click */ });
+    };
     const trigger = (
-      <TabsTrigger value={tab.value} className="gap-1.5 shrink-0">
+      <TabsTrigger
+        value={tab.value}
+        className="gap-1.5 shrink-0"
+        onMouseEnter={prefetch}
+        onTouchStart={prefetch}
+      >
         <tab.icon className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">{tab.label}</span>
       </TabsTrigger>
     );
+
 
     if (isTouchDevice) return trigger;
 
@@ -271,16 +326,17 @@ const ClientDetail = () => {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <Avatar className="h-12 w-12 border-2 border-primary/20">
-            <AvatarImage src={profile.avatar_url || undefined} alt={profile.full_name || ""} />
+            <AvatarImage src={profile?.avatar_url || undefined} alt={displayName} />
             <AvatarFallback className="text-lg font-bold bg-primary/10 text-primary">
-              {(profile.full_name || "C").charAt(0)}
+              {(displayName || "C").charAt(0)}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="font-display text-xl font-bold text-foreground truncate">
-                {profile.full_name || "Client"}
+                {displayName || (loading ? <Skeleton className="h-5 w-40 inline-block align-middle" /> : "Client")}
               </h1>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -374,36 +430,38 @@ const ClientDetail = () => {
             ))}
           </TabsList>
 
-          <TabsContent value="dash">
-            <ClientWorkspaceSummary clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="checkins">
-            <ClientCheckinHistory clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="onboarding">
-            <OnboardingTab clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="calendar">
-            <CalendarTab clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="training">
-            <ClientWorkspaceTraining clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="nutrition">
-            <NutritionTargetsTab clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="mealplan">
-            <MealPlanTab clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="supps">
-            <ClientSupplementPlan clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="plan">
-            <PlanTab clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="progress">
-            <ClientWorkspaceProgress clientId={clientId!} />
-          </TabsContent>
+          <Suspense fallback={<TabFallback />}>
+            <TabsContent value="dash">
+              <ClientWorkspaceSummary clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="checkins">
+              <ClientCheckinHistory clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="onboarding">
+              <OnboardingTab clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="calendar">
+              <CalendarTab clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="training">
+              <ClientWorkspaceTraining clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="nutrition">
+              <NutritionTargetsTab clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="mealplan">
+              <MealPlanTab clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="supps">
+              <ClientSupplementPlan clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="plan">
+              <PlanTab clientId={clientId!} />
+            </TabsContent>
+            <TabsContent value="progress">
+              <ClientWorkspaceProgress clientId={clientId!} />
+            </TabsContent>
+          </Suspense>
           {/* Messages tab content intentionally omitted — opens in MessagesPopup */}
         </Tabs>
       </div>
@@ -412,16 +470,17 @@ const ClientDetail = () => {
         open={tagDialogOpen}
         onOpenChange={setTagDialogOpen}
         clientId={clientId!}
-        clientName={profile.full_name || "Client"}
+        clientName={displayName || "Client"}
         onTagsChanged={loadClientData}
       />
       <MessagesPopup
         open={messagesOpen}
         onOpenChange={handleMessagesOpenChange}
         clientId={clientId!}
-        clientName={profile.full_name || "Client"}
-        clientAvatar={profile.avatar_url}
+        clientName={displayName || "Client"}
+        clientAvatar={profile?.avatar_url ?? null}
       />
+
     </AppLayout>
   );
 };

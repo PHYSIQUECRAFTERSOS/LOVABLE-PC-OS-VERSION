@@ -90,6 +90,21 @@ const ComplianceBadge = ({ status, pct }: NutritionCompliance) => {
   );
 };
 
+/**
+ * Warm the client workspace chunks on hover/touch so opening a client lands on
+ * already-downloaded code. Vite dedupes these imports, so repeat calls are free.
+ */
+let workspaceWarmed = false;
+const prefetchClientWorkspace = () => {
+  if (workspaceWarmed) return;
+  workspaceWarmed = true;
+  Promise.all([
+    import("@/pages/ClientDetail"),
+    import("@/components/clients/workspace/SummaryTab"),
+  ]).catch(() => { workspaceWarmed = false; });
+};
+
+
 const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatusChanged }: SelectableClientCardsProps) => {
   const { user, role } = useAuth();
   const navigate = useNavigate();
@@ -722,10 +737,13 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
               className={`cursor-pointer transition-all ${
                 isSelected ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20" : "hover:border-primary/20"
               }`}
+              onMouseEnter={prefetchClientWorkspace}
+              onTouchStart={prefetchClientWorkspace}
               onClick={(e) => {
                 if ((e.target as HTMLElement).closest('[role="checkbox"]')) return;
                 setPreviewClient(client);
               }}
+
             >
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-center gap-3">

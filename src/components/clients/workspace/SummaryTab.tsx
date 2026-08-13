@@ -417,7 +417,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
     });
 
     const loadExtended = async () => {
-      const [actionsRes, photosRes, targetsRes, todayLogsRes, weight30Res, workouts7Res, compliance7Res] =
+      const [actionsRes, photosRes, targetsRes, todayLogsRes, weight30Res, workouts7Res, compliance7Res, completedSessionsRes] =
         await Promise.all([
           supabase.from("calendar_events").select("id, event_type, title, is_completed, linked_workout_id, event_date, description, notes, event_time, end_time, is_recurring, recurrence_pattern, color, completed_at")
             .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`).eq("event_date", selectedDateStr),
@@ -435,44 +435,37 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             .gte("created_at", `${format(subDays(new Date(), 7), "yyyy-MM-dd")}T00:00:00`),
           supabase.from("nutrition_logs").select("logged_at, calories, protein, carbs, fat")
             .eq("client_id", clientId).in("logged_at", last7dates),
+          // Completion cross-reference, fetched in the same wave instead of as a
+          // follow-up round-trip after the batch resolves.
+          supabase.from("workout_sessions").select("workout_id")
+            .eq("client_id", clientId).eq("status", "completed")
+            .gte("created_at", `${format(subDays(new Date(), 30), "yyyy-MM-dd")}T00:00:00`),
         ]);
 
       // Cross-reference workout actions with workout_sessions to fix completion status
       const rawActions = (actionsRes.data || []) as CalendarAction[];
-      const workoutActions = rawActions.filter(a => a.event_type === "workout" && a.linked_workout_id && !a.is_completed);
-      if (workoutActions.length > 0) {
-        const workoutIds = workoutActions.map(a => a.linked_workout_id!);
-        const { data: sessionsForDay } = await supabase.from("workout_sessions")
-          .select("workout_id, completed_at, status")
-          .eq("client_id", clientId)
-          .eq("status", "completed")
-          .in("workout_id", workoutIds);
-        const completedWorkoutIds = new Set((sessionsForDay || []).map(s => s.workout_id));
-        const mergedActions = rawActions.map(a => {
-          if (a.event_type === "workout" && a.linked_workout_id && completedWorkoutIds.has(a.linked_workout_id)) {
-            return { ...a, is_completed: true };
-          }
-          return a;
-        });
-        setActions(mergedActions);
-      } else {
-        setActions(rawActions);
-      }
+      const completedWorkoutIds = new Set(
+        (completedSessionsRes.data || []).map((s: any) => s.workout_id).filter(Boolean),
+      );
+      setActions(
+        rawActions.map((a) =>
+          a.event_type === "workout" && a.linked_workout_id && completedWorkoutIds.has(a.linked_workout_id)
+            ? { ...a, is_completed: true }
+            : a,
+        ),
+      );
 
-      // Photos
+      // Photos — one batched signing call instead of one round-trip per photo.
       const photos = photosRes.data || [];
       if (photos.length > 0) {
-        const urls = await Promise.all(
-          photos.map(async (p) => {
-            const { data: urlData } = await supabase.storage
-              .from("progress-photos").createSignedUrl(p.storage_path, 3600);
-            return urlData?.signedUrl || "";
-          })
-        );
-        setPhotoUrls(urls.filter(Boolean));
+        const { data: signed } = await supabase.storage
+          .from("progress-photos")
+          .createSignedUrls(photos.map((p) => p.storage_path), 3600);
+        setPhotoUrls((signed || []).map((s) => s.signedUrl || "").filter(Boolean));
       } else {
         setPhotoUrls([]);
       }
+
 
       // Nutrition targets
       const calTarget = targetsRes.data?.calories || 0;
