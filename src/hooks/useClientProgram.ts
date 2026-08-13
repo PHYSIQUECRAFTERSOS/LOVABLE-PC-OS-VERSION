@@ -98,7 +98,7 @@ export function useClientProgram(clientId: string | undefined) {
       // Step 1: Active assignment + its program in a single round-trip (joined).
       const { data: assignData, error: assignErr } = await supabase
         .from("client_program_assignments")
-        .select("*, programs(id, name, description, goal_type, version_number, is_master, start_date, end_date, duration_weeks)")
+        .select("*, programs!client_program_assignments_program_id_fkey(id, name, description, goal_type, version_number, is_master, start_date, end_date, duration_weeks)")
         .eq("client_id", clientId)
         .eq("status", "active")
         .order("created_at", { ascending: false })
