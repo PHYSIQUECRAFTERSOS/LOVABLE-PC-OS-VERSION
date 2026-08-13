@@ -3,9 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Printer, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { exportMealPlanPdf } from "@/utils/pdf/exportMealPlanPdf";
-import { exportSupplementsPdf } from "@/utils/pdf/exportSupplementsPdf";
-import { exportTrainingPdf } from "@/utils/pdf/exportTrainingPdf";
+// PDF generators are loaded on demand (they pull in jsPDF ~500KB) — see handleClick.
 import PdfExportPreviewDialog, { type PdfPreviewAsset } from "@/components/common/PdfExportPreviewDialog";
 import { isNativePdfPreviewAvailable, previewPdfNative } from "@/lib/nativePdfPreview";
 
@@ -55,10 +53,10 @@ const ExportPdfButton = ({ kind, clientId, variant = "icon", className }: Props)
     try {
       const res =
         kind === "meal-plan"
-          ? await exportMealPlanPdf(clientId, { returnAsset: wantsAsset })
+          ? await (await import("@/utils/pdf/exportMealPlanPdf")).exportMealPlanPdf(clientId, { returnAsset: wantsAsset })
           : kind === "supplements"
-          ? await exportSupplementsPdf(clientId, { returnAsset: wantsAsset })
-          : await exportTrainingPdf(clientId, { returnAsset: wantsAsset });
+          ? await (await import("@/utils/pdf/exportSupplementsPdf")).exportSupplementsPdf(clientId, { returnAsset: wantsAsset })
+          : await (await import("@/utils/pdf/exportTrainingPdf")).exportTrainingPdf(clientId, { returnAsset: wantsAsset });
       if (!res.ok) {
         toast.error(res.reason || "Nothing to export yet.");
         return;

@@ -77,6 +77,9 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("emoji-picker-react")) return undefined;
           if (id.includes("pdfjs-dist")) return undefined;
           if (id.includes("@ffmpeg")) return undefined;
+          // lucide-react: 771KB of icon modules. Left unbucketed so Rollup
+          // attaches each icon to the route chunk that uses it.
+          if (id.includes("lucide-react")) return undefined;
           // Keep the big shared runtime libs in dedicated chunks so a route
           // switch only pays for the diff. Do NOT bucket lucide-react — that
           // forces every icon into a single up-front chunk. Leaving it out
@@ -84,10 +87,33 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("react-router")) return "vendor";
           if (id.match(/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/)) return "vendor";
           if (id.includes("@radix-ui")) return "radix";
-          if (id.includes("recharts") || id.includes("d3-")) return "charts";
+          if (id.includes("recharts") || id.includes("d3-") || id.includes("victory-vendor") ||
+              id.includes("decimal.js-light") || id.includes("react-smooth"))
+            return "charts";
           if (id.includes("@supabase")) return "supabase";
-          if (id.includes("jspdf") || id.includes("html2canvas")) return "pdf";
+          if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("/fast-png/") ||
+              id.includes("/canvg/") || id.includes("/pako/") || id.includes("/fflate/") ||
+              id.includes("/iobuffer/") || id.includes("/rgbcolor/") || id.includes("/stackblur-canvas/") ||
+              id.includes("/svg-pathdata/"))
+            return "pdf";
           if (id.includes("@tanstack")) return "query";
+          // Heavy, route-scoped libraries: their own async chunks so the initial
+          // download doesn't carry them.
+          if (id.includes("framer-motion") || id.includes("motion-dom") || id.includes("motion-utils"))
+            return "motion";
+          if (id.includes("@dnd-kit")) return "dnd";
+          if (id.includes("embla-carousel")) return "carousel";
+          if (id.includes("browser-image-compression")) return "imgcompress";
+          if (id.includes("/date-fns/")) return "dates";
+          if (id.includes("react-day-picker")) return "daypicker";
+          if (id.includes("/lodash/") || id.includes("/lodash-es/")) return "lodash";
+          // Markdown/sanitizer stack — only the community + messaging screens.
+          if (/micromark|mdast|remark|unified|vfile|hast|react-markdown|dompurify|property-information|character-entities|decode-named|unist-|zwitch|trim-lines|space-separated|comma-separated|bail|is-plain-obj|trough|devlop|longest-streak|markdown-table|ccount|escape-string-regexp/.test(id))
+            return "markdown";
+          // Everything else shares one bucket. Do NOT return undefined here:
+          // ubiquitous helpers (clsx, preload-helper, commonjs shims) would get
+          // folded into whichever heavy chunk claimed them first and drag it
+          // into the eager initial download.
           return "deps";
         },
       },

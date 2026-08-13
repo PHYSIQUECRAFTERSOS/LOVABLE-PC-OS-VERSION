@@ -110,7 +110,7 @@ const SignedDocumentPreviewDialog = ({ open, onOpenChange, document: doc }: Prop
         window.document.body.removeChild(a);
         return;
       }
-      generateDocumentPdf({
+      await generateDocumentPdf({
         title: doc.title,
         body,
         footer: footerData,

@@ -219,15 +219,24 @@ const CoachCommandCenter = () => {
       // query degrades only its own card instead of zeroing the whole dashboard.
       // Do NOT thread the shared AbortSignal into these — that's what caused the
       // all-or-nothing cancel in the prior implementation.
+      // Server-side scope for calendar events: an event belongs to this coach's
+      // roster if the client owns it (user_id) or the coach scheduled it for
+      // them (target_client_id). Without this filter both calendar queries
+      // returned every row RLS allowed and were filtered in the browser.
+      const clientIdList = `(${clientIds.join(",")})`;
+      const rosterScope = `user_id.in.${clientIdList},target_client_id.in.${clientIdList}`;
+
       const profilesReq = supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", clientIds);
       // Calendar events for last 7 days (workout + checkin only) — source of truth for compliance
-      const calEventsReq = supabase.from("calendar_events").select("user_id, target_client_id, event_type, is_completed, event_date, linked_workout_id, title").in("event_type", ["workout", "checkin"]).gte("event_date", last7Start).lte("event_date", format(now, "yyyy-MM-dd"));
+      const calEventsReq = supabase.from("calendar_events").select("user_id, target_client_id, event_type, is_completed, event_date, linked_workout_id, title").or(rosterScope).in("event_type", ["workout", "checkin"]).gte("event_date", last7Start).lte("event_date", format(now, "yyyy-MM-dd"));
       // Workout sessions for double-verification (catch completed workouts where calendar wasn't flagged)
       const sessionsReq = supabase.from("workout_sessions").select("client_id, created_at, completed_at, session_date, workout_id, workouts:workout_id(name, is_accessory)").in("client_id", clientIds).gte("created_at", `${last7Start}T00:00:00`);
-      const riskReq = supabase.from("client_risk_scores").select("client_id, score, risk_level, signals, calculated_at").in("client_id", clientIds).order("calculated_at", { ascending: false });
-      const messagesReq = supabase.from("messages").select("id, sender_id, conversation_id, content, created_at").neq("sender_id", user.id).order("created_at", { ascending: false }).limit(20);
+      // Only the recent scoring window is used (latest per client) — an
+      // unbounded history pull grows forever as the roster ages.
+      const riskReq = supabase.from("client_risk_scores").select("client_id, score, risk_level, signals, calculated_at").in("client_id", clientIds).gte("calculated_at", `${format(subDays(now, 30), "yyyy-MM-dd")}T00:00:00`).order("calculated_at", { ascending: false });
+      const messagesReq = supabase.from("messages").select("id, sender_id, conversation_id, content, created_at").in("sender_id", clientIds).order("created_at", { ascending: false }).limit(20);
       // Yesterday's scheduled workouts (coach schedules via target_client_id OR client's own)
-      const yesterdayCalReq = supabase.from("calendar_events").select("user_id, target_client_id, linked_workout_id, is_completed, title, workouts:linked_workout_id(is_accessory)").eq("event_date", yesterday).eq("event_type", "workout");
+      const yesterdayCalReq = supabase.from("calendar_events").select("user_id, target_client_id, linked_workout_id, is_completed, title, workouts:linked_workout_id(is_accessory)").or(rosterScope).eq("event_date", yesterday).eq("event_type", "workout");
 
       const [profilesSettled, calEventsSettled, sessionsSettled, riskSettled, messagesSettled, yesterdayCalSettled] = await Promise.allSettled([
         profilesReq, calEventsReq, sessionsReq, riskReq, messagesReq, yesterdayCalReq,
