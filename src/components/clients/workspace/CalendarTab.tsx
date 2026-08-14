@@ -777,7 +777,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
   const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+  if (loadError && events.length === 0) return (
+    <div className="text-center py-16 space-y-3">
+      <p className="text-sm text-muted-foreground">Couldn't load this client's calendar.</p>
+      <Button variant="outline" onClick={() => loadMonth()}>Try again</Button>
+    </div>
+  );
   if (loading) return <Skeleton className="h-[500px] rounded-xl" />;
+
 
   return (
     <div className="flex gap-4">
