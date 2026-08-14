@@ -351,8 +351,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         name: workoutLabelMap.get(s.workout_id) || (s.workouts as any)?.name || "Workout",
       },
     })));
-    setLoading(false);
+    } catch (err) {
+      console.error("[CalendarTab] load failed:", err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, [clientId, currentMonth]);
+
 
   useEffect(() => { loadMonth(); }, [loadMonth]);
 
