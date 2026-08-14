@@ -430,38 +430,25 @@ const ClientDetail = () => {
             ))}
           </TabsList>
 
+          {/* Only the active tab is mounted. Rendering all ten TabsContent
+              blocks made every workspace tab fire its own query fan-out on
+              open (onboarding, meal plans, grocery lists, photos…), which is
+              what made the profile crawl. */}
           <Suspense fallback={<TabFallback />}>
-            <TabsContent value="dash">
-              <ClientWorkspaceSummary clientId={clientId!} />
-            </TabsContent>
-            <TabsContent value="checkins">
-              <ClientCheckinHistory clientId={clientId!} />
-            </TabsContent>
-            <TabsContent value="onboarding">
-              <OnboardingTab clientId={clientId!} />
-            </TabsContent>
-            <TabsContent value="calendar">
-              <CalendarTab clientId={clientId!} />
-            </TabsContent>
-            <TabsContent value="training">
-              <ClientWorkspaceTraining clientId={clientId!} />
-            </TabsContent>
-            <TabsContent value="nutrition">
-              <NutritionTargetsTab clientId={clientId!} />
-            </TabsContent>
-            <TabsContent value="mealplan">
-              <MealPlanTab clientId={clientId!} />
-            </TabsContent>
-            <TabsContent value="supps">
-              <ClientSupplementPlan clientId={clientId!} />
-            </TabsContent>
-            <TabsContent value="plan">
-              <PlanTab clientId={clientId!} />
-            </TabsContent>
-            <TabsContent value="progress">
-              <ClientWorkspaceProgress clientId={clientId!} />
+            <TabsContent value={activeTab} forceMount>
+              {activeTab === "dash" && <ClientWorkspaceSummary clientId={clientId!} />}
+              {activeTab === "checkins" && <ClientCheckinHistory clientId={clientId!} />}
+              {activeTab === "onboarding" && <OnboardingTab clientId={clientId!} />}
+              {activeTab === "calendar" && <CalendarTab clientId={clientId!} />}
+              {activeTab === "training" && <ClientWorkspaceTraining clientId={clientId!} />}
+              {activeTab === "nutrition" && <NutritionTargetsTab clientId={clientId!} />}
+              {activeTab === "mealplan" && <MealPlanTab clientId={clientId!} />}
+              {activeTab === "supps" && <ClientSupplementPlan clientId={clientId!} />}
+              {activeTab === "plan" && <PlanTab clientId={clientId!} />}
+              {activeTab === "progress" && <ClientWorkspaceProgress clientId={clientId!} />}
             </TabsContent>
           </Suspense>
+
           {/* Messages tab content intentionally omitted — opens in MessagesPopup */}
         </Tabs>
       </div>
