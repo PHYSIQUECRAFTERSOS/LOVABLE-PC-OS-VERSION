@@ -209,57 +209,9 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     // Workout-label lookup (assignment -> phase -> program workouts) runs in
     // parallel with the main data wave so its 2-3 round trips stay off the
     // critical path.
-    const labelPromise = (async () => {
+    const labelPromise = withTimeout((async () => {
       const workoutLabelMap = new Map<string, string>();
 
-      const { data: assignment } = await supabase
-        .from("client_program_assignments")
-        .select("program_id, current_phase_id")
-        .eq("client_id", clientId)
-        .in("status", ["active", "subscribed"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!assignment?.program_id) return workoutLabelMap;
-
-      let phaseId = assignment.current_phase_id;
-      if (!phaseId) {
-        const { data: firstPhase } = await supabase
-          .from("program_phases")
-          .select("id")
-          .eq("program_id", assignment.program_id)
-          .order("created_at", { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        phaseId = firstPhase?.id ?? null;
-      }
-
-      if (!phaseId) return workoutLabelMap;
-
-      const { data: pws } = await supabase
-        .from("program_workouts")
-        .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
-        .eq("phase_id", phaseId)
-        .order("sort_order", { ascending: true });
-
-      const rows = (pws || []).map((pw: any) => ({
-        id: pw.workout_id,
-        sort_order: pw.sort_order,
-        exclude_from_numbering: pw.exclude_from_numbering || false,
-        custom_tag: pw.custom_tag || null,
-        name: (pw.workouts as any)?.name || "Workout",
-      }));
-
-      sortWorkoutsChronologically(rows).forEach((w: any) => {
-        const label = w.exclude_from_numbering && w.custom_tag
-          ? `${w.custom_tag}: ${w.name}`
-          : w.name;
-        workoutLabelMap.set(w.id, label);
-      });
-
-      return workoutLabelMap;
-    })();
 
     const [workoutLabelMap, [eventsResult, sessionsResult, nutResult, weightResult]] = await Promise.all([
       labelPromise,
