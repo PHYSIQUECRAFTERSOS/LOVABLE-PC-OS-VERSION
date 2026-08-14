@@ -81,8 +81,9 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   // Shared hook — single source of truth for client program data
   const {
     assignment, program, phases: hookPhases, weeks: hookWeeks,
-    loading, reload: loadClientProgram,
+    loading, error: programError, reload: loadClientProgram,
   } = useClientProgram(clientId);
+
 
   const [phases, setPhases] = useState<Phase[]>([]);
   const [weeks, setWeeks] = useState<Week[]>([]);
