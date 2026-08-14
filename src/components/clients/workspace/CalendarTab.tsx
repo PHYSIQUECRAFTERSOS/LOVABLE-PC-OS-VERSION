@@ -213,44 +213,31 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     // critical path.
     const labelPromise = withTimeout((async () => {
       const workoutLabelMap = new Map<string, string>();
-
-      const { data: assignment } = await supabase
-        .from("client_program_assignments")
-        .select("program_id, current_phase_id")
-        .eq("client_id", clientId)
-        .in("status", ["active", "subscribed"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!assignment?.program_id) return workoutLabelMap;
-
-      let phaseId = assignment.current_phase_id;
-      if (!phaseId) {
-        const { data: firstPhase } = await supabase
-          .from("program_phases")
-          .select("id")
-          .eq("program_id", assignment.program_id)
-          .order("created_at", { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        phaseId = firstPhase?.id ?? null;
-      }
-
-      if (!phaseId) return workoutLabelMap;
-
-      const { data: pws } = await supabase
-        .from("program_workouts")
-        .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
-        .eq("phase_id", phaseId)
-        .order("sort_order", { ascending: true });
-
-      const rows = (pws || []).map((pw: any) => ({
-        id: pw.workout_id,
-        sort_order: pw.sort_order,
-        exclude_from_numbering: pw.exclude_from_numbering || false,
-        custom_tag: pw.custom_tag || null,
-        name: (pw.workouts as any)?.name || "Workout",
+      const { data, error } = await supabase.rpc("get_client_program_bundle_fast", { _client_id: clientId });
+      if (error) throw error;
+      const bundle = data as unknown as {
+        assignment?: { current_phase_id?: string | null } | null;
+        phases?: Array<{
+          id: string;
+          phase_order: number;
+          directWorkouts?: Array<{
+            workout_id: string;
+            sort_order?: number | null;
+            exclude_from_numbering?: boolean;
+            custom_tag?: string | null;
+            workout_name: string;
+          }>;
+        }>;
+      } | null;
+      const phases = bundle?.phases || [];
+      const activePhase = phases.find((phase) => phase.id === bundle?.assignment?.current_phase_id)
+        || phases.slice().sort((a, b) => a.phase_order - b.phase_order)[0];
+      const rows = (activePhase?.directWorkouts || []).map((workout) => ({
+        id: workout.workout_id,
+        sort_order: workout.sort_order,
+        exclude_from_numbering: workout.exclude_from_numbering || false,
+        custom_tag: workout.custom_tag || null,
+        name: workout.workout_name || "Workout",
       }));
 
       sortWorkoutsChronologically(rows).forEach((w: any) => {
@@ -275,10 +262,11 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     const [eventsResult, sessionsResult, nutResult, weightResult] = await
       Promise.allSettled([
 
-        withRetry(async () => await supabase.from("calendar_events")
-          .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id, description, notes, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time, user_id")
-          .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
-          { label: "calendar events", timeoutMs: 10000 }),
+        withRetry(async () => await supabase.rpc("get_client_calendar_events_fast", {
+          _client_id: clientId,
+          _start_date: start,
+          _end_date: end,
+        }), { label: "calendar events", timeoutMs: 10000, attempts: 2 }),
         withRetry(async () => await supabase.from("workout_sessions")
           .select("id, workout_id, session_date, created_at, completed_at, workouts(name)")
           .eq("client_id", clientId)
