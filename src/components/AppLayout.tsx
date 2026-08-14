@@ -98,26 +98,18 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       //          OR coach_marked_unread = true)
       // Do NOT revert to using message_threads.updated_at — the update_thread_timestamp trigger
       // bumps updated_at on the coach's own sends, which caused phantom unread counts.
-      const { data: threads } = await (supabase as any)
-        .from("message_threads")
-        .select("id, client_id, coach_last_seen_at, coach_marked_unread")
-        .eq("coach_id", user.id)
-        .eq("is_archived", false);
+      // Single round-trip: the coach_unread_thread_count function applies the
+      // rules above server-side. Previously this was one count query PER
+      // thread (~70 requests on a full roster), which stalled every page.
+      const { data, error } = await (supabase as any).rpc("coach_unread_thread_count", {
+        _coach_id: user.id,
+      });
+      if (error) {
+        console.warn("[AppLayout] unread count failed:", error);
+        return;
+      }
+      setUnreadCount(Number(data) || 0);
 
-      const results = await Promise.all(
-        (threads || []).map(async (t: any) => {
-          if (t.coach_marked_unread) return true;
-          let q = (supabase as any)
-            .from("thread_messages")
-            .select("id", { count: "exact", head: true })
-            .eq("thread_id", t.id)
-            .eq("sender_id", t.client_id);
-          if (t.coach_last_seen_at) q = q.gt("created_at", t.coach_last_seen_at);
-          const { count: c } = await q;
-          return (c || 0) > 0;
-        })
-      );
-      setUnreadCount(results.filter(Boolean).length);
     } else {
       // Count unread messages for client
       const { count } = await (supabase as any)
