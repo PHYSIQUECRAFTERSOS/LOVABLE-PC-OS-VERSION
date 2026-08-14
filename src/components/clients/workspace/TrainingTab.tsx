@@ -1039,6 +1039,14 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   // refetches after save/edit, keep the pane mounted so selectedPhaseId is preserved.
   if (loading && !program) return <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>;
 
+  if (programError && !program) return (
+    <div className="text-center py-16 space-y-3">
+      <p className="text-sm text-muted-foreground">Couldn't load this client's training program.</p>
+      <Button variant="outline" onClick={() => loadClientProgram()}>Try again</Button>
+    </div>
+  );
+
+
   if (!assignment || !program) {
     const handleBuildFromScratch = async () => {
       if (!user) return;
