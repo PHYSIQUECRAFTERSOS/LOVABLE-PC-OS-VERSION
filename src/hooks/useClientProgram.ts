@@ -99,8 +99,8 @@ export function useClientProgram(clientId: string | undefined) {
     try {
       // Step 1: Active assignment + its program in a single round-trip (joined).
       const { data: assignData, error: assignErr } = await withRetry(
-        () =>
-          supabase
+        async () =>
+          await supabase
             .from("client_program_assignments")
             .select("*, programs!client_program_assignments_program_id_fkey(id, name, description, goal_type, version_number, is_master, start_date, end_date, duration_weeks)")
             .eq("client_id", clientId)
@@ -108,6 +108,7 @@ export function useClientProgram(clientId: string | undefined) {
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
+
         { label: "client program assignment", timeoutMs: 10000, attempts: 3 },
       );
 
