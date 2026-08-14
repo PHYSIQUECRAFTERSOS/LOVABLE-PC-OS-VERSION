@@ -135,9 +135,10 @@ export function useClientProgram(clientId: string | undefined) {
 
       // Step 2: Fetch phases and weeks in parallel using Promise.allSettled
       const [phasesResult, weeksResult] = await Promise.allSettled([
-        supabase.from("program_phases").select("*").eq("program_id", prog.id).order("phase_order"),
-        supabase.from("program_weeks").select("id, week_number, name, phase_id").eq("program_id", prog.id).order("week_number"),
+        withRetry(async () => await supabase.from("program_phases").select("*").eq("program_id", prog.id).order("phase_order"), { label: "program phases", timeoutMs: 10000 }),
+        withRetry(async () => await supabase.from("program_weeks").select("id, week_number, name, phase_id").eq("program_id", prog.id).order("week_number"), { label: "program weeks", timeoutMs: 10000 }),
       ]);
+
 
 
       const phaseData = phasesResult.status === "fulfilled" ? phasesResult.value.data || [] : [];
