@@ -273,26 +273,30 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     const [workoutLabelMap, [eventsResult, sessionsResult, nutResult, weightResult]] = await Promise.all([
       labelPromise,
       Promise.allSettled([
-        supabase.from("calendar_events")
+        withRetry(async () => await supabase.from("calendar_events")
           .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id, description, notes, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time, user_id")
           .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
-        supabase.from("workout_sessions")
+          { label: "calendar events", timeoutMs: 10000 }),
+        withRetry(async () => await supabase.from("workout_sessions")
           .select("id, workout_id, session_date, created_at, completed_at, workouts(name)")
           .eq("client_id", clientId)
           // Fetch by session_date (client-local YYYY-MM-DD) so coach-timezone drift
           // does not exclude or duplicate sessions across day boundaries.
-          // Pad ±1 day to catch any legacy rows where session_date may be missing.
           .gte("session_date", start).lte("session_date", end),
-        supabase.from("nutrition_logs")
+          { label: "workout sessions", timeoutMs: 10000 }),
+        withRetry(async () => await supabase.from("nutrition_logs")
           .select("id, logged_at, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit")
           .eq("client_id", clientId)
           .gte("logged_at", start).lte("logged_at", end),
-        supabase.from("weight_logs")
+          { label: "nutrition logs", timeoutMs: 10000 }),
+        withRetry(async () => await supabase.from("weight_logs")
           .select("weight, logged_at")
           .eq("client_id", clientId)
           .gte("logged_at", start).lte("logged_at", end)
           .order("logged_at", { ascending: true }),
+          { label: "weight logs", timeoutMs: 10000 }),
       ]),
+
     ]);
 
 
