@@ -270,9 +270,11 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
 
 
-    const [workoutLabelMap, [eventsResult, sessionsResult, nutResult, weightResult]] = await Promise.all([
-      labelPromise,
+    // Render the grid as soon as the data wave lands — workout labels are
+    // cosmetic and get patched in afterwards, so they never gate the paint.
+    const [eventsResult, sessionsResult, nutResult, weightResult] = await
       Promise.allSettled([
+
         withRetry(async () => await supabase.from("calendar_events")
           .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id, description, notes, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time, user_id")
           .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
@@ -295,9 +297,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
           .gte("logged_at", start).lte("logged_at", end)
           .order("logged_at", { ascending: true }),
           { label: "weight logs", timeoutMs: 10000 }),
-      ]),
+      ]);
 
-    ]);
 
 
     const eventsRes = eventsResult.status === "fulfilled" ? eventsResult.value : { data: null };
@@ -314,12 +315,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     }
     setWeightMap(newWeightMap);
 
-    const normalizedEvents: CalEvent[] = (eventsRes.data || []).map((e: any) => {
-      if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
-        return { ...e, title: workoutLabelMap.get(e.linked_workout_id) };
-      }
-      return e;
-    });
+    const normalizedEvents: CalEvent[] = (eventsRes.data || []).map((e: any) => e);
+
 
     // Merge nutrition logs into daily summary events
     const nutData = nutRes.data || [];
@@ -362,16 +359,29 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     setEvents(normalizedEvents);
     setSessions((sessionsRes.data || []).map((s: any) => ({
       ...s,
-      workouts: {
-        name: workoutLabelMap.get(s.workout_id) || (s.workouts as any)?.name || "Workout",
-      },
+      workouts: { name: (s.workouts as any)?.name || "Workout" },
     })));
+    setLoading(false);
+
+    // Labels arrive after the grid is already on screen; patch titles in place.
+    const workoutLabelMap = await labelPromise;
+    if (workoutLabelMap.size > 0) {
+      setEvents((prev) => prev.map((e: any) =>
+        e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)
+          ? { ...e, title: workoutLabelMap.get(e.linked_workout_id) }
+          : e));
+      setSessions((prev) => prev.map((s: any) => ({
+        ...s,
+        workouts: { name: workoutLabelMap.get(s.workout_id) || s.workouts?.name || "Workout" },
+      })));
+    }
     } catch (err) {
       console.error("[CalendarTab] load failed:", err);
       setLoadError(true);
     } finally {
       setLoading(false);
     }
+
   }, [clientId, currentMonth]);
 
 

@@ -8057,6 +8057,10 @@ export type Database = {
         Args: { _user_id: string }
         Returns: boolean
       }
+      coach_unread_thread_count: {
+        Args: { _coach_id: string }
+        Returns: number
+      }
       compute_nutrition_streak: { Args: { p_user_id: string }; Returns: number }
       delete_email: {
         Args: { message_id: number; queue_name: string }
