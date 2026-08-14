@@ -8080,6 +8080,33 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_client_calendar_events_fast: {
+        Args: { _client_id: string; _end_date: string; _start_date: string }
+        Returns: {
+          color: string
+          completed_at: string
+          description: string
+          end_time: string
+          event_date: string
+          event_time: string
+          event_type: string
+          id: string
+          is_completed: boolean
+          is_recurring: boolean
+          linked_cardio_id: string
+          linked_checkin_id: string
+          linked_workout_id: string
+          notes: string
+          recurrence_pattern: string
+          target_client_id: string
+          title: string
+          user_id: string
+        }[]
+      }
+      get_client_program_bundle_fast: {
+        Args: { _client_id: string }
+        Returns: Json
+      }
       get_client_training_workouts: {
         Args: { _client_id: string }
         Returns: {
