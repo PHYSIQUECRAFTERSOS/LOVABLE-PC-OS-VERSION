@@ -297,9 +297,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
           .gte("logged_at", start).lte("logged_at", end)
           .order("logged_at", { ascending: true }),
           { label: "weight logs", timeoutMs: 10000 }),
-      ]),
+      ]);
 
-    ]);
 
 
     const eventsRes = eventsResult.status === "fulfilled" ? eventsResult.value : { data: null };
