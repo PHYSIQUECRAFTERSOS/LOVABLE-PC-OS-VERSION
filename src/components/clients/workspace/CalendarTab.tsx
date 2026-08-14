@@ -270,9 +270,11 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
 
 
-    const [workoutLabelMap, [eventsResult, sessionsResult, nutResult, weightResult]] = await Promise.all([
-      labelPromise,
+    // Render the grid as soon as the data wave lands — workout labels are
+    // cosmetic and get patched in afterwards, so they never gate the paint.
+    const [eventsResult, sessionsResult, nutResult, weightResult] = await
       Promise.allSettled([
+
         withRetry(async () => await supabase.from("calendar_events")
           .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id, description, notes, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time, user_id")
           .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
