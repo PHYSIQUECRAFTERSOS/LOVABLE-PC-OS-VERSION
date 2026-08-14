@@ -194,6 +194,9 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
   const loadMonth = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
+    try {
+
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
     const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
