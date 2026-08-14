@@ -35,6 +35,8 @@ import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
 import { derivePhaseDates } from "@/lib/phaseDates";
 import { Flag } from "lucide-react";
 import PhaseWeekBanner from "@/components/calendar/PhaseWeekBanner";
+import { withTimeout, withRetry } from "@/lib/resilientFetch";
+
 
 const EVENT_TYPES = [
   { value: "workout", label: "Workout", icon: Dumbbell, color: "bg-info" },
