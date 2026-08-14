@@ -153,20 +153,21 @@ export function useClientProgram(clientId: string | undefined) {
 
       const [phasePwRes, weekPwRes] = await Promise.allSettled([
         phaseIds.length > 0
-          ? supabase
+          ? withRetry(async () => await supabase
               .from("program_workouts")
               .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name)")
               .in("phase_id", phaseIds)
-              .order("sort_order")
+              .order("sort_order"), { label: "phase workouts", timeoutMs: 10000 })
           : Promise.resolve({ data: [] as any[] }),
         weekIds.length > 0
-          ? supabase
+          ? withRetry(async () => await supabase
               .from("program_workouts")
               .select("id, week_id, workout_id, day_of_week, day_label, sort_order, workouts(id, name)")
               .in("week_id", weekIds)
-              .order("sort_order")
+              .order("sort_order"), { label: "week workouts", timeoutMs: 10000 })
           : Promise.resolve({ data: [] as any[] }),
       ]);
+
 
       const directPWs = phasePwRes.status === "fulfilled" ? (phasePwRes.value as any).data || [] : [];
       const pwData = weekPwRes.status === "fulfilled" ? (weekPwRes.value as any).data || [] : [];
