@@ -315,12 +315,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     }
     setWeightMap(newWeightMap);
 
-    const normalizedEvents: CalEvent[] = (eventsRes.data || []).map((e: any) => {
-      if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
-        return { ...e, title: workoutLabelMap.get(e.linked_workout_id) };
-      }
-      return e;
-    });
+    const normalizedEvents: CalEvent[] = (eventsRes.data || []).map((e: any) => e);
+
 
     // Merge nutrition logs into daily summary events
     const nutData = nutRes.data || [];
