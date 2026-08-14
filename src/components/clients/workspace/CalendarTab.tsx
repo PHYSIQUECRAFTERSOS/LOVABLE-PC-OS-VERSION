@@ -35,6 +35,8 @@ import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
 import { derivePhaseDates } from "@/lib/phaseDates";
 import { Flag } from "lucide-react";
 import PhaseWeekBanner from "@/components/calendar/PhaseWeekBanner";
+import { withTimeout, withRetry } from "@/lib/resilientFetch";
+
 
 const EVENT_TYPES = [
   { value: "workout", label: "Workout", icon: Dumbbell, color: "bg-info" },
@@ -106,6 +108,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
 
   // Schedule dialog
   const [showSchedule, setShowSchedule] = useState(false);
@@ -194,6 +198,9 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
   const loadMonth = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
+    try {
+
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
     const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
@@ -204,7 +211,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     // Workout-label lookup (assignment -> phase -> program workouts) runs in
     // parallel with the main data wave so its 2-3 round trips stay off the
     // critical path.
-    const labelPromise = (async () => {
+    const labelPromise = withTimeout((async () => {
       const workoutLabelMap = new Map<string, string>();
 
       const { data: assignment } = await supabase
@@ -254,31 +261,42 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       });
 
       return workoutLabelMap;
-    })();
+    })(), 10000, "calendar workout labels").catch((err) => {
+      // Labels are cosmetic — never let them block the grid from rendering.
+      console.warn("[CalendarTab] workout label lookup failed:", err);
+      return new Map<string, string>();
+    });
+
+
+
 
     const [workoutLabelMap, [eventsResult, sessionsResult, nutResult, weightResult]] = await Promise.all([
       labelPromise,
       Promise.allSettled([
-        supabase.from("calendar_events")
+        withRetry(async () => await supabase.from("calendar_events")
           .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id, description, notes, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time, user_id")
           .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
-        supabase.from("workout_sessions")
+          { label: "calendar events", timeoutMs: 10000 }),
+        withRetry(async () => await supabase.from("workout_sessions")
           .select("id, workout_id, session_date, created_at, completed_at, workouts(name)")
           .eq("client_id", clientId)
           // Fetch by session_date (client-local YYYY-MM-DD) so coach-timezone drift
           // does not exclude or duplicate sessions across day boundaries.
-          // Pad ±1 day to catch any legacy rows where session_date may be missing.
           .gte("session_date", start).lte("session_date", end),
-        supabase.from("nutrition_logs")
+          { label: "workout sessions", timeoutMs: 10000 }),
+        withRetry(async () => await supabase.from("nutrition_logs")
           .select("id, logged_at, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit")
           .eq("client_id", clientId)
           .gte("logged_at", start).lte("logged_at", end),
-        supabase.from("weight_logs")
+          { label: "nutrition logs", timeoutMs: 10000 }),
+        withRetry(async () => await supabase.from("weight_logs")
           .select("weight, logged_at")
           .eq("client_id", clientId)
           .gte("logged_at", start).lte("logged_at", end)
           .order("logged_at", { ascending: true }),
+          { label: "weight logs", timeoutMs: 10000 }),
       ]),
+
     ]);
 
 
@@ -348,8 +366,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         name: workoutLabelMap.get(s.workout_id) || (s.workouts as any)?.name || "Workout",
       },
     })));
-    setLoading(false);
+    } catch (err) {
+      console.error("[CalendarTab] load failed:", err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, [clientId, currentMonth]);
+
 
   useEffect(() => { loadMonth(); }, [loadMonth]);
 
@@ -753,7 +777,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
   const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+  if (loadError && events.length === 0) return (
+    <div className="text-center py-16 space-y-3">
+      <p className="text-sm text-muted-foreground">Couldn't load this client's calendar.</p>
+      <Button variant="outline" onClick={() => loadMonth()}>Try again</Button>
+    </div>
+  );
   if (loading) return <Skeleton className="h-[500px] rounded-xl" />;
+
 
   return (
     <div className="flex gap-4">

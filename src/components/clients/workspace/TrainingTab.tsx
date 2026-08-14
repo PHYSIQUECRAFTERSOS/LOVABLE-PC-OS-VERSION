@@ -81,8 +81,9 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   // Shared hook — single source of truth for client program data
   const {
     assignment, program, phases: hookPhases, weeks: hookWeeks,
-    loading, reload: loadClientProgram,
+    loading, error: programError, reload: loadClientProgram,
   } = useClientProgram(clientId);
+
 
   const [phases, setPhases] = useState<Phase[]>([]);
   const [weeks, setWeeks] = useState<Week[]>([]);
@@ -1037,6 +1038,14 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   // Only show full skeleton on the INITIAL load (no program yet). During background
   // refetches after save/edit, keep the pane mounted so selectedPhaseId is preserved.
   if (loading && !program) return <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>;
+
+  if (programError && !program) return (
+    <div className="text-center py-16 space-y-3">
+      <p className="text-sm text-muted-foreground">Couldn't load this client's training program.</p>
+      <Button variant="outline" onClick={() => loadClientProgram()}>Try again</Button>
+    </div>
+  );
+
 
   if (!assignment || !program) {
     const handleBuildFromScratch = async () => {

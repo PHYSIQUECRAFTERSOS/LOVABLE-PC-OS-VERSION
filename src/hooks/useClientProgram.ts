@@ -9,6 +9,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { withRetry } from "@/lib/resilientFetch";
+
 
 const DAY_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -96,16 +98,22 @@ export function useClientProgram(clientId: string | undefined) {
 
     try {
       // Step 1: Active assignment + its program in a single round-trip (joined).
-      const { data: assignData, error: assignErr } = await supabase
-        .from("client_program_assignments")
-        .select("*, programs!client_program_assignments_program_id_fkey(id, name, description, goal_type, version_number, is_master, start_date, end_date, duration_weeks)")
-        .eq("client_id", clientId)
-        .eq("status", "active")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: assignData, error: assignErr } = await withRetry(
+        async () =>
+          await supabase
+            .from("client_program_assignments")
+            .select("*, programs!client_program_assignments_program_id_fkey(id, name, description, goal_type, version_number, is_master, start_date, end_date, duration_weeks)")
+            .eq("client_id", clientId)
+            .eq("status", "active")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+
+        { label: "client program assignment", timeoutMs: 10000, attempts: 3 },
+      );
 
       if (assignErr) {
+
         console.error("[useClientProgram] assignment error:", assignErr);
         setError(assignErr.message);
         const empty = { assignment: null, program: null, phases: [], weeks: [] };
@@ -127,9 +135,10 @@ export function useClientProgram(clientId: string | undefined) {
 
       // Step 2: Fetch phases and weeks in parallel using Promise.allSettled
       const [phasesResult, weeksResult] = await Promise.allSettled([
-        supabase.from("program_phases").select("*").eq("program_id", prog.id).order("phase_order"),
-        supabase.from("program_weeks").select("id, week_number, name, phase_id").eq("program_id", prog.id).order("week_number"),
+        withRetry(async () => await supabase.from("program_phases").select("*").eq("program_id", prog.id).order("phase_order"), { label: "program phases", timeoutMs: 10000 }),
+        withRetry(async () => await supabase.from("program_weeks").select("id, week_number, name, phase_id").eq("program_id", prog.id).order("week_number"), { label: "program weeks", timeoutMs: 10000 }),
       ]);
+
 
 
       const phaseData = phasesResult.status === "fulfilled" ? phasesResult.value.data || [] : [];
@@ -144,20 +153,21 @@ export function useClientProgram(clientId: string | undefined) {
 
       const [phasePwRes, weekPwRes] = await Promise.allSettled([
         phaseIds.length > 0
-          ? supabase
+          ? withRetry(async () => await supabase
               .from("program_workouts")
               .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name)")
               .in("phase_id", phaseIds)
-              .order("sort_order")
+              .order("sort_order"), { label: "phase workouts", timeoutMs: 10000 })
           : Promise.resolve({ data: [] as any[] }),
         weekIds.length > 0
-          ? supabase
+          ? withRetry(async () => await supabase
               .from("program_workouts")
               .select("id, week_id, workout_id, day_of_week, day_label, sort_order, workouts(id, name)")
               .in("week_id", weekIds)
-              .order("sort_order")
+              .order("sort_order"), { label: "week workouts", timeoutMs: 10000 })
           : Promise.resolve({ data: [] as any[] }),
       ]);
+
 
       const directPWs = phasePwRes.status === "fulfilled" ? (phasePwRes.value as any).data || [] : [];
       const pwData = weekPwRes.status === "fulfilled" ? (weekPwRes.value as any).data || [] : [];
