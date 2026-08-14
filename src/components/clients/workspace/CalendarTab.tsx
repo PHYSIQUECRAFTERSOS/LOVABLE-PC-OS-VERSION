@@ -106,6 +106,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
 
   // Schedule dialog
   const [showSchedule, setShowSchedule] = useState(false);
