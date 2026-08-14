@@ -82,7 +82,7 @@ export function useClientProgram(clientId: string | undefined) {
     const cached = programCache.get(clientId);
     const fresh = cached && Date.now() - cached.ts < CACHE_TTL_MS;
     if (fresh && !opts?.force) {
-      setData(cached!.data);
+      setData(cached.data);
       setLoading(false);
       return;
     }
@@ -97,117 +97,36 @@ export function useClientProgram(clientId: string | undefined) {
     setError(null);
 
     try {
-      // Step 1: Active assignment + its program in a single round-trip (joined).
-      const { data: assignData, error: assignErr } = await withRetry(
-        async () =>
-          await supabase
-            .from("client_program_assignments")
-            .select("*, programs!client_program_assignments_program_id_fkey(id, name, description, goal_type, version_number, is_master, start_date, end_date, duration_weeks)")
-            .eq("client_id", clientId)
-            .eq("status", "active")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-
-        { label: "client program assignment", timeoutMs: 10000, attempts: 3 },
+      // One secured database call replaces the former five-query RLS-heavy
+      // waterfall. Access is checked once inside the function.
+      const { data: bundleData, error: bundleError } = await withRetry(
+        async () => await supabase.rpc("get_client_program_bundle_fast", { _client_id: clientId }),
+        { label: "client program bundle", timeoutMs: 10000, attempts: 2 },
       );
 
-      if (assignErr) {
+      if (bundleError) throw bundleError;
 
-        console.error("[useClientProgram] assignment error:", assignErr);
-        setError(assignErr.message);
-        const empty = { assignment: null, program: null, phases: [], weeks: [] };
-        programCache.set(clientId, { data: empty, ts: Date.now() });
-        setData(empty);
-        setLoading(false);
-        return;
-      }
-
-      const prog = (assignData as any)?.programs || null;
-
-      if (!assignData || !prog) {
-        const empty = { assignment: null, program: null, phases: [], weeks: [] };
-        programCache.set(clientId, { data: empty, ts: Date.now() });
-        setData(empty);
-        setLoading(false);
-        return;
-      }
-
-      // Step 2: Fetch phases and weeks in parallel using Promise.allSettled
-      const [phasesResult, weeksResult] = await Promise.allSettled([
-        withRetry(async () => await supabase.from("program_phases").select("*").eq("program_id", prog.id).order("phase_order"), { label: "program phases", timeoutMs: 10000 }),
-        withRetry(async () => await supabase.from("program_weeks").select("id, week_number, name, phase_id").eq("program_id", prog.id).order("week_number"), { label: "program weeks", timeoutMs: 10000 }),
-      ]);
-
-
-
-      const phaseData = phasesResult.status === "fulfilled" ? phasesResult.value.data || [] : [];
-      const weekData = weeksResult.status === "fulfilled" ? weeksResult.value.data || [] : [];
-
-      if (phasesResult.status === "rejected") console.error("[useClientProgram] phases fetch failed:", phasesResult.reason);
-      if (weeksResult.status === "rejected") console.error("[useClientProgram] weeks fetch failed:", weeksResult.reason);
-
-      // Step 3: Fetch phase workouts and week workouts in one parallel wave.
-      const phaseIds = phaseData.map((p: any) => p.id);
-      const weekIds = weekData.map((w: any) => w.id);
-
-      const [phasePwRes, weekPwRes] = await Promise.allSettled([
-        phaseIds.length > 0
-          ? withRetry(async () => await supabase
-              .from("program_workouts")
-              .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name)")
-              .in("phase_id", phaseIds)
-              .order("sort_order"), { label: "phase workouts", timeoutMs: 10000 })
-          : Promise.resolve({ data: [] as any[] }),
-        weekIds.length > 0
-          ? withRetry(async () => await supabase
-              .from("program_workouts")
-              .select("id, week_id, workout_id, day_of_week, day_label, sort_order, workouts(id, name)")
-              .in("week_id", weekIds)
-              .order("sort_order"), { label: "week workouts", timeoutMs: 10000 })
-          : Promise.resolve({ data: [] as any[] }),
-      ]);
-
-
-      const directPWs = phasePwRes.status === "fulfilled" ? (phasePwRes.value as any).data || [] : [];
-      const pwData = weekPwRes.status === "fulfilled" ? (weekPwRes.value as any).data || [] : [];
-
-      const phaseDirectMap: Record<string, ProgramWorkoutItem[]> = {};
-      for (const pw of directPWs) {
-        const pid = (pw as any).phase_id;
-        if (!phaseDirectMap[pid]) phaseDirectMap[pid] = [];
-        phaseDirectMap[pid].push({
-          id: pw.id,
-          workout_id: pw.workout_id,
-          workout_name: (pw.workouts as any)?.name || "Workout",
-          day_of_week: pw.day_of_week ?? 0,
-          day_label: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
-          sort_order: pw.sort_order,
-          exclude_from_numbering: (pw as any).exclude_from_numbering || false,
-          custom_tag: (pw as any).custom_tag || null,
-        });
-      }
-
-      const phases: ProgramPhase[] = phaseData.map((p: any) => ({
-        ...p,
-        directWorkouts: phaseDirectMap[p.id] || [],
-      }));
-
-      const weeks: ProgramWeek[] = weekData.map((w: any) => ({
-        ...w,
-        workouts: pwData
-          .filter((pw: any) => pw.week_id === w.id)
-          .map((pw: any) => ({
-            id: pw.id,
-            workout_id: pw.workout_id,
-            workout_name: (pw.workouts as any)?.name || "Workout",
-            day_of_week: pw.day_of_week ?? 0,
-            day_label: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
-          })),
-      }));
-
-
-      const next = { assignment: assignData, program: prog, phases, weeks };
+      const bundle = bundleData as unknown as ClientProgramData | null;
+      const next: ClientProgramData = bundle
+        ? {
+            assignment: bundle.assignment ?? null,
+            program: bundle.program ?? null,
+            phases: (bundle.phases || []).map((phase) => ({
+              ...phase,
+              directWorkouts: (phase.directWorkouts || []).map((workout) => ({
+                ...workout,
+                day_label: workout.day_label || DAY_LABELS[workout.day_of_week ?? 0],
+              })),
+            })),
+            weeks: (bundle.weeks || []).map((week) => ({
+              ...week,
+              workouts: (week.workouts || []).map((workout) => ({
+                ...workout,
+                day_label: workout.day_label || DAY_LABELS[workout.day_of_week ?? 0],
+              })),
+            })),
+          }
+        : { assignment: null, program: null, phases: [], weeks: [] };
       programCache.set(clientId, { data: next, ts: Date.now() });
       setData(next);
     } catch (err: any) {
