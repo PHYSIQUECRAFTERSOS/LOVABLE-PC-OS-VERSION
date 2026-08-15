@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { MoreVertical, Pin, Check, Sparkles, Play, Loader2 } from "lucide-react";
 import { Course } from "@/hooks/useCourses";
 import { ytThumbnail, formatDuration } from "@/utils/youtube";
+import { getVideoThumbnail } from "@/utils/videoEmbed";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -38,7 +39,7 @@ const CourseCard = ({ course, moduleName, watched, canManage, onOpen, onEdit, on
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const thumb = course.thumbnail_url || ytThumbnail(course.youtube_video_id);
+  const thumb = course.thumbnail_url || getVideoThumbnail(course.youtube_url) || ytThumbnail(course.youtube_video_id);
   const isNew =
     Date.now() - new Date(course.posted_at).getTime() < 7 * 24 * 60 * 60 * 1000;
 

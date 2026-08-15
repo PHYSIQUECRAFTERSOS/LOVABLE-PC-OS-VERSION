@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Course } from "@/hooks/useCourses";
 import { ytEmbedUrl, ytWatchUrl, formatDuration } from "@/utils/youtube";
+import { getVideoEmbedUrl } from "@/utils/videoEmbed";
 
 interface Props {
   course: Course;
@@ -35,7 +36,7 @@ const CoursePlayerSheet = ({ course, moduleName, open, onOpenChange, onWatched }
         {/* Player */}
         <div className="relative aspect-video w-full bg-black">
           <iframe
-            src={ytEmbedUrl(course.youtube_video_id) + "&autoplay=1"}
+            src={getVideoEmbedUrl(course.youtube_url, { autoplay: true }) || ytEmbedUrl(course.youtube_video_id) + "&autoplay=1"}
             title={course.title}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
@@ -79,9 +80,9 @@ const CoursePlayerSheet = ({ course, moduleName, open, onOpenChange, onWatched }
           )}
 
           <Button variant="outline" className="w-full" asChild>
-            <a href={ytWatchUrl(course.youtube_video_id)} target="_blank" rel="noreferrer">
+            <a href={course.youtube_url || ytWatchUrl(course.youtube_video_id)} target="_blank" rel="noreferrer">
               <ExternalLink className="mr-2 h-4 w-4" />
-              Open in YouTube
+              Open original
             </a>
           </Button>
         </div>
