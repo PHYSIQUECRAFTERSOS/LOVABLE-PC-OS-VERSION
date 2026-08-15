@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getVideoEmbedUrl, getVideoThumbnail, detectVideoProvider, resolveVideoLink } from "@/utils/videoEmbed";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,8 +60,7 @@ const getYouTubeThumbnail = (url: string): string | null => {
 };
 
 const getYouTubeEmbedUrl = (url: string): string | null => {
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
-  return match ? `https://www.youtube.com/embed/${match[1]}` : null;
+  return getVideoEmbedUrl(url);
 };
 
 const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLibraryProps) => {

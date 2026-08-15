@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { getVideoEmbedUrl } from "@/utils/videoEmbed";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -105,12 +106,6 @@ function estimateWorkoutMinutes(exercises: WorkoutExercise[]): number {
   }
   totalSeconds += Math.max(0, exercises.length - 1) * 50;
   return Math.round(totalSeconds / 60);
-}
-
-function getYouTubeEmbedUrl(url: string | null): string | null {
-  if (!url) return null;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&/]+)/);
-  return match ? `https://www.youtube.com/embed/${match[1]}` : null;
 }
 
 const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: WorkoutBuilderModalProps) => {
@@ -761,7 +756,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
   const estMinutes = estimateWorkoutMinutes(exercises);
   const previewEx = previewExerciseIdx !== null ? exercises[previewExerciseIdx] : null;
-  const previewEmbedUrl = previewEx ? getYouTubeEmbedUrl(previewEx.youtubeUrl) : null;
+  const previewEmbedUrl = previewEx ? getVideoEmbedUrl(previewEx.youtubeUrl) : null;
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) void handleDialogClose(); }}>

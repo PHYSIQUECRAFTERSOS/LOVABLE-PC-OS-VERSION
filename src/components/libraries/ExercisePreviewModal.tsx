@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getVideoEmbedUrl } from "@/utils/videoEmbed";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -37,19 +38,13 @@ interface Props {
   onDeleted?: (exerciseId: string) => void;
 }
 
-function getYouTubeEmbedUrl(url: string | null): string | null {
-  if (!url) return null;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&/]+)/);
-  return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&mute=1` : null;
-}
-
 const ExercisePreviewModal = ({ exercise, open, onOpenChange, onEdit, onDeleted }: Props) => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   if (!exercise) return null;
 
-  const embedUrl = getYouTubeEmbedUrl(exercise.youtube_url);
+  const embedUrl = getVideoEmbedUrl(exercise.youtube_url, { autoplay: true, mute: true });
   const hasUploadedVideo = exercise.video_url && !exercise.youtube_url;
 
   const handleDelete = async () => {
