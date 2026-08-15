@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getVideoEmbedUrl, getVideoThumbnail, detectVideoProvider, resolveVideoLink } from "@/utils/videoEmbed";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,8 +60,7 @@ const getYouTubeThumbnail = (url: string): string | null => {
 };
 
 const getYouTubeEmbedUrl = (url: string): string | null => {
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
-  return match ? `https://www.youtube.com/embed/${match[1]}` : null;
+  return getVideoEmbedUrl(url);
 };
 
 const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLibraryProps) => {
@@ -133,6 +133,7 @@ const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLi
     setFormCoachingCues(ex.coaching_cues || "");
     setFormVideoUrl(ex.video_url || "");
     setFormYoutubeUrl(ex.youtube_url || "");
+    setResolvedThumb(ex.youtube_thumbnail || null);
     setFormTags(ex.tags?.join(", ") || "");
     setEditingExercise(ex);
     setShowForm(true);
@@ -156,6 +157,7 @@ const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLi
 
   const [ytImporting, setYtImporting] = useState(false);
   const [ytPreview, setYtPreview] = useState<{ thumbnail: string; title?: string } | null>(null);
+  const [resolvedThumb, setResolvedThumb] = useState<string | null>(null);
 
   const extractVideoId = (url: string): string | null => {
     const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
@@ -164,37 +166,34 @@ const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLi
 
   const handleYoutubeImport = async () => {
     if (!formYoutubeUrl) return;
-
-    const videoId = extractVideoId(formYoutubeUrl);
-    if (!videoId) {
-      toast({ title: "Invalid YouTube URL", description: "Please paste a valid youtube.com or youtu.be link.", variant: "destructive" });
+    const provider = detectVideoProvider(formYoutubeUrl);
+    if (provider !== "youtube" && provider !== "rumble") {
+      toast({ title: "Invalid video URL", description: "Paste a YouTube or Rumble link.", variant: "destructive" });
       return;
     }
 
-    // Instant thumbnail preview — no network needed
-    const thumbUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-    setYtPreview({ thumbnail: thumbUrl });
+    // Instant thumbnail for YouTube — no network needed
+    const instantThumb = getVideoThumbnail(formYoutubeUrl);
+    if (instantThumb) setYtPreview({ thumbnail: instantThumb });
     setYtImporting(true);
 
-    // Attempt oEmbed metadata fetch with 4s hard timeout
     try {
-      const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
-      const result = await Promise.race([
-        fetch(oembedUrl).then(r => r.ok ? r.json() : null),
-        new Promise<null>((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000)),
-      ]);
-
-      if (result?.title) {
-        setYtPreview({ thumbnail: thumbUrl, title: result.title });
-        // Auto-fill exercise name if empty
-        if (!formName) setFormName(result.title);
-        toast({ title: "YouTube video imported", description: result.title });
+      const resolved = await resolveVideoLink(formYoutubeUrl, (name, body) =>
+        supabase.functions.invoke(name, { body: body as any })
+      );
+      if (provider === "rumble") setFormYoutubeUrl(resolved.embedUrl);
+      const thumb = resolved.thumbnailUrl || instantThumb;
+      setResolvedThumb(thumb);
+      setYtPreview(thumb ? { thumbnail: thumb, title: resolved.title || undefined } : null);
+      if (resolved.title && !formName) setFormName(resolved.title);
+      toast({ title: "Video linked", description: resolved.title || "Thumbnail loaded." });
+    } catch (err: any) {
+      if (instantThumb) {
+        setResolvedThumb(instantThumb);
+        toast({ title: "Video linked", description: "Couldn't fetch title — thumbnail loaded." });
       } else {
-        toast({ title: "YouTube link imported", description: "Metadata unavailable — thumbnail loaded." });
+        toast({ title: "Couldn't load video", description: err.message, variant: "destructive" });
       }
-    } catch {
-      // Timeout or network error — still have thumbnail, that's fine
-      toast({ title: "YouTube link imported", description: "Couldn't fetch title — thumbnail loaded." });
     } finally {
       setYtImporting(false);
     }
@@ -214,7 +213,7 @@ const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLi
 
     const tags = formTags.split(",").map(t => t.trim()).filter(Boolean);
     // Extract thumbnail client-side only — no API call
-    const thumbnail = formYoutubeUrl ? getYouTubeThumbnail(formYoutubeUrl) : null;
+    const thumbnail = resolvedThumb || (formYoutubeUrl ? getVideoThumbnail(formYoutubeUrl) : null);
 
     const payload = {
       name: formName,
@@ -550,7 +549,7 @@ const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLi
                 </TabsList>
                 <TabsContent value="youtube" className="space-y-2">
                   <div className="flex gap-2">
-                    <Input value={formYoutubeUrl} onChange={(e) => { setFormYoutubeUrl(e.target.value); setYtPreview(null); }} placeholder="https://youtube.com/watch?v=..." className="flex-1" />
+                    <Input value={formYoutubeUrl} onChange={(e) => { setFormYoutubeUrl(e.target.value); setYtPreview(null); }} placeholder="YouTube or Rumble link" className="flex-1" />
                     <Button variant="outline" size="sm" onClick={handleYoutubeImport} disabled={ytImporting || !formYoutubeUrl}>
                       {ytImporting ? <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Loading…</> : "Import"}
                     </Button>
@@ -561,8 +560,8 @@ const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLi
                       {ytPreview.title && <p className="text-xs text-muted-foreground truncate">{ytPreview.title}</p>}
                     </div>
                   )}
-                  {!ytPreview && formYoutubeUrl && getYouTubeThumbnail(formYoutubeUrl) && (
-                    <img src={getYouTubeThumbnail(formYoutubeUrl)!} alt="Preview" className="w-full rounded-lg opacity-50" />
+                  {!ytPreview && formYoutubeUrl && getVideoThumbnail(formYoutubeUrl) && (
+                    <img src={getVideoThumbnail(formYoutubeUrl)!} alt="Preview" className="w-full rounded-lg opacity-50" />
                   )}
                 </TabsContent>
                 <TabsContent value="upload" className="space-y-2">

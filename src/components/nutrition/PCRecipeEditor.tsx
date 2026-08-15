@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { detectVideoProvider, getVideoEmbedUrl, resolveVideoLink } from "@/utils/videoEmbed";
 import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,30 +40,10 @@ interface StagedInstruction {
   instruction_text: string;
 }
 
-function extractYouTubeId(url: string): string | null {
-  if (!url.trim()) return null;
-  const patterns = [
-    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/,
-    /(?:https?:\/\/)?(?:www\.)?youtu\.be\/([a-zA-Z0-9_-]+)/,
-    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/,
-    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]+)/,
-  ];
-  for (const p of patterns) {
-    const match = url.match(p);
-    if (match) return match[1];
-  }
-  return null;
-}
-
-function normalizeYouTubeUrl(url: string): string | null {
-  if (!url.trim()) return null;
-  const id = extractYouTubeId(url);
-  return id ? `https://www.youtube.com/watch?v=${id}` : null;
-}
-
-function isValidYouTubeUrl(url: string): boolean {
+function isValidVideoUrl(url: string): boolean {
   if (!url.trim()) return true;
-  return extractYouTubeId(url) !== null;
+  const p = detectVideoProvider(url);
+  return p === "youtube" || p === "rumble";
 }
 
 interface PCRecipeEditorProps {
@@ -162,15 +143,27 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
 
     // Validate YouTube URL
     if (youtubeUrl.trim()) {
-      if (!isValidYouTubeUrl(youtubeUrl)) {
-        setYoutubeError("Please enter a valid YouTube URL (e.g. https://youtu.be/abc123)");
+      if (!isValidVideoUrl(youtubeUrl)) {
+        setYoutubeError("Please enter a valid YouTube or Rumble URL");
         return;
       }
     }
     setYoutubeError("");
 
     setSaving(true);
-    const normalized = youtubeUrl.trim() ? normalizeYouTubeUrl(youtubeUrl) : null;
+    let normalized: string | null = null;
+    if (youtubeUrl.trim()) {
+      try {
+        const resolved = await resolveVideoLink(youtubeUrl, (name, body) =>
+          supabase.functions.invoke(name, { body: body as any })
+        );
+        normalized = resolved.embedUrl;
+      } catch (err: any) {
+        setSaving(false);
+        setYoutubeError(err.message || "Could not resolve that video link");
+        return;
+      }
+    }
 
     try {
       let recipeId: string;
@@ -416,19 +409,19 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
 
         {/* YouTube URL */}
         <div>
-          <Label>Recipe Video URL (YouTube — optional)</Label>
+          <Label>Recipe Video URL (YouTube or Rumble — optional)</Label>
           <Input
-            placeholder="https://youtu.be/... or youtube.com/shorts/..."
+            placeholder="https://youtu.be/... or https://rumble.com/v7e7m34-..."
             value={youtubeUrl}
             onChange={e => { setYoutubeUrl(e.target.value); setYoutubeError(""); }}
             className="mt-1"
           />
-          <p className="text-xs text-muted-foreground mt-1">Supports regular videos, Shorts, and share links.</p>
+          <p className="text-xs text-muted-foreground mt-1">Supports YouTube videos, Shorts, share links, and Rumble links.</p>
           {youtubeError && <p className="text-xs text-destructive mt-1">{youtubeError}</p>}
-          {youtubeUrl.trim() && isValidYouTubeUrl(youtubeUrl) && extractYouTubeId(youtubeUrl) && (
+          {youtubeUrl.trim() && getVideoEmbedUrl(youtubeUrl) && (
             <div className="mt-2 rounded-xl overflow-hidden border border-border/50 aspect-video">
               <iframe
-                src={`https://www.youtube.com/embed/${extractYouTubeId(youtubeUrl)}?playsinline=1&rel=0&modestbranding=1`}
+                src={getVideoEmbedUrl(youtubeUrl)!}
                 className="w-full h-full"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen

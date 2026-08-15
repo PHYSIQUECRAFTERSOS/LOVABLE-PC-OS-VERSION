@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getVideoEmbedUrl } from "@/utils/videoEmbed";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -14,11 +15,6 @@ const MUSCLE_INITIALS: Record<string, string> = {
   traps: "B", lats: "B", delts: "S", abs: "Co", forearms: "A",
   push: "P", pull: "Pu", upper: "U", lower: "Lo", full: "F",
 };
-
-function getYouTubeId(url: string): string | null {
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/))([a-zA-Z0-9_-]{11})/);
-  return match ? match[1] : null;
-}
 
 interface WorkoutStartPopupProps {
   open: boolean;
@@ -230,9 +226,9 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
       {/* Video Modal */}
       <Dialog open={!!videoUrl} onOpenChange={() => setVideoUrl(null)}>
         <DialogContent className="max-w-lg p-0 overflow-hidden">
-          {videoUrl && getYouTubeId(videoUrl) && (
+          {videoUrl && getVideoEmbedUrl(videoUrl, { autoplay: true }) && (
             <iframe
-              src={`https://www.youtube.com/embed/${getYouTubeId(videoUrl)}?playsinline=1&rel=0&modestbranding=1&autoplay=1`}
+              src={getVideoEmbedUrl(videoUrl, { autoplay: true })!}
               title="Exercise Video"
               width="100%"
               height="300"

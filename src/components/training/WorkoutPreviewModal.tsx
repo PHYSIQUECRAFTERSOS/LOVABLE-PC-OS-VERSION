@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getVideoEmbedUrl } from "@/utils/videoEmbed";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -69,10 +70,6 @@ const WorkoutPreviewModal = ({
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
-  const getYouTubeId = (url: string): string | null => {
-    const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/))([a-zA-Z0-9_-]{11})/);
-    return m ? m[1] : null;
-  };
 
   // 3-dot menu state
   const [showMenu, setShowMenu] = useState(false);
@@ -460,9 +457,9 @@ const WorkoutPreviewModal = ({
       {/* Exercise video player */}
       <Dialog open={!!videoUrl} onOpenChange={() => setVideoUrl(null)}>
         <DialogContent className="max-w-lg p-0 overflow-hidden">
-          {videoUrl && getYouTubeId(videoUrl) ? (
+          {videoUrl && getVideoEmbedUrl(videoUrl, { autoplay: true }) ? (
             <iframe
-              src={`https://www.youtube.com/embed/${getYouTubeId(videoUrl)}?playsinline=1&rel=0&modestbranding=1&autoplay=1`}
+              src={getVideoEmbedUrl(videoUrl, { autoplay: true })!}
               title="Exercise Video"
               width="100%"
               height="300"

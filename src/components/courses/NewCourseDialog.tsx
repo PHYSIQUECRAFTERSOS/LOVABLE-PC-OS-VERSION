@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { parseYouTubeId, fetchYouTubeOEmbed, ytThumbnail } from "@/utils/youtube";
+import { detectVideoProvider, isRumbleUrl, resolveVideoLink } from "@/utils/videoEmbed";
 import { Course, CourseModule } from "@/hooks/useCourses";
 
 interface Props {
@@ -63,11 +64,49 @@ const NewCourseDialog = ({ open, onOpenChange, modules, existing, onSaved }: Pro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
 
+  // Resolve a Rumble page link into an embeddable URL + thumbnail
+  const handleUrlBlur = async () => {
+    if (!isRumbleUrl(url)) return;
+    setFetching(true);
+    try {
+      const resolved = await resolveVideoLink(url, (name, body) =>
+        supabase.functions.invoke(name, { body: body as any })
+      );
+      setUrl(resolved.embedUrl);
+      if (resolved.thumbnailUrl) setThumbnailUrl(resolved.thumbnailUrl);
+      if (resolved.title && !title.trim()) setTitle(resolved.title);
+    } catch (err: any) {
+      toast.error("Could not load Rumble video", { description: err.message });
+    } finally {
+      setFetching(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!user) return;
-    const videoId = parseYouTubeId(url);
+    const provider = detectVideoProvider(url);
+    if (provider !== "youtube" && provider !== "rumble") {
+      toast.error("Invalid video URL", { description: "Paste a YouTube or Rumble link." });
+      return;
+    }
+    let finalUrl = url.trim();
+    let videoId = parseYouTubeId(url);
+    let finalThumb = thumbnailUrl;
+    if (provider === "rumble") {
+      try {
+        const resolved = await resolveVideoLink(finalUrl, (name, body) =>
+          supabase.functions.invoke(name, { body: body as any })
+        );
+        finalUrl = resolved.embedUrl;
+        videoId = resolved.embedUrl.split("/embed/")[1]?.replace(/\/$/, "") || null;
+        finalThumb = resolved.thumbnailUrl || finalThumb;
+      } catch (err: any) {
+        toast.error("Could not load Rumble video", { description: err.message });
+        return;
+      }
+    }
     if (!videoId) {
-      toast.error("Invalid YouTube URL");
+      toast.error("Could not read the video id from that link");
       return;
     }
     if (!title.trim()) {
@@ -81,9 +120,9 @@ const NewCourseDialog = ({ open, onOpenChange, modules, existing, onSaved }: Pro
       .filter(Boolean);
     const payload = {
       title: title.trim(),
-      youtube_url: url.trim(),
+      youtube_url: finalUrl,
       youtube_video_id: videoId,
-      thumbnail_url: thumbnailUrl,
+      thumbnail_url: finalThumb,
       duration_seconds: duration ? parseInt(duration, 10) : null,
       description: description.trim() || null,
       module_id: moduleId || null,
@@ -115,7 +154,7 @@ const NewCourseDialog = ({ open, onOpenChange, modules, existing, onSaved }: Pro
 
     // Optional cross-post to community
     if (!existing && crossPost && savedId) {
-      const body = `📺 New training replay: ${title.trim()}\n\n${url.trim()}`;
+      const body = `📺 New training replay: ${title.trim()}\n\n${finalUrl}`;
       await supabase
         .from("community_posts")
         .insert({ author_id: user.id, content: body });
@@ -136,13 +175,14 @@ const NewCourseDialog = ({ open, onOpenChange, modules, existing, onSaved }: Pro
 
         <div className="space-y-4">
           <div>
-            <Label htmlFor="yt-url">YouTube URL</Label>
+            <Label htmlFor="yt-url">Video URL (YouTube or Rumble)</Label>
             <div className="relative">
               <Input
                 id="yt-url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://youtu.be/…"
+                onBlur={handleUrlBlur}
+                placeholder="https://youtu.be/… or https://rumble.com/v7e7m34-…"
               />
               {fetching && (
                 <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />

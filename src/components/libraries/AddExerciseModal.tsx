@@ -8,10 +8,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Youtube, Upload, Check, AlertCircle } from "lucide-react";
+import { Loader2, Video, Upload, Check, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { getVideoThumbnail, isRumblePageUrl, isRumbleUrl, resolveVideoLink } from "@/utils/videoEmbed";
 
 const MUSCLE_GROUPS = [
   "Chest", "Back", "Shoulders", "Biceps", "Triceps", "Forearms",
@@ -29,15 +30,6 @@ const EXERCISE_TYPES = [
   { value: "Cardio", label: "Cardio" },
 ];
 
-function getYouTubeThumbnail(url: string): string | null {
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&/]+)/);
-  return match ? `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg` : null;
-}
-
-function getYouTubeVideoId(url: string): string | null {
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&/]+)/);
-  return match ? match[1] : null;
-}
 
 interface Props {
   open: boolean;
@@ -52,7 +44,7 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [saving, setSaving] = useState(false);
-  const [videoSource, setVideoSource] = useState<"youtube" | "upload">("youtube");
+  const [videoSource, setVideoSource] = useState<"link" | "upload">("link");
   const [uploading, setUploading] = useState(false);
   const [ytFetching, setYtFetching] = useState(false);
   const [ytTitle, setYtTitle] = useState("");
@@ -84,13 +76,17 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
   const resetForm = () => {
     setForm({ name: "", primary_muscle: "", secondary_muscle: "", equipment: "", category: "Strength", youtube_url: "", video_url: "", thumbnail_url: "", instructions: "" });
     setYtTitle("");
-    setVideoSource("youtube");
+    setVideoSource("link");
   };
 
-  // YouTube auto-import
+  // Video link auto-import (YouTube + Rumble)
   const handleYouTubeChange = async (url: string) => {
     setForm(f => ({ ...f, youtube_url: url }));
-    const thumb = getYouTubeThumbnail(url);
+    if (isRumbleUrl(url)) {
+      setYtTitle("");
+      return;
+    }
+    const thumb = getVideoThumbnail(url);
     if (thumb) {
       setForm(f => ({ ...f, thumbnail_url: thumb }));
       // Fetch title via oEmbed
@@ -112,6 +108,31 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
       } finally {
         setYtFetching(false);
       }
+    }
+  };
+
+  // Resolve a pasted Rumble page link into an embeddable URL + thumbnail
+  const handleVideoLinkBlur = async () => {
+    const url = form.youtube_url.trim();
+    if (!isRumblePageUrl(url)) return;
+    setYtFetching(true);
+    try {
+      const resolved = await resolveVideoLink(url, (name, body) =>
+        supabase.functions.invoke(name, { body: body as any })
+      );
+      setForm(f => ({
+        ...f,
+        youtube_url: resolved.embedUrl,
+        thumbnail_url: resolved.thumbnailUrl || f.thumbnail_url,
+      }));
+      if (resolved.title) {
+        setYtTitle(resolved.title);
+        if (!form.name) setForm(f => ({ ...f, name: resolved.title! }));
+      }
+    } catch (err: any) {
+      toast({ title: "Couldn't load Rumble video", description: err.message, variant: "destructive" });
+    } finally {
+      setYtFetching(false);
     }
   };
 
@@ -224,11 +245,11 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
               <Button
                 type="button"
                 size="sm"
-                variant={videoSource === "youtube" ? "default" : "outline"}
-                onClick={() => setVideoSource("youtube")}
+                variant={videoSource === "link" ? "default" : "outline"}
+                onClick={() => setVideoSource("link")}
                 className="flex-1"
               >
-                <Youtube className="h-3.5 w-3.5 mr-1.5" /> YouTube
+                <Video className="h-3.5 w-3.5 mr-1.5" /> YouTube / Rumble
               </Button>
               <Button
                 type="button"
@@ -242,17 +263,23 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
             </div>
           </div>
 
-          {/* YouTube Input */}
-          {videoSource === "youtube" && (
+          {/* Video Link Input */}
+          {videoSource === "link" && (
             <div className="space-y-2">
-              <Label className="text-xs">YouTube URL</Label>
+              <Label className="text-xs">Video URL</Label>
               <Input
                 value={form.youtube_url}
                 onChange={e => handleYouTubeChange(e.target.value)}
-                placeholder="https://youtube.com/watch?v=..."
+                onBlur={handleVideoLinkBlur}
+                placeholder="https://youtube.com/watch?v=... or https://rumble.com/v7e7m34-..."
                 className="h-9 text-sm"
               />
-              {form.thumbnail_url && videoSource === "youtube" && (
+              {isRumbleUrl(form.youtube_url) && (
+                <p className="text-[11px] text-muted-foreground">
+                  {ytFetching ? "Resolving Rumble link..." : "Paste the Rumble page link — we'll fetch the player automatically."}
+                </p>
+              )}
+              {form.thumbnail_url && videoSource === "link" && (
                 <div className="rounded-lg overflow-hidden border bg-muted">
                   <img src={form.thumbnail_url} alt="Preview" className="w-full aspect-video object-cover" />
                   {(ytTitle || ytFetching) && (

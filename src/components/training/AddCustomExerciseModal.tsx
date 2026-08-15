@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Link, Upload, Loader2, Video, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { detectVideoProvider, getVideoThumbnail, resolveVideoLink } from "@/utils/videoEmbed";
 
 const MUSCLE_GROUPS = [
   "Chest", "Back", "Shoulders", "Biceps", "Triceps", "Forearms",
@@ -45,15 +46,6 @@ interface AddCustomExerciseModalProps {
   }) => void;
 }
 
-const getYouTubeThumbnail = (url: string): string | null => {
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
-  return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null;
-};
-
-const extractVideoId = (url: string): string | null => {
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
-  return match ? match[1] : null;
-};
 
 const AddCustomExerciseModal = ({ open, onClose, userId, onExerciseCreated }: AddCustomExerciseModalProps) => {
   const { toast } = useToast();
@@ -70,6 +62,7 @@ const AddCustomExerciseModal = ({ open, onClose, userId, onExerciseCreated }: Ad
   const [videoTab, setVideoTab] = useState("youtube");
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [ytPreview, setYtPreview] = useState<{ thumbnail: string; title?: string } | null>(null);
+  const [resolvedThumb, setResolvedThumb] = useState<string | null>(null);
   const [ytImporting, setYtImporting] = useState(false);
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -82,7 +75,7 @@ const AddCustomExerciseModal = ({ open, onClose, userId, onExerciseCreated }: Ad
   const resetForm = useCallback(() => {
     setTitle(""); setExerciseType("strength"); setPrimaryMuscle(""); setSecondaryMuscle("");
     setEquipment(""); setInstructions(""); setYoutubeUrl(""); setYtPreview(null);
-    setUploadedVideoUrl(""); setUploadProgress(0); setSaveSuccess(false); setVideoTab("youtube");
+    setUploadedVideoUrl(""); setUploadProgress(0); setSaveSuccess(false); setVideoTab("youtube"); setResolvedThumb(null);
   }, []);
 
   const handleClose = () => {
@@ -92,27 +85,30 @@ const AddCustomExerciseModal = ({ open, onClose, userId, onExerciseCreated }: Ad
 
   const handleYoutubeImport = async () => {
     if (!youtubeUrl) return;
-    const videoId = extractVideoId(youtubeUrl);
-    if (!videoId) {
-      toast({ title: "Invalid YouTube URL", variant: "destructive" });
+    const provider = detectVideoProvider(youtubeUrl);
+    if (provider !== "youtube" && provider !== "rumble") {
+      toast({ title: "Invalid video URL", description: "Paste a YouTube or Rumble link.", variant: "destructive" });
       return;
     }
-    const thumbUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-    setYtPreview({ thumbnail: thumbUrl });
+    const instantThumb = getVideoThumbnail(youtubeUrl);
+    if (instantThumb) setYtPreview({ thumbnail: instantThumb });
     setYtImporting(true);
 
     try {
-      const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
-      const result = await Promise.race([
-        fetch(oembedUrl).then(r => r.ok ? r.json() : null),
-        new Promise<null>((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000)),
-      ]);
-      if (result?.title) {
-        setYtPreview({ thumbnail: thumbUrl, title: result.title });
-        if (!title) setTitle(result.title);
+      const resolved = await resolveVideoLink(youtubeUrl, (name, body) =>
+        supabase.functions.invoke(name, { body: body as any })
+      );
+      if (provider === "rumble") setYoutubeUrl(resolved.embedUrl);
+      const thumb = resolved.thumbnailUrl || instantThumb;
+      setResolvedThumb(thumb);
+      if (thumb) setYtPreview({ thumbnail: thumb, title: resolved.title || undefined });
+      if (resolved.title && !title) setTitle(resolved.title);
+    } catch (err: any) {
+      if (instantThumb) {
+        setResolvedThumb(instantThumb);
+      } else {
+        toast({ title: "Couldn't load video", description: err.message, variant: "destructive" });
       }
-    } catch {
-      // Fine — we have thumbnail
     } finally {
       setYtImporting(false);
     }
@@ -164,7 +160,7 @@ const AddCustomExerciseModal = ({ open, onClose, userId, onExerciseCreated }: Ad
     setSaving(true);
     const startTime = performance.now();
 
-    const thumbnail = youtubeUrl ? getYouTubeThumbnail(youtubeUrl) : null;
+    const thumbnail = resolvedThumb || (youtubeUrl ? getVideoThumbnail(youtubeUrl) : null);
 
     const payload = {
       name: title.trim(),
@@ -231,7 +227,7 @@ const AddCustomExerciseModal = ({ open, onClose, userId, onExerciseCreated }: Ad
                 <Tabs value={videoTab} onValueChange={setVideoTab} className="w-full">
                   <TabsList className="grid w-full grid-cols-2 h-9">
                     <TabsTrigger value="youtube" className="text-xs gap-1.5">
-                      <Link className="h-3 w-3" /> YouTube Video
+                      <Link className="h-3 w-3" /> Video Link
                     </TabsTrigger>
                     <TabsTrigger value="upload" className="text-xs gap-1.5">
                       <Upload className="h-3 w-3" /> Upload Video
@@ -240,12 +236,12 @@ const AddCustomExerciseModal = ({ open, onClose, userId, onExerciseCreated }: Ad
 
                   <TabsContent value="youtube" className="space-y-3 mt-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs">YouTube URL</Label>
+                      <Label className="text-xs">YouTube or Rumble URL</Label>
                       <div className="flex gap-2">
                         <Input
                           value={youtubeUrl}
                           onChange={(e) => { setYoutubeUrl(e.target.value); setYtPreview(null); }}
-                          placeholder="https://youtube.com/watch?v=..."
+                          placeholder="YouTube or Rumble link"
                           className="flex-1 h-9 text-xs"
                         />
                         <Button
@@ -270,16 +266,16 @@ const AddCustomExerciseModal = ({ open, onClose, userId, onExerciseCreated }: Ad
                         )}
                       </div>
                     )}
-                    {!ytPreview && youtubeUrl && getYouTubeThumbnail(youtubeUrl) && (
+                    {!ytPreview && youtubeUrl && getVideoThumbnail(youtubeUrl) && (
                       <div className="aspect-video rounded-lg overflow-hidden bg-secondary">
-                        <img src={getYouTubeThumbnail(youtubeUrl)!} alt="Preview" className="w-full h-full object-cover opacity-50" />
+                        <img src={getVideoThumbnail(youtubeUrl)!} alt="Preview" className="w-full h-full object-cover opacity-50" />
                       </div>
                     )}
                     {!youtubeUrl && !ytPreview && (
                       <div className="aspect-video rounded-lg bg-secondary/50 border-2 border-dashed border-border flex items-center justify-center">
                         <div className="text-center">
                           <Link className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
-                          <p className="text-xs text-muted-foreground">Paste a YouTube link above</p>
+                          <p className="text-xs text-muted-foreground">Paste a YouTube or Rumble link above</p>
                         </div>
                       </div>
                     )}
