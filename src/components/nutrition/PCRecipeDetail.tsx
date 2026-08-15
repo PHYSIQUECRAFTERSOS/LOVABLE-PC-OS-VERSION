@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { getVideoEmbedUrl } from "@/utils/videoEmbed";
 import { useIOSOverlayRepaint, OverlayPortal } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -313,15 +314,14 @@ const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged
 
             {/* YouTube Video Preview */}
             {recipe.youtube_url && recipe.youtube_url.trim() !== "" && (() => {
-              const ytMatch = recipe.youtube_url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]+)/);
-              const videoId = ytMatch ? ytMatch[1] : null;
-              if (!videoId) return null;
+              const embedSrc = getVideoEmbedUrl(recipe.youtube_url);
+              if (!embedSrc) return null;
               return (
                 <div className="py-3">
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Watch Recipe</h2>
                   <div className="rounded-xl overflow-hidden border border-border/50 aspect-video">
                     <iframe
-                      src={`https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0&modestbranding=1`}
+                      src={embedSrc}
                       className="w-full h-full"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen
