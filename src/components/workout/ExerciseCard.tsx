@@ -18,6 +18,7 @@ import InlineRestTimer from "@/components/workout/InlineRestTimer";
 import PersonalExerciseNote from "@/components/workout/PersonalExerciseNote";
 import NumericKeypad from "@/components/workout/NumericKeypad";
 import { cn } from "@/lib/utils";
+import { getVideoEmbedUrl } from "@/utils/videoEmbed";
 import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { hapticSuccess, hapticCelebrate } from "@/utils/haptics";
@@ -265,7 +266,7 @@ const ExerciseCard = ({
   suppressRestAfterSet,
 }: ExerciseCardProps) => {
   const allDone = logs.every(l => l.completed);
-  const videoId = videoUrl ? getYouTubeId(videoUrl) : null;
+  const videoEmbedSrc = getVideoEmbedUrl(videoUrl);
   const isBW = isBodyweight(equipment);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const { convertWeight, weightLabel } = useUnitPreferences();
@@ -448,10 +449,10 @@ const ExerciseCard = ({
         </div>
       )}
 
-      {videoId && (
+      {videoEmbedSrc && (
         <div className="px-4 pb-2">
           <iframe
-            src={`https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0&modestbranding=1`}
+            src={videoEmbedSrc}
             title={name}
             width="100%"
             height="200"
