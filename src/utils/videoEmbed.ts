@@ -139,22 +139,26 @@ export async function resolveVideoLink(
 
   if (isRumbleUrl(url)) {
     const existing = getRumbleEmbedId(url);
-    if (existing) {
-      return {
-        provider: "rumble",
-        embedUrl: `https://rumble.com/embed/${existing}/`,
-        thumbnailUrl: null,
-        title: null,
-      };
-    }
     const { data, error } = await invoke("resolve-video-link", { url });
-    if (error) throw new Error(error.message || "Could not resolve Rumble link");
-    if (!data?.embedUrl) throw new Error(data?.error || "Could not resolve Rumble link");
+    if (error || !data?.embedUrl) {
+      // Already an embed link — usable even if the lookup failed (no direct file).
+      if (existing) {
+        return {
+          provider: "rumble",
+          embedUrl: `https://rumble.com/embed/${existing}/`,
+          thumbnailUrl: null,
+          title: null,
+          videoFileUrl: null,
+        };
+      }
+      throw new Error(error?.message || data?.error || "Could not resolve Rumble link");
+    }
     return {
       provider: "rumble",
       embedUrl: data.embedUrl,
       thumbnailUrl: data.thumbnailUrl || null,
       title: data.title || null,
+      videoFileUrl: data.videoFileUrl || null,
     };
   }
 
