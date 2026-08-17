@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
 import { withRetry } from "@/lib/resilientFetch";
+import { pickPlayableVideoUrl } from "@/utils/videoEmbed";
 
 export interface LoadedWorkout {
   id: string;
@@ -54,7 +55,9 @@ export async function loadWorkoutForLogger(
       restSeconds: we.rest_seconds ?? 90,
       rir: we.rir,
       notes: we.notes,
-      videoUrl: we.video_override || we.exercise?.youtube_url || we.exercise?.video_url || null,
+      videoUrl:
+        we.video_override ||
+        pickPlayableVideoUrl(we.exercise?.youtube_url, we.exercise?.video_url),
       equipment,
       groupingType: we.grouping_type,
       groupingId: we.grouping_id,

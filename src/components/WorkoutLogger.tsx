@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus, RotateCcw, X, Zap, Check, AlertTriangle, Cloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { pickPlayableVideoUrl } from "@/utils/videoEmbed";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useXPAward } from "@/hooks/useXPAward";
@@ -838,7 +839,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       tempo: "",
       restSeconds: 90,
       notes: "",
-      videoUrl: exercise.youtube_url || exercise.video_url || null,
+      videoUrl: pickPlayableVideoUrl(exercise.youtube_url, exercise.video_url),
       equipment: exercise.equipment || null,
       logs: Array.from({ length: 3 }, (_, idx) => ({
         setNumber: idx + 1,
@@ -883,7 +884,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       ...newEx[switchingExIdx],
       id: exercise.id,
       name: exercise.name,
-      videoUrl: exercise.youtube_url || exercise.video_url || null,
+      videoUrl: pickPlayableVideoUrl(exercise.youtube_url, exercise.video_url),
       equipment: exercise.equipment || null,
       // Inherit sets/reps/rest/rir from original; reset logged data to blank
       logs: newEx[switchingExIdx].logs.map(l => ({
