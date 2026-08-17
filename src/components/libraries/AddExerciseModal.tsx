@@ -124,6 +124,7 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
         ...f,
         youtube_url: resolved.embedUrl,
         thumbnail_url: resolved.thumbnailUrl || f.thumbnail_url,
+        video_url: resolved.videoFileUrl || f.video_url,
       }));
       if (resolved.title) {
         setYtTitle(resolved.title);

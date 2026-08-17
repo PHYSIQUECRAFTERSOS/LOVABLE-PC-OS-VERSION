@@ -181,7 +181,10 @@ const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLi
       const resolved = await resolveVideoLink(formYoutubeUrl, (name, body) =>
         supabase.functions.invoke(name, { body: body as any })
       );
-      if (provider === "rumble") setFormYoutubeUrl(resolved.embedUrl);
+      if (provider === "rumble") {
+        setFormYoutubeUrl(resolved.embedUrl);
+        if (resolved.videoFileUrl) setFormVideoUrl(resolved.videoFileUrl);
+      }
       const thumb = resolved.thumbnailUrl || instantThumb;
       setResolvedThumb(thumb);
       setYtPreview(thumb ? { thumbnail: thumb, title: resolved.title || undefined } : null);

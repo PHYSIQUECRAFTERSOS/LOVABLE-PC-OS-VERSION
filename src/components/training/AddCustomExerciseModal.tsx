@@ -98,7 +98,10 @@ const AddCustomExerciseModal = ({ open, onClose, userId, onExerciseCreated }: Ad
       const resolved = await resolveVideoLink(youtubeUrl, (name, body) =>
         supabase.functions.invoke(name, { body: body as any })
       );
-      if (provider === "rumble") setYoutubeUrl(resolved.embedUrl);
+      if (provider === "rumble") {
+        setYoutubeUrl(resolved.embedUrl);
+        if (resolved.videoFileUrl) setUploadedVideoUrl(resolved.videoFileUrl);
+      }
       const thumb = resolved.thumbnailUrl || instantThumb;
       setResolvedThumb(thumb);
       if (thumb) setYtPreview({ thumbnail: thumb, title: resolved.title || undefined });
