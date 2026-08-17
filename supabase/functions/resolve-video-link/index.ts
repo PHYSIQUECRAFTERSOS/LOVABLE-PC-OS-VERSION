@@ -101,6 +101,8 @@ Deno.serve(async (req) => {
       };
     }
 
+    result.videoFileUrl = await fetchRumbleMp4(result.embedUrl);
+
     return json(result);
   } catch (err) {
     console.error("[resolve-video-link] error:", err);
