@@ -99,6 +99,23 @@ export interface ResolvedVideoLink {
   embedUrl: string;
   thumbnailUrl: string | null;
   title: string | null;
+  /** Direct .mp4 for Rumble videos — iframes are blocked inside the native webview. */
+  videoFileUrl?: string | null;
+}
+
+/**
+ * Choose what to actually play for an exercise/recipe row.
+ * Rumble iframes are refused inside the app webview, so when we have a resolved
+ * direct file for a Rumble link we play that instead.
+ */
+export function pickPlayableVideoUrl(
+  providerUrl: string | null | undefined,
+  fileUrl: string | null | undefined
+): string | null {
+  if (isRumbleUrl(providerUrl) && fileUrl && detectVideoProvider(fileUrl) === "file") {
+    return fileUrl;
+  }
+  return providerUrl || fileUrl || null;
 }
 
 /**
@@ -122,22 +139,26 @@ export async function resolveVideoLink(
 
   if (isRumbleUrl(url)) {
     const existing = getRumbleEmbedId(url);
-    if (existing) {
-      return {
-        provider: "rumble",
-        embedUrl: `https://rumble.com/embed/${existing}/`,
-        thumbnailUrl: null,
-        title: null,
-      };
-    }
     const { data, error } = await invoke("resolve-video-link", { url });
-    if (error) throw new Error(error.message || "Could not resolve Rumble link");
-    if (!data?.embedUrl) throw new Error(data?.error || "Could not resolve Rumble link");
+    if (error || !data?.embedUrl) {
+      // Already an embed link — usable even if the lookup failed (no direct file).
+      if (existing) {
+        return {
+          provider: "rumble",
+          embedUrl: `https://rumble.com/embed/${existing}/`,
+          thumbnailUrl: null,
+          title: null,
+          videoFileUrl: null,
+        };
+      }
+      throw new Error(error?.message || data?.error || "Could not resolve Rumble link");
+    }
     return {
       provider: "rumble",
       embedUrl: data.embedUrl,
       thumbnailUrl: data.thumbnailUrl || null,
       title: data.title || null,
+      videoFileUrl: data.videoFileUrl || null,
     };
   }
 

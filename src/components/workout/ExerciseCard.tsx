@@ -18,7 +18,7 @@ import InlineRestTimer from "@/components/workout/InlineRestTimer";
 import PersonalExerciseNote from "@/components/workout/PersonalExerciseNote";
 import NumericKeypad from "@/components/workout/NumericKeypad";
 import { cn } from "@/lib/utils";
-import { getVideoEmbedUrl } from "@/utils/videoEmbed";
+import { getVideoEmbedUrl, detectVideoProvider } from "@/utils/videoEmbed";
 import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { hapticSuccess, hapticCelebrate } from "@/utils/haptics";
@@ -267,6 +267,7 @@ const ExerciseCard = ({
 }: ExerciseCardProps) => {
   const allDone = logs.every(l => l.completed);
   const videoEmbedSrc = getVideoEmbedUrl(videoUrl);
+  const videoFileSrc = detectVideoProvider(videoUrl) === "file" ? videoUrl : null;
   const isBW = isBodyweight(equipment);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const { convertWeight, weightLabel } = useUnitPreferences();
@@ -449,7 +450,19 @@ const ExerciseCard = ({
         </div>
       )}
 
-      {videoEmbedSrc && (
+      {videoFileSrc && (
+        <div className="px-4 pb-2">
+          <video
+            src={videoFileSrc}
+            controls
+            playsInline
+            preload="metadata"
+            className="w-full h-[200px] rounded-lg bg-black object-contain"
+          />
+        </div>
+      )}
+
+      {!videoFileSrc && videoEmbedSrc && (
         <div className="px-4 pb-2">
           <iframe
             src={videoEmbedSrc}

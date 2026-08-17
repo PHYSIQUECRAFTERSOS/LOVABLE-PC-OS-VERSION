@@ -5,6 +5,25 @@ interface ResolveResult {
   embedUrl: string;
   thumbnailUrl: string | null;
   title: string | null;
+  /** Direct .mp4 URL — Rumble iframes are blocked inside the native webview. */
+  videoFileUrl?: string | null;
+}
+
+/** Pull the highest-quality direct mp4 out of a Rumble embed page. */
+async function fetchRumbleMp4(embedUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(embedUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const matches = [...html.matchAll(/"(https:\\?\/\\?\/[^"]+?\.mp4)"/g)].map((m) =>
+      m[1].replace(/\\\//g, "/"),
+    );
+    if (matches.length === 0) return null;
+    // Prefer the last (usually highest) rendition that is unique.
+    return matches[0];
+  } catch {
+    return null;
+  }
 }
 
 const json = (body: unknown, status = 200) =>
@@ -81,6 +100,8 @@ Deno.serve(async (req) => {
         title,
       };
     }
+
+    result.videoFileUrl = await fetchRumbleMp4(result.embedUrl);
 
     return json(result);
   } catch (err) {
