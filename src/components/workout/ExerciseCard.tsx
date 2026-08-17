@@ -267,6 +267,7 @@ const ExerciseCard = ({
 }: ExerciseCardProps) => {
   const allDone = logs.every(l => l.completed);
   const videoEmbedSrc = getVideoEmbedUrl(videoUrl);
+  const videoFileSrc = detectVideoProvider(videoUrl) === "file" ? videoUrl : null;
   const isBW = isBodyweight(equipment);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const { convertWeight, weightLabel } = useUnitPreferences();
