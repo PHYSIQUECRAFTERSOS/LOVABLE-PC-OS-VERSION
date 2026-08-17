@@ -99,6 +99,23 @@ export interface ResolvedVideoLink {
   embedUrl: string;
   thumbnailUrl: string | null;
   title: string | null;
+  /** Direct .mp4 for Rumble videos — iframes are blocked inside the native webview. */
+  videoFileUrl?: string | null;
+}
+
+/**
+ * Choose what to actually play for an exercise/recipe row.
+ * Rumble iframes are refused inside the app webview, so when we have a resolved
+ * direct file for a Rumble link we play that instead.
+ */
+export function pickPlayableVideoUrl(
+  providerUrl: string | null | undefined,
+  fileUrl: string | null | undefined
+): string | null {
+  if (isRumbleUrl(providerUrl) && fileUrl && detectVideoProvider(fileUrl) === "file") {
+    return fileUrl;
+  }
+  return providerUrl || fileUrl || null;
 }
 
 /**
