@@ -450,7 +450,19 @@ const ExerciseCard = ({
         </div>
       )}
 
-      {videoEmbedSrc && (
+      {videoFileSrc && (
+        <div className="px-4 pb-2">
+          <video
+            src={videoFileSrc}
+            controls
+            playsInline
+            preload="metadata"
+            className="w-full h-[200px] rounded-lg bg-black object-contain"
+          />
+        </div>
+      )}
+
+      {!videoFileSrc && videoEmbedSrc && (
         <div className="px-4 pb-2">
           <iframe
             src={videoEmbedSrc}
