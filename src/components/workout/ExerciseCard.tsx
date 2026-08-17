@@ -18,7 +18,7 @@ import InlineRestTimer from "@/components/workout/InlineRestTimer";
 import PersonalExerciseNote from "@/components/workout/PersonalExerciseNote";
 import NumericKeypad from "@/components/workout/NumericKeypad";
 import { cn } from "@/lib/utils";
-import { getVideoEmbedUrl } from "@/utils/videoEmbed";
+import { getVideoEmbedUrl, detectVideoProvider } from "@/utils/videoEmbed";
 import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { hapticSuccess, hapticCelebrate } from "@/utils/haptics";
