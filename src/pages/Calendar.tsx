@@ -317,8 +317,12 @@ const Calendar = () => {
     }
   }, [isCoach, user?.id, startStr, endStr, events, loading, error, timedOut]);
 
-  const handlePrev = () => setCurrentDate((d) => (view === "week" ? subWeeks(d, 1) : subMonths(d, 1)));
-  const handleNext = () => setCurrentDate((d) => (view === "week" ? addWeeks(d, 1) : addMonths(d, 1)));
+  const handlePrev = useCallback(() => {
+    setCurrentDate((date) => (view === "week" ? subWeeks(date, 1) : subMonths(date, 1)));
+  }, [view]);
+  const handleNext = useCallback(() => {
+    setCurrentDate((date) => (view === "week" ? addWeeks(date, 1) : addMonths(date, 1)));
+  }, [view]);
 
   const handleEventClick = useCallback((event: CalendarEvent) => {
     // Body stats events: clients open the entry form (same as dashboard's
