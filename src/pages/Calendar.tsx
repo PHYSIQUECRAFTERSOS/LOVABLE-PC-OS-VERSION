@@ -320,7 +320,7 @@ const Calendar = () => {
   const handlePrev = () => setCurrentDate((d) => (view === "week" ? subWeeks(d, 1) : subMonths(d, 1)));
   const handleNext = () => setCurrentDate((d) => (view === "week" ? addWeeks(d, 1) : addMonths(d, 1)));
 
-  const handleEventClick = (event: CalendarEvent) => {
+  const handleEventClick = useCallback((event: CalendarEvent) => {
     // Body stats events: clients open the entry form (same as dashboard's
     // /body-stats page — Body Weight + Measurements if coach has enabled them).
     // Coaches viewing their own calendar see the weight history graph instead.
@@ -346,8 +346,13 @@ const Calendar = () => {
     }
     setSelectedEvent(event);
     setShowEventDetail(true);
-  };
-  const handleDayClick = (date: Date) => { if (isCoach) { setSelectedDate(date); setShowScheduleForm(true); } };
+  }, [isCoach, navigate]);
+  const handleDayClick = useCallback((date: Date) => {
+    if (isCoach) {
+      setSelectedDate(date);
+      setShowScheduleForm(true);
+    }
+  }, [isCoach]);
 
   const reloadEvents = () => { invalidateCache(cacheKey); refetch(); };
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { memo, useState, useMemo } from "react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Check, ChevronLeft, ChevronRight, X, Flag } from "lucide-react";
@@ -106,8 +106,17 @@ const CalendarGrid = ({
     return rows;
   }, [days]);
 
-  const getEventsForDay = (day: Date) =>
-    events.filter((e) => isSameDay(new Date(e.event_date), day));
+  const eventsByDate = useMemo(() => {
+    const grouped = new Map<string, CalendarEvent[]>();
+    events.forEach((event) => {
+      const existing = grouped.get(event.event_date);
+      if (existing) existing.push(event);
+      else grouped.set(event.event_date, [event]);
+    });
+    return grouped;
+  }, [events]);
+
+  const getEventsForDay = (day: Date) => eventsByDate.get(format(day, "yyyy-MM-dd")) ?? [];
 
   const weekDayHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -290,4 +299,4 @@ const CalendarGrid = ({
   );
 };
 
-export default CalendarGrid;
+export default memo(CalendarGrid);

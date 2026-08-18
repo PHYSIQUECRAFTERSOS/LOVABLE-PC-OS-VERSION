@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useState, useCallback } from "react";
+import { memo, useEffect, useRef, useMemo, useState, useCallback } from "react";
 import { format, isToday, isTomorrow, isYesterday, parseISO, eachDayOfInterval, subDays, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { CalendarEvent } from "./CalendarGrid";
@@ -569,4 +569,4 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved, maxFutureDays = 9
   );
 };
 
-export default CalendarDayList;
+export default memo(CalendarDayList);
