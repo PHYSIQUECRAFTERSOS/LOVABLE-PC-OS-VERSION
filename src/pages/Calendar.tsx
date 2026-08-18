@@ -18,8 +18,8 @@ import CardioPopup from "@/components/dashboard/CardioPopup";
 import WorkoutStartPopup from "@/components/dashboard/WorkoutStartPopup";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CalendarSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
-import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
+import { readCalendarSnapshot, writeCalendarSnapshot } from "@/lib/calendarSnapshot";
 
 const Calendar = () => {
   const { user, role } = useAuth();
@@ -94,66 +94,10 @@ const Calendar = () => {
       if (!user) return [];
 
       const normalizeWorkoutName = (name: string) => name.replace(/^day\s*\d+\s*[:\-]\s*/i, "").trim();
-      const workoutLabelMap = new Map<string, string>();
-
-      // Resolve the workout-label chain (assignment → phase → program_workouts)
-      // IN PARALLEL with the main fan-out below instead of blocking on it.
-      // Previously this was 1-3 sequential round-trips before anything else started.
-      const labelChainPromise = (async () => {
-        if (isCoach) return;
-        const { data: assignment } = await supabase
-          .from("client_program_assignments")
-          .select("program_id, current_phase_id")
-          .eq("client_id", user.id)
-          .in("status", ["active", "subscribed"])
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (!assignment?.program_id) return;
-
-        let phaseId = assignment.current_phase_id;
-        if (!phaseId) {
-          const { data: firstPhase } = await supabase
-            .from("program_phases")
-            .select("id")
-            .eq("program_id", assignment.program_id)
-            .order("created_at", { ascending: true })
-            .limit(1)
-            .maybeSingle();
-          phaseId = firstPhase?.id ?? null;
-        }
-        if (!phaseId) return;
-
-        const { data: pws } = await supabase
-          .from("program_workouts")
-          .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name, is_accessory)")
-          .eq("phase_id", phaseId)
-          .order("sort_order", { ascending: true });
-
-        const ordered = sortWorkoutsChronologically(
-          (pws || []).map((pw: any) => ({
-            id: pw.workout_id,
-            sort_order: pw.sort_order,
-            exclude_from_numbering: pw.exclude_from_numbering || !!(pw.workouts as any)?.is_accessory,
-            custom_tag: pw.custom_tag || null,
-            name: (pw.workouts as any)?.name || "Workout",
-            is_accessory: !!(pw.workouts as any)?.is_accessory,
-          }))
-        );
-
-        ordered.forEach((w: any) => {
-          const label = w.is_accessory
-            ? w.name
-            : w.exclude_from_numbering && w.custom_tag
-              ? `${w.custom_tag}: ${w.name}`
-              : w.name;
-          workoutLabelMap.set(w.id, label);
-        });
-      })();
 
       const calendarPromise = supabase
         .from("calendar_events")
-        .select("*, workouts:linked_workout_id(name, is_accessory), cardio_assignments:linked_cardio_id(title, cardio_type, target_duration_min, description, notes)")
+        .select("id, title, description, event_type, event_date, event_time, end_time, color, is_completed, completed_at, notes, target_client_id, linked_workout_id, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, user_id, workouts:linked_workout_id(name, is_accessory), cardio_assignments:linked_cardio_id(title, cardio_type, target_duration_min, description, notes)")
         .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
         .gte("event_date", startStr)
         .lte("event_date", endStr)
@@ -203,8 +147,6 @@ const Calendar = () => {
         : Promise.resolve({ data: null });
 
       const [calResult, sessResult, cardioResult, nutResult, weightResult] = await Promise.allSettled([calendarPromise, sessionsPromise, cardioPromise, nutritionFetch, weightFetch]);
-      // Ensure the workout-label map is ready before we render (it ran in parallel).
-      await labelChainPromise.catch(() => { /* labels are best-effort */ });
 
       const calRes = calResult.status === "fulfilled" ? calResult.value : { data: null, error: { message: "Failed" } };
       const sessRes = sessResult.status === "fulfilled" ? sessResult.value : { data: null };
@@ -249,9 +191,7 @@ const Calendar = () => {
 
         const isAccessory = e.event_type === "workout" && !!e.workouts?.is_accessory;
 
-        if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
-          title = workoutLabelMap.get(e.linked_workout_id)!;
-        } else if (e.event_type === "workout" && e.workouts?.name) {
+        if (e.event_type === "workout" && e.workouts?.name) {
           title = normalizeWorkoutName(e.workouts.name);
         }
 
@@ -297,8 +237,7 @@ const Calendar = () => {
       // Merge workout sessions not already in calendar
       sessRes.data?.forEach((s: any) => {
         const eventDate = format(new Date(s.created_at), "yyyy-MM-dd");
-        const mappedLabel = workoutLabelMap.get(s.workout_id);
-        const workoutName = mappedLabel || normalizeWorkoutName(s.workouts?.name || "Unnamed Workout");
+        const workoutName = normalizeWorkoutName(s.workouts?.name || "Unnamed Workout");
         if (!allEvents.find((e) => e.linked_workout_id === s.workout_id && e.event_date === eventDate)) {
           allEvents.push({
             id: `ws-${s.id}`, title: workoutName, event_type: "workout",
@@ -366,10 +305,26 @@ const Calendar = () => {
     },
   });
 
-  const handlePrev = () => setCurrentDate((d) => (view === "week" ? subWeeks(d, 1) : subMonths(d, 1)));
-  const handleNext = () => setCurrentDate((d) => (view === "week" ? addWeeks(d, 1) : addMonths(d, 1)));
+  const calendarSnapshot = useMemo(
+    () => (!isCoach ? readCalendarSnapshot(user?.id, startStr, endStr) : null),
+    [isCoach, user?.id, startStr, endStr],
+  );
+  const displayedEvents = events.length > 0 || !calendarSnapshot ? events : calendarSnapshot;
 
-  const handleEventClick = (event: CalendarEvent) => {
+  useEffect(() => {
+    if (!isCoach && user?.id && !loading && !error && !timedOut) {
+      writeCalendarSnapshot(user.id, startStr, endStr, events);
+    }
+  }, [isCoach, user?.id, startStr, endStr, events, loading, error, timedOut]);
+
+  const handlePrev = useCallback(() => {
+    setCurrentDate((date) => (view === "week" ? subWeeks(date, 1) : subMonths(date, 1)));
+  }, [view]);
+  const handleNext = useCallback(() => {
+    setCurrentDate((date) => (view === "week" ? addWeeks(date, 1) : addMonths(date, 1)));
+  }, [view]);
+
+  const handleEventClick = useCallback((event: CalendarEvent) => {
     // Body stats events: clients open the entry form (same as dashboard's
     // /body-stats page — Body Weight + Measurements if coach has enabled them).
     // Coaches viewing their own calendar see the weight history graph instead.
@@ -395,8 +350,13 @@ const Calendar = () => {
     }
     setSelectedEvent(event);
     setShowEventDetail(true);
-  };
-  const handleDayClick = (date: Date) => { if (isCoach) { setSelectedDate(date); setShowScheduleForm(true); } };
+  }, [isCoach, navigate]);
+  const handleDayClick = useCallback((date: Date) => {
+    if (isCoach) {
+      setSelectedDate(date);
+      setShowScheduleForm(true);
+    }
+  }, [isCoach]);
 
   const reloadEvents = () => { invalidateCache(cacheKey); refetch(); };
 
@@ -475,20 +435,20 @@ const Calendar = () => {
         </div>
 
         {/* Content */}
-        {(error || timedOut) && !events.length ? (
+        {(error || timedOut) && !displayedEvents.length ? (
           <RetryBanner onRetry={reloadEvents} message={timedOut ? "Request timed out. Tap to retry." : undefined} />
-        ) : loading && !events.length ? (
+        ) : loading && !displayedEvents.length ? (
           <CalendarSkeleton />
         ) : isCoach ? (
           /* Coach: keep grid + sidebar */
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
-            <CalendarGrid events={events} view={view} currentDate={currentDate} onDateChange={setCurrentDate} onEventClick={handleEventClick} onDayClick={handleDayClick} onPrev={handlePrev} onNext={handleNext} />
+            <CalendarGrid events={displayedEvents} view={view} currentDate={currentDate} onDateChange={setCurrentDate} onEventClick={handleEventClick} onDayClick={handleDayClick} onPrev={handlePrev} onNext={handleNext} />
             <div className="space-y-4">
-              <ComplianceStreak events={events} />
+              <ComplianceStreak events={displayedEvents} />
               <div className="bg-card rounded-lg border border-border p-4">
                 <h3 className="text-sm font-semibold mb-3">Upcoming</h3>
                 <div className="space-y-2">
-                  {events
+                  {displayedEvents
                     .filter((e) => !e.is_completed && new Date(e.event_date) >= new Date(format(new Date(), "yyyy-MM-dd")))
                     .sort((a, b) => a.event_date.localeCompare(b.event_date))
                     .slice(0, 5)
@@ -501,7 +461,7 @@ const Calendar = () => {
                         </div>
                       </button>
                     ))}
-                  {events.filter((e) => !e.is_completed && new Date(e.event_date) >= new Date(format(new Date(), "yyyy-MM-dd"))).length === 0 && (
+                  {displayedEvents.filter((e) => !e.is_completed && new Date(e.event_date) >= new Date(format(new Date(), "yyyy-MM-dd"))).length === 0 && (
                     <p className="text-xs text-muted-foreground text-center py-2">No upcoming events</p>
                   )}
                 </div>
@@ -510,7 +470,7 @@ const Calendar = () => {
           </div>
         ) : (
           /* Client: vertical day list capped by coach-set look-ahead */
-          <CalendarDayList events={events} onEventClick={handleEventClick} onEventMoved={handleEventMoved} maxFutureDays={lookaheadDays} />
+          <CalendarDayList events={displayedEvents} onEventClick={handleEventClick} onEventMoved={handleEventMoved} maxFutureDays={lookaheadDays} />
         )}
       </div>
 

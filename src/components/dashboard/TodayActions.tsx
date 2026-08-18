@@ -3,8 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Circle, Dumbbell, Heart, UtensilsCrossed, Footprints, Camera, Activity, ClipboardCheck, Loader2, Sparkles } from "lucide-react";
-import { format } from "date-fns";
-import { useDataFetch, invalidateCache, invalidateCacheByPrefix } from "@/hooks/useDataFetch";
+import { addDays, format, parseISO } from "date-fns";
+import { useDataFetch, invalidateCache, invalidateCacheByPrefix, primeQuery } from "@/hooks/useDataFetch";
 import { CardSkeleton } from "@/components/ui/data-skeleton";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -79,6 +79,104 @@ interface TodayActionsProps {
   sectionTitle?: string;
 }
 
+async function fetchActionsForDate(userId: string, targetDate: string, signal: AbortSignal): Promise<ActionItem[]> {
+  const [calSettled, cardioSettled, nutritionSettled, sessSettled] = await Promise.allSettled([
+    supabase
+      .from("calendar_events")
+      .select("id, title, event_type, is_completed, linked_workout_id, description, workouts:linked_workout_id(name, is_accessory)")
+      .or(`user_id.eq.${userId},target_client_id.eq.${userId}`)
+      .eq("event_date", targetDate)
+      .neq("event_type", "auto_message")
+      .order("event_time", { ascending: true })
+      .abortSignal(signal),
+    supabase
+      .from("cardio_logs")
+      .select("id, title, completed")
+      .eq("client_id", userId)
+      .eq("logged_at", targetDate)
+      .abortSignal(signal),
+    supabase
+      .from("nutrition_logs")
+      .select("id")
+      .eq("client_id", userId)
+      .eq("logged_at", targetDate)
+      .limit(1)
+      .abortSignal(signal),
+    supabase
+      .from("workout_sessions")
+      .select("id, workout_id, completed_at")
+      .eq("client_id", userId)
+      .eq("status", "completed")
+      .gte("created_at", `${targetDate}T00:00:00`)
+      .lte("created_at", `${targetDate}T23:59:59`)
+      .abortSignal(signal),
+  ]);
+
+  const calRes = calSettled.status === "fulfilled" ? calSettled.value : { data: null };
+  const cardioRes = cardioSettled.status === "fulfilled" ? cardioSettled.value : { data: null };
+  const nutritionRes = nutritionSettled.status === "fulfilled" ? nutritionSettled.value : { data: null };
+  const sessRes = sessSettled.status === "fulfilled" ? sessSettled.value : { data: null };
+  const items: ActionItem[] = [];
+
+  (calRes.data || []).forEach((event) => {
+    let completed = event.is_completed;
+    let title = event.title;
+    let isAccessory = false;
+    const workout = event.workouts;
+
+    if (event.event_type === "workout" && event.linked_workout_id) {
+      if (sessRes.data?.some((session) => session.workout_id === event.linked_workout_id && session.completed_at)) completed = true;
+      if (workout?.name) title = workout.name;
+      isAccessory = workout?.is_accessory === true;
+      if (isAccessory) title = title.replace(/^[Dd]ay\s*\d+\s*[:\-–]\s*/, "").trim();
+    }
+    if (event.event_type === "cardio" && cardioRes.data?.some((log) => log.title === event.title && log.completed)) {
+      completed = true;
+    }
+
+    items.push({
+      id: event.id,
+      title,
+      type: isAccessory ? "activity" : event.event_type,
+      completed,
+      description: event.description,
+      linkedWorkoutId: event.linked_workout_id,
+      isAccessory,
+    });
+  });
+
+  cardioRes.data?.forEach((log) => {
+    if (!items.some((item) => item.type === "cardio" && item.title === log.title)) {
+      items.push({ id: `cl-${log.id}`, title: log.title, type: "cardio", completed: log.completed });
+    }
+  });
+
+  const seenByLinkedId = new Map<string, ActionItem>();
+  const dropIds = new Set<string>();
+  for (const item of items) {
+    if ((item.type === "workout" || item.type === "activity") && item.linkedWorkoutId) {
+      const existing = seenByLinkedId.get(item.linkedWorkoutId);
+      if (!existing) {
+        seenByLinkedId.set(item.linkedWorkoutId, item);
+      } else if (existing.title === "Workout" && item.title !== "Workout") {
+        dropIds.add(existing.id);
+        seenByLinkedId.set(item.linkedWorkoutId, item);
+      } else {
+        dropIds.add(item.id);
+      }
+    }
+  }
+
+  const deduped = dropIds.size > 0 ? items.filter((item) => !dropIds.has(item.id)) : items;
+  deduped.push({
+    id: "nutrition-track",
+    title: "Track Nutrition",
+    type: "nutrition",
+    completed: (nutritionRes.data?.length || 0) > 0,
+  });
+  return deduped;
+}
+
 const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: TodayActionsProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -145,159 +243,21 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
     enabled: !!user,
     staleTime: 60 * 1000,
     fallback: [],
-    queryFn: async (signal) => {
-      if (!user) return [];
-
-      // Calendar is the source of truth — only show items scheduled for this date
-      const [calSettled, cardioSettled, nutritionSettled] = await Promise.allSettled([
-        supabase
-          .from("calendar_events")
-          .select("id, title, event_type, is_completed, linked_workout_id, description")
-          .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
-          .eq("event_date", targetDate)
-          .neq("event_type", "auto_message")
-          .order("event_time", { ascending: true })
-          .abortSignal(signal),
-        supabase
-          .from("cardio_logs")
-          .select("id, title, completed")
-          .eq("client_id", user.id)
-          .eq("logged_at", targetDate)
-          .abortSignal(signal),
-        supabase
-          .from("nutrition_logs")
-          .select("id")
-          .eq("client_id", user.id)
-          .eq("logged_at", targetDate)
-          .limit(1)
-          .abortSignal(signal),
-      ]);
-
-      const calRes = calSettled.status === "fulfilled" ? calSettled.value : { data: null };
-      const cardioRes = cardioSettled.status === "fulfilled" ? cardioSettled.value : { data: null };
-      const nutritionRes = nutritionSettled.status === "fulfilled" ? nutritionSettled.value : { data: null };
-
-      // Collect linked workout IDs from today's calendar events to check completion
-      const calWorkoutIds = (calRes.data || [])
-        .filter(e => e.event_type === "workout" && e.linked_workout_id)
-        .map(e => e.linked_workout_id!);
-
-      // Fetch workout sessions + names only for workouts actually scheduled today
-      const [sessSettled, workoutNamesSettled] = await Promise.allSettled([
-        calWorkoutIds.length > 0
-          ? supabase
-              .from("workout_sessions")
-              .select("id, workout_id, completed_at")
-              .eq("client_id", user.id)
-              .eq("status", "completed")
-              .in("workout_id", calWorkoutIds)
-              .gte("created_at", `${targetDate}T00:00:00`)
-              .lte("created_at", `${targetDate}T23:59:59`)
-              .abortSignal(signal)
-          : Promise.resolve({ data: [] as any[], error: null }),
-        calWorkoutIds.length > 0
-          ? supabase
-              .from("workouts")
-              .select("id, name, is_accessory")
-              .in("id", calWorkoutIds)
-              .abortSignal(signal)
-          : Promise.resolve({ data: [] as any[], error: null }),
-      ]);
-
-      const sessRes = sessSettled.status === "fulfilled" ? sessSettled.value : { data: [] as any[] };
-      const workoutNamesRes = workoutNamesSettled.status === "fulfilled" ? workoutNamesSettled.value : { data: [] as any[] };
-
-
-      const items: ActionItem[] = [];
-
-      const workoutNameMap = new Map<string, string>();
-      const workoutAccessoryMap = new Map<string, boolean>();
-      (workoutNamesRes.data || []).forEach((w: any) => {
-        workoutNameMap.set(w.id, w.name);
-        workoutAccessoryMap.set(w.id, !!w.is_accessory);
-      });
-
-      (calRes.data || []).forEach((e) => {
-        let completed = e.is_completed;
-        let title = e.title;
-        let isAccessory = false;
-
-        if (e.event_type === "workout" && e.linked_workout_id) {
-          const session = sessRes.data?.find((s: any) => s.workout_id === e.linked_workout_id);
-          if (session?.completed_at) completed = true;
-          const directName = workoutNameMap.get(e.linked_workout_id);
-          if (directName) title = directName;
-          isAccessory = workoutAccessoryMap.get(e.linked_workout_id) === true;
-          // Strip any leftover "Day N:" prefix from accessory titles
-          if (isAccessory) {
-            title = title.replace(/^[Dd]ay\s*\d+\s*[:\-–]\s*/, "").trim();
-          }
-        }
-        if (e.event_type === "cardio") {
-          const log = cardioRes.data?.find((c) => c.title === e.title);
-          if (log?.completed) completed = true;
-        }
-
-        items.push({
-          id: e.id,
-          title,
-          type: isAccessory ? "activity" : e.event_type,
-          completed,
-          description: (e as any).description || null,
-          linkedWorkoutId: e.linked_workout_id,
-          isAccessory,
-        });
-      });
-
-      cardioRes.data?.forEach((c) => {
-        if (!items.some((i) => i.type === "cardio" && i.title === c.title)) {
-          items.push({
-            id: `cl-${c.id}`,
-            title: c.title,
-            type: "cardio",
-            completed: c.completed,
-          });
-        }
-      });
-
-      // Deduplicate only true duplicates: multiple calendar events pointing to the
-      // SAME linked workout. Distinct workouts (and accessories) on the same day stay.
-      const seenByLinkedId = new Map<string, ActionItem>();
-      const dropIds = new Set<string>();
-      for (const it of items) {
-        if ((it.type === "workout" || it.type === "activity") && it.linkedWorkoutId) {
-          const existing = seenByLinkedId.get(it.linkedWorkoutId);
-          if (!existing) {
-            seenByLinkedId.set(it.linkedWorkoutId, it);
-          } else {
-            // Keep the named one; drop the generic "Workout" placeholder
-            const existingIsGeneric = existing.title === "Workout";
-            const currentIsGeneric = it.title === "Workout";
-            if (existingIsGeneric && !currentIsGeneric) {
-              dropIds.add(existing.id);
-              seenByLinkedId.set(it.linkedWorkoutId, it);
-            } else {
-              dropIds.add(it.id);
-            }
-          }
-        }
-      }
-      if (dropIds.size > 0) {
-        const filtered = items.filter(i => !dropIds.has(i.id));
-        items.length = 0;
-        items.push(...filtered);
-      }
-
-      items.push({
-        id: "nutrition-track",
-        title: "Track Nutrition",
-        type: "nutrition",
-        completed: (nutritionRes.data?.length || 0) > 0,
-      });
-
-      return items;
-    },
+    queryFn: (signal) => user ? fetchActionsForDate(user.id, targetDate, signal) : Promise.resolve([]),
   });
+
+  useEffect(() => {
+    if (!user?.id || loading) return;
+    const selected = parseISO(targetDate);
+    [-1, 1].forEach((offset) => {
+      const adjacentDate = format(addDays(selected, offset), "yyyy-MM-dd");
+      void primeQuery(
+        `today-actions-${user.id}-${adjacentDate}`,
+        (signal) => fetchActionsForDate(user.id, adjacentDate, signal),
+        60 * 1000,
+      );
+    });
+  }, [user?.id, targetDate, loading]);
 
   // Fire onDataLoaded whenever data updates (including cache hits and refetches).
   // Persist today's actions to the snapshot for instant paint on cold boot.
