@@ -16,7 +16,6 @@ import { GridSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 import { loadWorkoutForLogger } from "@/lib/loadWorkoutForLogger";
 import { readWorkoutSnapshot, saveWorkoutSnapshot } from "@/lib/workoutSnapshot";
 import { ToastAction } from "@/components/ui/toast";
-import { withRetry } from "@/lib/resilientFetch";
 
 
 import { useAuth } from "@/hooks/useAuth";
