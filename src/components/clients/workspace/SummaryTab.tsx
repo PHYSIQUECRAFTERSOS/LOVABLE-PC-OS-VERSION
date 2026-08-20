@@ -430,9 +430,10 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       return format(d, "yyyy-MM-dd");
     });
 
+    let cancelled = false;
+
     const loadExtended = async () => {
-      const [actionsRes, photosRes, targetsRes, todayLogsRes, weight30Res, workouts7Res, compliance7Res, completedSessionsRes] =
-        await Promise.all([
+      const settled = await Promise.allSettled([
           supabase.from("calendar_events").select("id, event_type, title, is_completed, linked_workout_id, event_date, description, notes, event_time, end_time, is_recurring, recurrence_pattern, color, completed_at")
             .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`).eq("event_date", selectedDateStr),
           supabase.from("progress_photos").select("id, storage_path, created_at")
@@ -456,18 +457,33 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             .gte("created_at", `${format(subDays(new Date(), 30), "yyyy-MM-dd")}T00:00:00`),
         ]);
 
+      if (cancelled) return;
+
+      // A failed request keeps the previous value instead of rendering an
+      // empty card — only a successful, genuinely empty response clears data.
+      const ok = (i: number) =>
+        settled[i].status === "fulfilled" && !(settled[i] as PromiseFulfilledResult<any>).value?.error;
+      const val = (i: number): any =>
+        settled[i].status === "fulfilled" ? (settled[i] as PromiseFulfilledResult<any>).value : { data: null };
+
+      const actionsRes = val(0), photosRes = val(1), targetsRes = val(2), todayLogsRes = val(3),
+        weight30Res = val(4), workouts7Res = val(5), compliance7Res = val(6), completedSessionsRes = val(7);
+
       // Cross-reference workout actions with workout_sessions to fix completion status
-      const rawActions = (actionsRes.data || []) as CalendarAction[];
-      const completedWorkoutIds = new Set(
-        (completedSessionsRes.data || []).map((s: any) => s.workout_id).filter(Boolean),
-      );
-      setActions(
-        rawActions.map((a) =>
-          a.event_type === "workout" && a.linked_workout_id && completedWorkoutIds.has(a.linked_workout_id)
-            ? { ...a, is_completed: true }
-            : a,
-        ),
-      );
+      if (ok(0)) {
+        const rawActions = (actionsRes.data || []) as CalendarAction[];
+        const completedWorkoutIds = new Set(
+          (completedSessionsRes.data || []).map((s: any) => s.workout_id).filter(Boolean),
+        );
+        setActions(
+          rawActions.map((a) =>
+            a.event_type === "workout" && a.linked_workout_id && completedWorkoutIds.has(a.linked_workout_id)
+              ? { ...a, is_completed: true }
+              : a,
+          ),
+        );
+      }
+
 
       // Photos — one batched signing call instead of one round-trip per photo.
       const photos = photosRes.data || [];
