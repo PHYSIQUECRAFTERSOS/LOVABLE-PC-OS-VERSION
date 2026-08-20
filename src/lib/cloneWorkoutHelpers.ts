@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchWorkoutExerciseDetails, replaceWorkoutExercisePlan } from "@/lib/workoutExerciseQueries";
+import { isRetryableError, withRetry } from "@/lib/resilientFetch";
 
 /**
  * Result of cloning a single workout (day) with its exercises.
@@ -41,11 +42,14 @@ export async function cloneWorkoutWithExercises(
   };
 
   // 1. Read source workout
-  const { data: origW, error: origErr } = await supabase
-    .from("workouts")
-    .select("name, description, instructions, phase, workout_type")
-    .eq("id", sourceWorkoutId)
-    .single();
+  const { data: origW, error: origErr } = await withRetry(
+    async () => await supabase
+      .from("workouts")
+      .select("name, description, instructions, phase, workout_type")
+      .eq("id", sourceWorkoutId)
+      .single(),
+    { label: "source workout", attempts: 2, timeoutMs: 8000 },
+  );
 
   if (origErr || !origW) {
     return {
@@ -57,7 +61,9 @@ export async function cloneWorkoutWithExercises(
   emptyResult.workoutName = origW.name || "Workout";
 
   // 2. Insert client workout
+  const newWorkoutId = crypto.randomUUID();
   const insertPayload: any = {
+    id: newWorkoutId,
     coach_id: coachId,
     name: origW.name,
     description: origW.description,
@@ -69,11 +75,15 @@ export async function cloneWorkoutWithExercises(
   };
   if (clientId) insertPayload.client_id = clientId;
 
-  const { data: clientW, error: insertErr } = await supabase
-    .from("workouts")
-    .insert(insertPayload)
-    .select()
-    .single();
+  const { data: clientW, error: insertErr } = await withRetry(async () => {
+    const inserted = await supabase.from("workouts").insert(insertPayload).select().single();
+    if (!inserted.error) return inserted;
+    if (inserted.error.code === "23505" || isRetryableError(inserted.error)) {
+      const existing = await supabase.from("workouts").select("*").eq("id", newWorkoutId).maybeSingle();
+      if (existing.data) return { data: existing.data, error: null };
+    }
+    throw inserted.error;
+  }, { label: "create duplicated workout", attempts: 2, timeoutMs: 8000 });
 
   if (insertErr || !clientW) {
     return {
@@ -89,7 +99,10 @@ export async function cloneWorkoutWithExercises(
   // RLS-heavy direct table reads that can time out for coaches on desktop.
   let exercises: Awaited<ReturnType<typeof fetchWorkoutExerciseDetails>> = [];
   try {
-    exercises = await fetchWorkoutExerciseDetails(sourceWorkoutId);
+    exercises = await withRetry(
+      async () => await fetchWorkoutExerciseDetails(sourceWorkoutId),
+      { label: "source workout exercises", attempts: 2, timeoutMs: 8000 },
+    );
   } catch (exeReadErr: any) {
     return {
       workout: clientW,
@@ -113,7 +126,7 @@ export async function cloneWorkoutWithExercises(
   const errors: string[] = [];
 
   try {
-    await replaceWorkoutExercisePlan({
+    await withRetry(async () => replaceWorkoutExercisePlan({
       workoutId: clientW.id,
       name: origW.name || "Workout",
       instructions: origW.instructions || null,
@@ -132,7 +145,7 @@ export async function cloneWorkoutWithExercises(
         grouping_type: ex.grouping_type || null,
         grouping_id: ex.grouping_id || null,
       })),
-    });
+    }), { label: "copy workout exercises", attempts: 2, timeoutMs: 10000 });
   } catch (copyErr: any) {
     errors.push(`Failed to copy exercises for "${origW.name}": ${copyErr.message}`);
   }

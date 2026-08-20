@@ -538,21 +538,31 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       });
     }
 
-    const success = await copyMealToTracker(planItems, mealKey);
-    if (success) {
-      const usedLabel =
-        copySourcePlanData.plan.day_type === "rest"
-          ? "Rest Day"
-          : copySourcePlanData.plan.day_type === "training"
-            ? "Training Day"
-            : copySourcePlanData.plan.day_type_label || "Meal";
-      toast({ title: `${usedLabel} plan loaded · ${planItems.length} items` });
-      await fetchLogs();
-      refreshSuggestions();
-    } else {
-      await fetchLogs();
+    try {
+      const success = await copyMealToTracker(planItems, mealKey);
+      if (success) {
+        const usedLabel =
+          copySourcePlanData.plan.day_type === "rest"
+            ? "Rest Day"
+            : copySourcePlanData.plan.day_type === "training"
+              ? "Training Day"
+              : copySourcePlanData.plan.day_type_label || "Meal";
+        toast({ title: `${usedLabel} plan loaded · ${planItems.length} items` });
+        await fetchLogs();
+        refreshSuggestions();
+      } else {
+        await fetchLogs();
+      }
+    } catch (error: any) {
+      console.error("[DailyNutritionLog] meal copy failed:", error);
+      toast({
+        title: "Meal couldn't be copied",
+        description: error?.name === "AbortError" ? "The request timed out. Please try again." : (error?.message || "Please try again."),
+        variant: "destructive",
+      });
+    } finally {
+      setCopyingMeal(null);
     }
-    setCopyingMeal(null);
   };
 
   // Check if a meal section has plan items (uses the day-type-resolved source plan)
