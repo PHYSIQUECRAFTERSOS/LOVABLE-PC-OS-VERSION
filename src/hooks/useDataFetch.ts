@@ -216,9 +216,10 @@ export function useDataFetch<T>({
 }
 
 
-// Clear specific cache entry
+// Clear specific cache entry (and re-fetch it if a mounted hook is showing it)
 export function invalidateCache(queryKey: string) {
   cache.delete(queryKey);
+  notifyKeys((k) => k === queryKey);
 }
 
 // Clear all cache entries whose key starts with a given prefix
@@ -226,12 +227,15 @@ export function invalidateCacheByPrefix(prefix: string) {
   for (const key of Array.from(cache.keys())) {
     if (key.startsWith(prefix)) cache.delete(key);
   }
+  notifyKeys((k) => k.startsWith(prefix));
 }
 
 // Clear all cache
 export function clearCache() {
   cache.clear();
+  notifyKeys(() => true);
 }
+
 
 // Prime the cache from outside the hook (used by nav hover/touch prefetch).
 export async function primeQuery<T>(
