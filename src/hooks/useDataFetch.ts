@@ -117,14 +117,15 @@ export function useDataFetch<T>({
   const [loading, setLoading] = useState(!cache.has(queryKey));
   const [error, setError] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  const queryFnRef = useRef(queryFn);
+  queryFnRef.current = queryFn;
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (opts?: { force?: boolean }) => {
     if (!enabled) return;
 
     const cached = cache.get(queryKey);
-    if (cached && Date.now() - cached.timestamp < staleTime) {
+    if (cached && !opts?.force && Date.now() - cached.timestamp < staleTime) {
       setData(cached.data as T);
       setLoading(false);
       return;
@@ -141,32 +142,40 @@ export function useDataFetch<T>({
     setError(null);
     setTimedOut(false);
 
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
     const startTime = performance.now();
 
-    try {
-      const result = await queryFn(controller.signal);
-      clearTimeout(timeoutId);
+    // Share an in-flight request for the same key instead of racing/aborting it.
+    let promise = inflight.get(queryKey) as Promise<T> | undefined;
+    if (!promise) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
+      promise = (async () => {
+        try {
+          const result = await queryFnRef.current(controller.signal);
+          cache.set(queryKey, { data: result, timestamp: Date.now() });
+          return result;
+        } finally {
+          clearTimeout(timeoutId);
+          inflight.delete(queryKey);
+        }
+      })();
+      inflight.set(queryKey, promise);
+    }
 
+    try {
+      const result = await promise;
       if (!mountedRef.current) return;
 
       const elapsed = Math.round(performance.now() - startTime);
       logPerf({ queryKey, durationMs: elapsed, success: true, timestamp: Date.now() });
-
-      cache.set(queryKey, { data: result, timestamp: Date.now() });
       setData(result);
       setLoading(false);
     } catch (err: any) {
-      clearTimeout(timeoutId);
       if (!mountedRef.current) return;
 
       const elapsed = Math.round(performance.now() - startTime);
 
-      if (err.name === "AbortError") {
+      if (err?.name === "AbortError") {
         console.warn(`[useDataFetch] ⏱ timeout after ${elapsed}ms — ${queryKey}`);
         logPerf({ queryKey, durationMs: elapsed, success: false, error: "timeout", timestamp: Date.now() });
         if (cached) {
@@ -176,12 +185,12 @@ export function useDataFetch<T>({
           if (useFallbackOnError && fallback !== undefined) setData(fallback);
         }
       } else {
-        logPerf({ queryKey, durationMs: elapsed, success: false, error: err.message, timestamp: Date.now() });
-        console.error(`[Perf] ${queryKey} error:`, err.message);
+        logPerf({ queryKey, durationMs: elapsed, success: false, error: err?.message, timestamp: Date.now() });
+        console.error(`[Perf] ${queryKey} error:`, err?.message);
         if (cached) {
           setData(cached.data as T);
         } else {
-          setError(err.message);
+          setError(err?.message ?? "Request failed");
           if (useFallbackOnError && fallback !== undefined && !data) setData(fallback);
         }
       }
@@ -192,14 +201,20 @@ export function useDataFetch<T>({
   useEffect(() => {
     mountedRef.current = true;
     fetchData();
-    return () => {
-      mountedRef.current = false;
-      abortRef.current?.abort();
-    };
+    return () => { mountedRef.current = false; };
   }, [fetchData]);
 
-  return { data, loading, error, timedOut, refetch: fetchData };
+  // Re-fetch on external invalidation of this exact key.
+  useEffect(() => {
+    if (!enabled) return;
+    return subscribeKey(queryKey, () => { void fetchData({ force: true }); });
+  }, [queryKey, enabled, fetchData]);
+
+  const refetch = useCallback(() => { void fetchData({ force: true }); }, [fetchData]);
+
+  return { data, loading, error, timedOut, refetch };
 }
+
 
 // Clear specific cache entry
 export function invalidateCache(queryKey: string) {
