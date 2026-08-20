@@ -486,16 +486,18 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
 
       // Photos — one batched signing call instead of one round-trip per photo.
-      const photos = photosRes.data || [];
-      if (photos.length > 0) {
-        const { data: signed } = await supabase.storage
-          .from("progress-photos")
-          .createSignedUrls(photos.map((p) => p.storage_path), 3600);
-        setPhotoUrls((signed || []).map((s) => s.signedUrl || "").filter(Boolean));
-      } else {
-        setPhotoUrls([]);
+      if (ok(1)) {
+        const photos = photosRes.data || [];
+        if (photos.length > 0) {
+          const { data: signed } = await supabase.storage
+            .from("progress-photos")
+            .createSignedUrls(photos.map((p: any) => p.storage_path), 3600);
+          if (!cancelled) setPhotoUrls((signed || []).map((s) => s.signedUrl || "").filter(Boolean));
+        } else if (!cancelled) {
+          setPhotoUrls([]);
+        }
       }
-
+      if (cancelled) return;
 
       // Nutrition targets
       const calTarget = targetsRes.data?.calories || 0;
@@ -509,18 +511,20 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       }
 
       // Today macros
-      const logs = todayLogsRes.data || [];
-      const logged = logs.reduce(
-        (acc, r) => ({
-          calories: acc.calories + Number(r.calories || 0),
-          protein: acc.protein + Number(r.protein || 0),
-          carbs: acc.carbs + Number(r.carbs || 0),
-          fat: acc.fat + Number(r.fat || 0),
-        }),
-        { calories: 0, protein: 0, carbs: 0, fat: 0 }
-      );
-      setLoggedMacros(logged);
-      setTodayCals(Math.round(logged.calories));
+      if (ok(3)) {
+        const logs = todayLogsRes.data || [];
+        const logged = logs.reduce(
+          (acc: LoggedMacros, r: any) => ({
+            calories: acc.calories + Number(r.calories || 0),
+            protein: acc.protein + Number(r.protein || 0),
+            carbs: acc.carbs + Number(r.carbs || 0),
+            fat: acc.fat + Number(r.fat || 0),
+          }),
+          { calories: 0, protein: 0, carbs: 0, fat: 0 }
+        );
+        setLoggedMacros(logged);
+        setTodayCals(Math.round(logged.calories));
+      }
 
       // Momentum
       const w30 = weight30Res.data || [];
@@ -528,7 +532,8 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         const diff = Number(w30[w30.length - 1].weight) - Number(w30[0].weight);
         setWeightTrend30(diff > 0.5 ? `+${diff.toFixed(1)} lbs` : diff < -0.5 ? `${diff.toFixed(1)} lbs` : "Stable");
       }
-      setWorkouts7d((workouts7Res.data || []).length);
+      if (ok(5)) setWorkouts7d((workouts7Res.data || []).length);
+
 
       // ─── 7-Day Compliance Strip ───
       const compLogs = compliance7Res.data || [];
