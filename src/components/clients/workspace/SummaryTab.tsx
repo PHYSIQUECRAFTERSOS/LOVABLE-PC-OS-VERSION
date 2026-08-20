@@ -359,52 +359,66 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   /* ─── Load summary cards ─── */
   useEffect(() => {
     if (!clientId || !user) return;
+    let cancelled = false;
     const load = async () => {
       setLoading(true);
       const last7 = Array.from({ length: 7 }, (_, i) =>
         format(subDays(new Date(), i), "yyyy-MM-dd")
       ).reverse();
 
-      const [sessionsRes, weightsRes, checkinRes, assignmentRes] = await Promise.all([
-        supabase.from("workout_sessions").select("created_at, completed_at")
-          .eq("client_id", clientId).gte("created_at", `${last7[0]}T00:00:00`),
-        supabase.from("weight_logs").select("weight, logged_at")
-          .eq("client_id", clientId).order("logged_at", { ascending: false }).limit(7),
-        supabase.from("checkin_submissions").select("submitted_at")
-          .eq("client_id", clientId).eq("status", "submitted")
-          .order("submitted_at", { ascending: false }).limit(1),
-        supabase.from("client_program_assignments")
-          .select("current_week_number, program_id, current_phase_id, programs(name), program_phases(name)")
-          .eq("client_id", clientId).eq("status", "active").limit(1).maybeSingle(),
-      ]);
+      try {
+        // allSettled: one failing query must never blank the whole summary.
+        const settled = await Promise.allSettled([
+          supabase.from("workout_sessions").select("created_at, completed_at")
+            .eq("client_id", clientId).gte("created_at", `${last7[0]}T00:00:00`),
+          supabase.from("weight_logs").select("weight, logged_at")
+            .eq("client_id", clientId).order("logged_at", { ascending: false }).limit(7),
+          supabase.from("checkin_submissions").select("submitted_at")
+            .eq("client_id", clientId).eq("status", "submitted")
+            .order("submitted_at", { ascending: false }).limit(1),
+          supabase.from("client_program_assignments")
+            .select("current_week_number, program_id, current_phase_id, programs(name), program_phases(name)")
+            .eq("client_id", clientId).eq("status", "active").limit(1).maybeSingle(),
+        ]);
+        if (cancelled) return;
 
-      const sessions = sessionsRes.data || [];
+        const val = (i: number): any =>
+          settled[i].status === "fulfilled" ? (settled[i] as PromiseFulfilledResult<any>).value : { data: null };
+        const sessionsRes = val(0), weightsRes = val(1), checkinRes = val(2), assignmentRes = val(3);
 
-      let streak = 0;
-      for (let i = 6; i >= 0; i--) {
-        if (sessions.some((s) => format(new Date(s.created_at), "yyyy-MM-dd") === last7[i] && s.completed_at)) streak++;
-        else break;
+        const sessions = sessionsRes.data || [];
+
+        let streak = 0;
+        for (let i = 6; i >= 0; i--) {
+          if (sessions.some((s: any) => format(new Date(s.created_at), "yyyy-MM-dd") === last7[i] && s.completed_at)) streak++;
+          else break;
+        }
+
+        const weights = weightsRes.data || [];
+        const currentWeight = weights[0]?.weight ? Number(weights[0].weight) : null;
+        let weightTrend: "up" | "down" | "stable" = "stable";
+        if (weights.length >= 2) {
+          const diff = Number(weights[0].weight) - Number(weights[weights.length - 1].weight);
+          weightTrend = diff > 0.2 ? "up" : diff < -0.2 ? "down" : "stable";
+        }
+
+        const assignment = assignmentRes.data as any;
+        setData((prev) => ({
+          currentWeight: currentWeight ?? prev?.currentWeight ?? null,
+          weightTrend,
+          streak,
+          lastCheckin: (checkinRes.data as any)?.[0]?.submitted_at || prev?.lastCheckin || null,
+          currentPhase: assignment?.program_phases?.name || prev?.currentPhase || null,
+          programName: assignment?.programs?.name || prev?.programName || null,
+        }));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      const weights = weightsRes.data || [];
-      const currentWeight = weights[0]?.weight ? Number(weights[0].weight) : null;
-      let weightTrend: "up" | "down" | "stable" = "stable";
-      if (weights.length >= 2) {
-        const diff = Number(weights[0].weight) - Number(weights[weights.length - 1].weight);
-        weightTrend = diff > 0.2 ? "up" : diff < -0.2 ? "down" : "stable";
-      }
-
-      const assignment = assignmentRes.data as any;
-      setData({
-        currentWeight, weightTrend, streak,
-        lastCheckin: (checkinRes.data as any)?.[0]?.submitted_at || null,
-        currentPhase: assignment?.program_phases?.name || null,
-        programName: assignment?.programs?.name || null,
-      });
-      setLoading(false);
     };
     load();
+    return () => { cancelled = true; };
   }, [clientId, user]);
+
 
   /* ─── Load extended dashboard data ─── */
   useEffect(() => {
