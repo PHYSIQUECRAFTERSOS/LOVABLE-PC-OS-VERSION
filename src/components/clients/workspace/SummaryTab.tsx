@@ -359,52 +359,66 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   /* ─── Load summary cards ─── */
   useEffect(() => {
     if (!clientId || !user) return;
+    let cancelled = false;
     const load = async () => {
       setLoading(true);
       const last7 = Array.from({ length: 7 }, (_, i) =>
         format(subDays(new Date(), i), "yyyy-MM-dd")
       ).reverse();
 
-      const [sessionsRes, weightsRes, checkinRes, assignmentRes] = await Promise.all([
-        supabase.from("workout_sessions").select("created_at, completed_at")
-          .eq("client_id", clientId).gte("created_at", `${last7[0]}T00:00:00`),
-        supabase.from("weight_logs").select("weight, logged_at")
-          .eq("client_id", clientId).order("logged_at", { ascending: false }).limit(7),
-        supabase.from("checkin_submissions").select("submitted_at")
-          .eq("client_id", clientId).eq("status", "submitted")
-          .order("submitted_at", { ascending: false }).limit(1),
-        supabase.from("client_program_assignments")
-          .select("current_week_number, program_id, current_phase_id, programs(name), program_phases(name)")
-          .eq("client_id", clientId).eq("status", "active").limit(1).maybeSingle(),
-      ]);
+      try {
+        // allSettled: one failing query must never blank the whole summary.
+        const settled = await Promise.allSettled([
+          supabase.from("workout_sessions").select("created_at, completed_at")
+            .eq("client_id", clientId).gte("created_at", `${last7[0]}T00:00:00`),
+          supabase.from("weight_logs").select("weight, logged_at")
+            .eq("client_id", clientId).order("logged_at", { ascending: false }).limit(7),
+          supabase.from("checkin_submissions").select("submitted_at")
+            .eq("client_id", clientId).eq("status", "submitted")
+            .order("submitted_at", { ascending: false }).limit(1),
+          supabase.from("client_program_assignments")
+            .select("current_week_number, program_id, current_phase_id, programs(name), program_phases(name)")
+            .eq("client_id", clientId).eq("status", "active").limit(1).maybeSingle(),
+        ]);
+        if (cancelled) return;
 
-      const sessions = sessionsRes.data || [];
+        const val = (i: number): any =>
+          settled[i].status === "fulfilled" ? (settled[i] as PromiseFulfilledResult<any>).value : { data: null };
+        const sessionsRes = val(0), weightsRes = val(1), checkinRes = val(2), assignmentRes = val(3);
 
-      let streak = 0;
-      for (let i = 6; i >= 0; i--) {
-        if (sessions.some((s) => format(new Date(s.created_at), "yyyy-MM-dd") === last7[i] && s.completed_at)) streak++;
-        else break;
+        const sessions = sessionsRes.data || [];
+
+        let streak = 0;
+        for (let i = 6; i >= 0; i--) {
+          if (sessions.some((s: any) => format(new Date(s.created_at), "yyyy-MM-dd") === last7[i] && s.completed_at)) streak++;
+          else break;
+        }
+
+        const weights = weightsRes.data || [];
+        const currentWeight = weights[0]?.weight ? Number(weights[0].weight) : null;
+        let weightTrend: "up" | "down" | "stable" = "stable";
+        if (weights.length >= 2) {
+          const diff = Number(weights[0].weight) - Number(weights[weights.length - 1].weight);
+          weightTrend = diff > 0.2 ? "up" : diff < -0.2 ? "down" : "stable";
+        }
+
+        const assignment = assignmentRes.data as any;
+        setData((prev) => ({
+          currentWeight: currentWeight ?? prev?.currentWeight ?? null,
+          weightTrend,
+          streak,
+          lastCheckin: (checkinRes.data as any)?.[0]?.submitted_at || prev?.lastCheckin || null,
+          currentPhase: assignment?.program_phases?.name || prev?.currentPhase || null,
+          programName: assignment?.programs?.name || prev?.programName || null,
+        }));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      const weights = weightsRes.data || [];
-      const currentWeight = weights[0]?.weight ? Number(weights[0].weight) : null;
-      let weightTrend: "up" | "down" | "stable" = "stable";
-      if (weights.length >= 2) {
-        const diff = Number(weights[0].weight) - Number(weights[weights.length - 1].weight);
-        weightTrend = diff > 0.2 ? "up" : diff < -0.2 ? "down" : "stable";
-      }
-
-      const assignment = assignmentRes.data as any;
-      setData({
-        currentWeight, weightTrend, streak,
-        lastCheckin: (checkinRes.data as any)?.[0]?.submitted_at || null,
-        currentPhase: assignment?.program_phases?.name || null,
-        programName: assignment?.programs?.name || null,
-      });
-      setLoading(false);
     };
     load();
+    return () => { cancelled = true; };
   }, [clientId, user]);
+
 
   /* ─── Load extended dashboard data ─── */
   useEffect(() => {
@@ -416,9 +430,10 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       return format(d, "yyyy-MM-dd");
     });
 
+    let cancelled = false;
+
     const loadExtended = async () => {
-      const [actionsRes, photosRes, targetsRes, todayLogsRes, weight30Res, workouts7Res, compliance7Res, completedSessionsRes] =
-        await Promise.all([
+      const settled = await Promise.allSettled([
           supabase.from("calendar_events").select("id, event_type, title, is_completed, linked_workout_id, event_date, description, notes, event_time, end_time, is_recurring, recurrence_pattern, color, completed_at")
             .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`).eq("event_date", selectedDateStr),
           supabase.from("progress_photos").select("id, storage_path, created_at")
@@ -442,30 +457,47 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             .gte("created_at", `${format(subDays(new Date(), 30), "yyyy-MM-dd")}T00:00:00`),
         ]);
 
-      // Cross-reference workout actions with workout_sessions to fix completion status
-      const rawActions = (actionsRes.data || []) as CalendarAction[];
-      const completedWorkoutIds = new Set(
-        (completedSessionsRes.data || []).map((s: any) => s.workout_id).filter(Boolean),
-      );
-      setActions(
-        rawActions.map((a) =>
-          a.event_type === "workout" && a.linked_workout_id && completedWorkoutIds.has(a.linked_workout_id)
-            ? { ...a, is_completed: true }
-            : a,
-        ),
-      );
+      if (cancelled) return;
 
-      // Photos — one batched signing call instead of one round-trip per photo.
-      const photos = photosRes.data || [];
-      if (photos.length > 0) {
-        const { data: signed } = await supabase.storage
-          .from("progress-photos")
-          .createSignedUrls(photos.map((p) => p.storage_path), 3600);
-        setPhotoUrls((signed || []).map((s) => s.signedUrl || "").filter(Boolean));
-      } else {
-        setPhotoUrls([]);
+      // A failed request keeps the previous value instead of rendering an
+      // empty card — only a successful, genuinely empty response clears data.
+      const ok = (i: number) =>
+        settled[i].status === "fulfilled" && !(settled[i] as PromiseFulfilledResult<any>).value?.error;
+      const val = (i: number): any =>
+        settled[i].status === "fulfilled" ? (settled[i] as PromiseFulfilledResult<any>).value : { data: null };
+
+      const actionsRes = val(0), photosRes = val(1), targetsRes = val(2), todayLogsRes = val(3),
+        weight30Res = val(4), workouts7Res = val(5), compliance7Res = val(6), completedSessionsRes = val(7);
+
+      // Cross-reference workout actions with workout_sessions to fix completion status
+      if (ok(0)) {
+        const rawActions = (actionsRes.data || []) as CalendarAction[];
+        const completedWorkoutIds = new Set(
+          (completedSessionsRes.data || []).map((s: any) => s.workout_id).filter(Boolean),
+        );
+        setActions(
+          rawActions.map((a) =>
+            a.event_type === "workout" && a.linked_workout_id && completedWorkoutIds.has(a.linked_workout_id)
+              ? { ...a, is_completed: true }
+              : a,
+          ),
+        );
       }
 
+
+      // Photos — one batched signing call instead of one round-trip per photo.
+      if (ok(1)) {
+        const photos = photosRes.data || [];
+        if (photos.length > 0) {
+          const { data: signed } = await supabase.storage
+            .from("progress-photos")
+            .createSignedUrls(photos.map((p: any) => p.storage_path), 3600);
+          if (!cancelled) setPhotoUrls((signed || []).map((s) => s.signedUrl || "").filter(Boolean));
+        } else if (!cancelled) {
+          setPhotoUrls([]);
+        }
+      }
+      if (cancelled) return;
 
       // Nutrition targets
       const calTarget = targetsRes.data?.calories || 0;
@@ -479,18 +511,20 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       }
 
       // Today macros
-      const logs = todayLogsRes.data || [];
-      const logged = logs.reduce(
-        (acc, r) => ({
-          calories: acc.calories + Number(r.calories || 0),
-          protein: acc.protein + Number(r.protein || 0),
-          carbs: acc.carbs + Number(r.carbs || 0),
-          fat: acc.fat + Number(r.fat || 0),
-        }),
-        { calories: 0, protein: 0, carbs: 0, fat: 0 }
-      );
-      setLoggedMacros(logged);
-      setTodayCals(Math.round(logged.calories));
+      if (ok(3)) {
+        const logs = todayLogsRes.data || [];
+        const logged = logs.reduce(
+          (acc: LoggedMacros, r: any) => ({
+            calories: acc.calories + Number(r.calories || 0),
+            protein: acc.protein + Number(r.protein || 0),
+            carbs: acc.carbs + Number(r.carbs || 0),
+            fat: acc.fat + Number(r.fat || 0),
+          }),
+          { calories: 0, protein: 0, carbs: 0, fat: 0 }
+        );
+        setLoggedMacros(logged);
+        setTodayCals(Math.round(logged.calories));
+      }
 
       // Momentum
       const w30 = weight30Res.data || [];
@@ -498,62 +532,62 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         const diff = Number(w30[w30.length - 1].weight) - Number(w30[0].weight);
         setWeightTrend30(diff > 0.5 ? `+${diff.toFixed(1)} lbs` : diff < -0.5 ? `${diff.toFixed(1)} lbs` : "Stable");
       }
-      setWorkouts7d((workouts7Res.data || []).length);
+      if (ok(5)) setWorkouts7d((workouts7Res.data || []).length);
+
 
       // ─── 7-Day Compliance Strip ───
-      const compLogs = compliance7Res.data || [];
-      const dailyTotals: Record<string, { cal: number; p: number; c: number; f: number; hasData: boolean }> = {};
-      last7dates.forEach((d) => { dailyTotals[d] = { cal: 0, p: 0, c: 0, f: 0, hasData: false }; });
-      compLogs.forEach((r) => {
-        if (!dailyTotals[r.logged_at]) return;
-        dailyTotals[r.logged_at].cal += Number(r.calories || 0);
-        dailyTotals[r.logged_at].p += Number(r.protein || 0);
-        dailyTotals[r.logged_at].c += Number(r.carbs || 0);
-        dailyTotals[r.logged_at].f += Number(r.fat || 0);
-        if (Number(r.calories || 0) > 0) dailyTotals[r.logged_at].hasData = true;
-      });
+      if (ok(6)) {
+        const compLogs = compliance7Res.data || [];
+        const dailyTotals: Record<string, { cal: number; p: number; c: number; f: number; hasData: boolean }> = {};
+        last7dates.forEach((d) => { dailyTotals[d] = { cal: 0, p: 0, c: 0, f: 0, hasData: false }; });
+        compLogs.forEach((r: any) => {
+          if (!dailyTotals[r.logged_at]) return;
+          dailyTotals[r.logged_at].cal += Number(r.calories || 0);
+          dailyTotals[r.logged_at].p += Number(r.protein || 0);
+          dailyTotals[r.logged_at].c += Number(r.carbs || 0);
+          dailyTotals[r.logged_at].f += Number(r.fat || 0);
+          if (Number(r.calories || 0) > 0) dailyTotals[r.logged_at].hasData = true;
+        });
 
-      const compDays: ComplianceDay[] = last7dates.map((date) => {
-        const d = new Date(date + "T12:00:00");
-        const dayLabel = d.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 3);
-        const loggedCal = dailyTotals[date].cal;
-        let status: ComplianceDay["status"];
-        if (!calTarget) {
-          status = "no_target";
-        } else {
-          const pct = loggedCal / calTarget;
-          if (pct >= 0.9 && pct <= 1.1) status = "on_target";
-          else if (pct >= 0.7 && pct <= 1.3) status = "close";
-          else status = "missed";
-        }
-        return { date, dayLabel, logged: loggedCal, target: calTarget || null, status };
-      });
-      setCompliance7d(compDays);
+        const compDays: ComplianceDay[] = last7dates.map((date) => {
+          const d = new Date(date + "T12:00:00");
+          const dayLabel = d.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 3);
+          const loggedCal = dailyTotals[date].cal;
+          let status: ComplianceDay["status"];
+          if (!calTarget) {
+            status = "no_target";
+          } else {
+            const pct = loggedCal / calTarget;
+            if (pct >= 0.9 && pct <= 1.1) status = "on_target";
+            else if (pct >= 0.7 && pct <= 1.3) status = "close";
+            else status = "missed";
+          }
+          return { date, dayLabel, logged: loggedCal, target: calTarget || null, status };
+        });
+        setCompliance7d(compDays);
 
-      // ─── 7-Day Macro Averages ───
-      const activeDays = Object.values(dailyTotals).filter((d) => d.hasData);
-      const count = activeDays.length || 1;
-      setMacroAvg({
-        averages: {
-          calories: Math.round(activeDays.reduce((s, d) => s + d.cal, 0) / count),
-          protein: Math.round(activeDays.reduce((s, d) => s + d.p, 0) / count),
-          carbs: Math.round(activeDays.reduce((s, d) => s + d.c, 0) / count),
-          fat: Math.round(activeDays.reduce((s, d) => s + d.f, 0) / count),
-        },
-        targets: {
-          calories: calTarget || null,
-          protein: protTarget || null,
-          carbs: carbTarget || null,
-          fat: fatTarget || null,
-        },
-        daysTracked: activeDays.length,
-      });
+        // ─── 7-Day Macro Averages ───
+        const activeDays = Object.values(dailyTotals).filter((d) => d.hasData);
+        const count = activeDays.length || 1;
+        setMacroAvg({
+          averages: {
+            calories: Math.round(activeDays.reduce((s, d) => s + d.cal, 0) / count),
+            protein: Math.round(activeDays.reduce((s, d) => s + d.p, 0) / count),
+            carbs: Math.round(activeDays.reduce((s, d) => s + d.c, 0) / count),
+            fat: Math.round(activeDays.reduce((s, d) => s + d.f, 0) / count),
+          },
+          targets: {
+            calories: calTarget || null,
+            protein: protTarget || null,
+            carbs: carbTarget || null,
+            fat: fatTarget || null,
+          },
+          daysTracked: activeDays.length,
+        });
 
-      // ─── Calorie Sparkline ───
-      const cSpark: { value: number }[] = last7dates.map((date) => ({
-        value: dailyTotals[date]?.cal || 0,
-      }));
-      setCalSpark(cSpark);
+        // ─── Calorie Sparkline ───
+        setCalSpark(last7dates.map((date) => ({ value: dailyTotals[date]?.cal || 0 })));
+      }
     };
 
     loadExtended();
@@ -564,8 +598,12 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       setTimeout(() => loadExtended(), 1500);
     };
     window.addEventListener("calendar-event-added", handler);
-    return () => window.removeEventListener("calendar-event-added", handler);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("calendar-event-added", handler);
+    };
   }, [clientId, user, selectedDateStr]);
+
 
   /* ─── Load steps data for client ─── */
   useEffect(() => {

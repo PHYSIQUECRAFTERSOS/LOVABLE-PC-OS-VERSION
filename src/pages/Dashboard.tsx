@@ -65,8 +65,12 @@ const ClientDashboard = () => {
     if (!user?.id) return;
     let sub: { remove: () => void } | undefined;
     let cancelled = false;
-    App.addListener("appStateChange", (state: AppState) => {
-      if (!state.isActive) return;
+    let lastRefresh = 0;
+
+    const refresh = () => {
+      // Debounce: resume can fire visibilitychange + appStateChange together.
+      if (Date.now() - lastRefresh < 5000) return;
+      lastRefresh = Date.now();
       const uid = user.id;
       invalidateCacheByPrefix(`macros-${uid}-`);
       invalidateCacheByPrefix(`today-actions-${uid}-`);
@@ -74,17 +78,30 @@ const ClientDashboard = () => {
       invalidateCacheByPrefix(`progress-metrics-${uid}-`);
       invalidateCacheByPrefix(`progress-photos-${uid}`);
       invalidateCacheByPrefix(`progress-calories-${uid}-`);
+    };
+
+    App.addListener("appStateChange", (state: AppState) => {
+      if (state.isActive) refresh();
     })
       .then((handle) => {
         if (cancelled) handle.remove();
         else sub = handle;
       })
       .catch(() => { /* web preview: plugin unavailable, ignore */ });
+
+    // Desktop / PWA browser tabs never emit appStateChange.
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+
     return () => {
       cancelled = true;
       sub?.remove();
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
     };
   }, [user?.id]);
+
 
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");

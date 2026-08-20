@@ -25,6 +25,32 @@ interface UseDataFetchResult<T> {
 // Simple in-memory cache (no persistent localStorage layer — that caused main-thread jank).
 const cache = new Map<string, { data: any; timestamp: number }>();
 
+// In-flight request de-duplication. Two components (or a rapid re-render /
+// day switch) asking for the same key share one network round-trip instead of
+// racing each other — the loser used to abort the winner's request.
+const inflight = new Map<string, Promise<any>>();
+
+// Mounted hooks subscribe here so external invalidation actually re-fetches
+// what is on screen (warm resume, realtime events, mutations).
+const listeners = new Map<string, Set<() => void>>();
+
+function subscribeKey(key: string, cb: () => void) {
+  let set = listeners.get(key);
+  if (!set) { set = new Set(); listeners.set(key, set); }
+  set.add(cb);
+  return () => {
+    set!.delete(cb);
+    if (set!.size === 0) listeners.delete(key);
+  };
+}
+
+function notifyKeys(predicate: (key: string) => boolean) {
+  for (const [key, set] of Array.from(listeners.entries())) {
+    if (predicate(key)) set.forEach((cb) => cb());
+  }
+}
+
+
 // ── Performance log buffer ──
 interface PerfLogEntry {
   queryKey: string;
@@ -91,14 +117,15 @@ export function useDataFetch<T>({
   const [loading, setLoading] = useState(!cache.has(queryKey));
   const [error, setError] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  const queryFnRef = useRef(queryFn);
+  queryFnRef.current = queryFn;
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (opts?: { force?: boolean }) => {
     if (!enabled) return;
 
     const cached = cache.get(queryKey);
-    if (cached && Date.now() - cached.timestamp < staleTime) {
+    if (cached && !opts?.force && Date.now() - cached.timestamp < staleTime) {
       setData(cached.data as T);
       setLoading(false);
       return;
@@ -115,32 +142,40 @@ export function useDataFetch<T>({
     setError(null);
     setTimedOut(false);
 
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
     const startTime = performance.now();
 
-    try {
-      const result = await queryFn(controller.signal);
-      clearTimeout(timeoutId);
+    // Share an in-flight request for the same key instead of racing/aborting it.
+    let promise = inflight.get(queryKey) as Promise<T> | undefined;
+    if (!promise) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
+      promise = (async () => {
+        try {
+          const result = await queryFnRef.current(controller.signal);
+          cache.set(queryKey, { data: result, timestamp: Date.now() });
+          return result;
+        } finally {
+          clearTimeout(timeoutId);
+          inflight.delete(queryKey);
+        }
+      })();
+      inflight.set(queryKey, promise);
+    }
 
+    try {
+      const result = await promise;
       if (!mountedRef.current) return;
 
       const elapsed = Math.round(performance.now() - startTime);
       logPerf({ queryKey, durationMs: elapsed, success: true, timestamp: Date.now() });
-
-      cache.set(queryKey, { data: result, timestamp: Date.now() });
       setData(result);
       setLoading(false);
     } catch (err: any) {
-      clearTimeout(timeoutId);
       if (!mountedRef.current) return;
 
       const elapsed = Math.round(performance.now() - startTime);
 
-      if (err.name === "AbortError") {
+      if (err?.name === "AbortError") {
         console.warn(`[useDataFetch] ⏱ timeout after ${elapsed}ms — ${queryKey}`);
         logPerf({ queryKey, durationMs: elapsed, success: false, error: "timeout", timestamp: Date.now() });
         if (cached) {
@@ -150,12 +185,12 @@ export function useDataFetch<T>({
           if (useFallbackOnError && fallback !== undefined) setData(fallback);
         }
       } else {
-        logPerf({ queryKey, durationMs: elapsed, success: false, error: err.message, timestamp: Date.now() });
-        console.error(`[Perf] ${queryKey} error:`, err.message);
+        logPerf({ queryKey, durationMs: elapsed, success: false, error: err?.message, timestamp: Date.now() });
+        console.error(`[Perf] ${queryKey} error:`, err?.message);
         if (cached) {
           setData(cached.data as T);
         } else {
-          setError(err.message);
+          setError(err?.message ?? "Request failed");
           if (useFallbackOnError && fallback !== undefined && !data) setData(fallback);
         }
       }
@@ -166,18 +201,25 @@ export function useDataFetch<T>({
   useEffect(() => {
     mountedRef.current = true;
     fetchData();
-    return () => {
-      mountedRef.current = false;
-      abortRef.current?.abort();
-    };
+    return () => { mountedRef.current = false; };
   }, [fetchData]);
 
-  return { data, loading, error, timedOut, refetch: fetchData };
+  // Re-fetch on external invalidation of this exact key.
+  useEffect(() => {
+    if (!enabled) return;
+    return subscribeKey(queryKey, () => { void fetchData({ force: true }); });
+  }, [queryKey, enabled, fetchData]);
+
+  const refetch = useCallback(() => { void fetchData({ force: true }); }, [fetchData]);
+
+  return { data, loading, error, timedOut, refetch };
 }
 
-// Clear specific cache entry
+
+// Clear specific cache entry (and re-fetch it if a mounted hook is showing it)
 export function invalidateCache(queryKey: string) {
   cache.delete(queryKey);
+  notifyKeys((k) => k === queryKey);
 }
 
 // Clear all cache entries whose key starts with a given prefix
@@ -185,12 +227,15 @@ export function invalidateCacheByPrefix(prefix: string) {
   for (const key of Array.from(cache.keys())) {
     if (key.startsWith(prefix)) cache.delete(key);
   }
+  notifyKeys((k) => k.startsWith(prefix));
 }
 
 // Clear all cache
 export function clearCache() {
   cache.clear();
+  notifyKeys(() => true);
 }
+
 
 // Prime the cache from outside the hook (used by nav hover/touch prefetch).
 export async function primeQuery<T>(
@@ -200,9 +245,20 @@ export async function primeQuery<T>(
 ): Promise<void> {
   const cached = cache.get(queryKey);
   if (cached && Date.now() - cached.timestamp < staleTime) return;
+  if (inflight.has(queryKey)) return; // a live hook is already fetching this key
   try {
     const controller = new AbortController();
-    const result = await queryFn(controller.signal);
-    cache.set(queryKey, { data: result, timestamp: Date.now() });
+    const promise = (async () => {
+      try {
+        const result = await queryFn(controller.signal);
+        cache.set(queryKey, { data: result, timestamp: Date.now() });
+        return result;
+      } finally {
+        inflight.delete(queryKey);
+      }
+    })();
+    inflight.set(queryKey, promise);
+    await promise;
   } catch { /* best effort */ }
+
 }
