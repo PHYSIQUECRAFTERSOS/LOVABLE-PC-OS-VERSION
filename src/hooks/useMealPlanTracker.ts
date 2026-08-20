@@ -407,12 +407,19 @@ export function useMealPlanTracker(selectedDate?: Date) {
       }));
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), 10000);
-      const { data: inserted, error } = await supabase
-        .from("nutrition_logs")
-        .insert(entries as any)
-        .select()
-        .abortSignal(controller.signal);
-      window.clearTimeout(timeoutId);
+      let inserted: Array<{ id: string }> | null = null;
+      let error: { message: string } | null = null;
+      try {
+        const result = await supabase
+          .from("nutrition_logs")
+          .insert(entries as any)
+          .select()
+          .abortSignal(controller.signal);
+        inserted = result.data;
+        error = result.error;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
       if (error) {
         console.error("[copyMealToTracker] Insert error:", error);
         toast({ title: "Error copying meal", description: error.message, variant: "destructive" });

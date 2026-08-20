@@ -151,14 +151,14 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     return fetchWorkoutThumbnailSummary(workoutIds);
   };
 
-  const toggleProgram = async (programId: string) => {
+  const toggleProgram = async (programId: string, forceReload = false) => {
     if (!session) { console.warn("[ClientProgramView] toggleProgram blocked — no session"); return; }
-    if (expandedProgram === programId) {
+    if (expandedProgram === programId && !forceReload) {
       setExpandedProgram(null);
       return;
     }
     setExpandedProgram(programId);
-    if (phaseDetails[programId]) return;
+    if (phaseDetails[programId] && !forceReload) return;
 
     setLoadingDetails(programId);
     setDetailErrors((prev) => {
@@ -409,8 +409,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        setExpandedProgram(null);
-                        window.setTimeout(() => void toggleProgram(assignment.program_id), 0);
+                        void toggleProgram(assignment.program_id, true);
                       }}
                     >
                       <RefreshCw className="mr-2 h-3.5 w-3.5" /> Retry
