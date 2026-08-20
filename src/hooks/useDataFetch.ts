@@ -25,6 +25,32 @@ interface UseDataFetchResult<T> {
 // Simple in-memory cache (no persistent localStorage layer — that caused main-thread jank).
 const cache = new Map<string, { data: any; timestamp: number }>();
 
+// In-flight request de-duplication. Two components (or a rapid re-render /
+// day switch) asking for the same key share one network round-trip instead of
+// racing each other — the loser used to abort the winner's request.
+const inflight = new Map<string, Promise<any>>();
+
+// Mounted hooks subscribe here so external invalidation actually re-fetches
+// what is on screen (warm resume, realtime events, mutations).
+const listeners = new Map<string, Set<() => void>>();
+
+function subscribeKey(key: string, cb: () => void) {
+  let set = listeners.get(key);
+  if (!set) { set = new Set(); listeners.set(key, set); }
+  set.add(cb);
+  return () => {
+    set!.delete(cb);
+    if (set!.size === 0) listeners.delete(key);
+  };
+}
+
+function notifyKeys(predicate: (key: string) => boolean) {
+  for (const [key, set] of Array.from(listeners.entries())) {
+    if (predicate(key)) set.forEach((cb) => cb());
+  }
+}
+
+
 // ── Performance log buffer ──
 interface PerfLogEntry {
   queryKey: string;
