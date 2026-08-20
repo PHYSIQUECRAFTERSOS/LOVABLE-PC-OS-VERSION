@@ -9,6 +9,9 @@ interface UseDataFetchOptions<T> {
   timeout?: number;
   isAI?: boolean;
   fallback?: T;
+  /** Keep an error distinct from valid empty data. Use for screens where an
+   * empty result has product meaning (for example, no assigned workouts). */
+  useFallbackOnError?: boolean;
 }
 
 interface UseDataFetchResult<T> {
@@ -75,6 +78,7 @@ export function useDataFetch<T>({
   timeout,
   isAI = false,
   fallback,
+  useFallbackOnError = true,
 }: UseDataFetchOptions<T>): UseDataFetchResult<T> {
   // Honor caller-provided timeout exactly. Previous version escalated to 12–20s
   // and produced "infinite spinner" experiences when a request was actually stuck.
@@ -143,7 +147,7 @@ export function useDataFetch<T>({
           setData(cached.data as T);
         } else {
           setTimedOut(true);
-          if (fallback !== undefined) setData(fallback);
+          if (useFallbackOnError && fallback !== undefined) setData(fallback);
         }
       } else {
         logPerf({ queryKey, durationMs: elapsed, success: false, error: err.message, timestamp: Date.now() });
@@ -152,12 +156,12 @@ export function useDataFetch<T>({
           setData(cached.data as T);
         } else {
           setError(err.message);
-          if (fallback !== undefined && !data) setData(fallback);
+          if (useFallbackOnError && fallback !== undefined && !data) setData(fallback);
         }
       }
       setLoading(false);
     }
-  }, [queryKey, enabled, staleTime, effectiveTimeout]);
+  }, [queryKey, enabled, staleTime, effectiveTimeout, useFallbackOnError]);
 
   useEffect(() => {
     mountedRef.current = true;
