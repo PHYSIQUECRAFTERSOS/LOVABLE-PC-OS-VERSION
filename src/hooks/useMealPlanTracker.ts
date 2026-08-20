@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { withRetry } from "@/lib/resilientFetch";
 import { getLocalDateString, toLocalDateString } from "@/utils/localDate";
 
 export interface MealPlanFood {
@@ -370,10 +371,14 @@ export function useMealPlanTracker(selectedDate?: Date) {
       if (foodItemIds.length > 0) {
         try {
           const { extractMicros } = await import("@/utils/micronutrientHelper");
-          const { data: foodItems } = await supabase
-            .from("food_items")
-            .select("*")
-            .in("id", foodItemIds);
+          const { data: foodItems, error: foodItemsError } = await withRetry(
+            async () => await supabase
+              .from("food_items")
+              .select("*")
+              .in("id", foodItemIds),
+            { label: "meal micronutrients", attempts: 2, timeoutMs: 6000 },
+          );
+          if (foodItemsError) throw foodItemsError;
           if (foodItems) {
             foodItems.forEach((fi: any) => {
               microsMap[fi.id] = extractMicros(fi, 1);
@@ -400,7 +405,21 @@ export function useMealPlanTracker(selectedDate?: Date) {
         quantity_unit: item.serving_unit || "g",
         ...(item.food_item_id && microsMap[item.food_item_id] ? microsMap[item.food_item_id] : {}),
       }));
-      const { data: inserted, error } = await supabase.from("nutrition_logs").insert(entries as any).select();
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+      let inserted: Array<{ id: string }> | null = null;
+      let error: { message: string } | null = null;
+      try {
+        const result = await supabase
+          .from("nutrition_logs")
+          .insert(entries as any)
+          .select()
+          .abortSignal(controller.signal);
+        inserted = result.data;
+        error = result.error;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
       if (error) {
         console.error("[copyMealToTracker] Insert error:", error);
         toast({ title: "Error copying meal", description: error.message, variant: "destructive" });

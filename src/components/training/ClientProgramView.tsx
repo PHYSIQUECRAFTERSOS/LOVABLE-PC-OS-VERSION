@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play, ChevronDown, ChevronUp, Calendar, Dumbbell } from "lucide-react";
+import { Loader2, Play, ChevronDown, ChevronUp, Calendar, Dumbbell, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import WorkoutPreviewModal from "./WorkoutPreviewModal";
 import { fetchWorkoutThumbnailSummary } from "@/lib/workoutExerciseQueries";
 import ExportPdfButton from "@/components/common/ExportPdfButton";
 import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
+import { withRetry } from "@/lib/resilientFetch";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
@@ -57,9 +58,12 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   const userId = user?.id;
   const [assignments, setAssignments] = useState<ProgramAssignment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [expandedProgram, setExpandedProgram] = useState<string | null>(null);
   const [phaseDetails, setPhaseDetails] = useState<Record<string, PhaseDetail[]>>({});
   const [loadingDetails, setLoadingDetails] = useState<string | null>(null);
+  const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
 
   // Preview modal state
   const [previewWorkoutId, setPreviewWorkoutId] = useState<string | null>(null);
@@ -68,24 +72,33 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   useEffect(() => {
     if (!userId || !session) return;
     const load = async () => {
+      setLoadError(null);
+      if (assignments.length === 0) setLoading(true);
       try {
-      const { data: cpa, error: cpaErr } = await supabase
-        .from("client_program_assignments")
-        .select("id, program_id, start_date, status, current_phase_id")
-        .eq("client_id", userId)
-        .in("status", ["active", "subscribed"])
-        .order("created_at", { ascending: false });
+      const { data: cpa, error: cpaErr } = await withRetry(
+        async () => await supabase
+          .from("client_program_assignments")
+          .select("id, program_id, start_date, status, current_phase_id")
+          .eq("client_id", userId)
+          .in("status", ["active", "subscribed"])
+          .order("created_at", { ascending: false }),
+        { label: "training assignments", attempts: 2, timeoutMs: 8000 },
+      );
 
-      if (cpaErr) console.error("[ClientProgramView] assignments query error:", cpaErr);
+      if (cpaErr) throw cpaErr;
       console.log("[ClientProgramView] assignments:", cpa?.length ?? 0);
 
       if (!cpa || cpa.length === 0) {
-        const { data: directPrograms } = await supabase
-          .from("programs")
-          .select("id, name, description, goal_type")
-          .eq("client_id", userId)
-          .eq("is_template", false)
-          .order("created_at", { ascending: false });
+        const { data: directPrograms, error: directError } = await withRetry(
+          async () => await supabase
+            .from("programs")
+            .select("id, name, description, goal_type")
+            .eq("client_id", userId)
+            .eq("is_template", false)
+            .order("created_at", { ascending: false }),
+          { label: "direct training programs", attempts: 2, timeoutMs: 8000 },
+        );
+        if (directError) throw directError;
 
         console.log("[ClientProgramView] directPrograms fallback:", directPrograms?.length ?? 0);
         if (directPrograms && directPrograms.length > 0) {
@@ -99,12 +112,15 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       }
 
       const programIds = [...new Set(cpa.map(a => a.program_id))];
-      const { data: programs, error: progErr } = await supabase
-        .from("programs")
-        .select("id, name, description, goal_type")
-        .in("id", programIds);
+      const { data: programs, error: progErr } = await withRetry(
+        async () => await supabase
+          .from("programs")
+          .select("id, name, description, goal_type")
+          .in("id", programIds),
+        { label: "assigned training programs", attempts: 2, timeoutMs: 8000 },
+      );
 
-      if (progErr) console.error("[ClientProgramView] programs query error:", progErr);
+      if (progErr) throw progErr;
       console.log("[ClientProgramView] programs fetched:", programs?.length ?? 0, "for IDs:", programIds);
 
       const programMap = new Map((programs || []).map(p => [p.id, p]));
@@ -121,41 +137,50 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
       setAssignments(deduped);
       setLoading(false);
-      } catch (err) {
+      } catch (err: any) {
         console.error("[ClientProgramView] load error:", err);
+        setLoadError(err?.message || "Training could not be loaded.");
         setLoading(false);
       }
     };
     load();
-  }, [userId, session]);
+  }, [userId, session, loadAttempt]); // assignments intentionally retained during retries
 
   // Fetch first exercise thumbnail for each workout
   const fetchWorkoutThumbnails = async (workoutIds: string[]) => {
     return fetchWorkoutThumbnailSummary(workoutIds);
   };
 
-  const toggleProgram = async (programId: string) => {
+  const toggleProgram = async (programId: string, forceReload = false) => {
     if (!session) { console.warn("[ClientProgramView] toggleProgram blocked — no session"); return; }
-    if (expandedProgram === programId) {
+    if (expandedProgram === programId && !forceReload) {
       setExpandedProgram(null);
       return;
     }
     setExpandedProgram(programId);
-    if (phaseDetails[programId]) return;
+    if (phaseDetails[programId] && !forceReload) return;
 
     setLoadingDetails(programId);
+    setDetailErrors((prev) => {
+      const next = { ...prev };
+      delete next[programId];
+      return next;
+    });
 
     try {
     // Clients only see their CURRENT phase — never future phases.
     const assignment = assignments.find(a => a.program_id === programId);
     const currentPhaseId = assignment?.current_phase_id || null;
 
-    const { data: phasesRaw, error: phaseErr } = await supabase
-      .from("program_phases")
-      .select("id, name, phase_order")
-      .eq("program_id", programId)
-      .order("phase_order");
-    if (phaseErr) { console.error("[ClientProgramView] phases error:", phaseErr); setPhaseDetails(prev => ({ ...prev, [programId]: [] })); setLoadingDetails(null); return; }
+    const { data: phasesRaw, error: phaseErr } = await withRetry(
+      async () => await supabase
+        .from("program_phases")
+        .select("id, name, phase_order")
+        .eq("program_id", programId)
+        .order("phase_order"),
+      { label: "training phases", attempts: 2, timeoutMs: 8000 },
+    );
+    if (phaseErr) throw phaseErr;
 
     // Restrict to the active phase. Fallback to the first phase if no
     // current_phase_id is set yet (newly-assigned client).
@@ -176,6 +201,9 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         fetchWorkoutThumbnails(workoutIds),
       ]);
       const workoutsRes = workoutsResult.status === "fulfilled" ? workoutsResult.value : { data: [] };
+      if (workoutsResult.status === "rejected" || (workoutsRes as any).error) {
+        throw workoutsResult.status === "rejected" ? workoutsResult.reason : (workoutsRes as any).error;
+      }
       const thumbs = thumbsResult.status === "fulfilled" ? thumbsResult.value : new Map();
       const wMap = new Map(((workoutsRes as any).data || []).map((w: any) => [w.id, w.name]));
 
@@ -207,19 +235,21 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     };
 
     if (!phases || phases.length === 0) {
-      const { data: weeks } = await supabase
+      const { data: weeks, error: weeksError } = await supabase
         .from("program_weeks")
         .select("id, week_number, name, phase_id")
         .eq("program_id", programId)
         .order("week_number");
+      if (weeksError) throw weeksError;
 
       if (weeks && weeks.length > 0) {
         const weekIds = weeks.map(w => w.id);
-        const { data: pwRows } = await supabase
+        const { data: pwRows, error: pwError } = await supabase
           .from("program_workouts")
           .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
           .in("week_id", weekIds)
           .order("sort_order");
+        if (pwError) throw pwError;
 
         const fakePhases = weeks.map(w => ({
           id: w.id, name: w.name || `Week ${w.week_number}`, phase_order: w.week_number,
@@ -231,11 +261,12 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         const detail = await buildDetails(fakePhases, annotated);
         setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
       } else {
-        const { data: directWorkouts } = await supabase
+        const { data: directWorkouts, error: directError } = await supabase
           .from("workouts")
           .select("id, name")
           .eq("client_id", userId || "")
           .order("created_at");
+        if (directError) throw directError;
 
         if (directWorkouts && directWorkouts.length > 0) {
           const thumbs = await fetchWorkoutThumbnails(directWorkouts.map(w => w.id));
@@ -260,25 +291,28 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     }
 
     const phaseIds = phases.map(p => p.id);
-    const { data: pwRows } = await supabase
+    const { data: pwRows, error: pwError } = await supabase
       .from("program_workouts")
       .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
       .in("phase_id", phaseIds)
       .order("sort_order");
+    if (pwError) throw pwError;
 
-    const { data: weekRows } = await supabase
+    const { data: weekRows, error: weekError } = await supabase
       .from("program_weeks")
       .select("id, phase_id")
       .in("phase_id", phaseIds);
+    if (weekError) throw weekError;
 
     let weekWorkouts: any[] = [];
     if (weekRows && weekRows.length > 0) {
       const weekIds = weekRows.map(w => w.id);
-      const { data: wwRows } = await supabase
+      const { data: wwRows, error: wwError } = await supabase
         .from("program_workouts")
         .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
         .in("week_id", weekIds)
         .order("sort_order");
+      if (wwError) throw wwError;
       weekWorkouts = wwRows || [];
     }
 
@@ -294,9 +328,9 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     const detail = await buildDetails(phases, allPwRows);
     setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
     setLoadingDetails(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error("[ClientProgramView] toggleProgram error:", err);
-      setPhaseDetails(prev => ({ ...prev, [programId]: [] }));
+      setDetailErrors((prev) => ({ ...prev, [programId]: err?.message || "Workouts could not be loaded." }));
       setLoadingDetails(null);
     }
   };
@@ -310,6 +344,16 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   }
 
   if (assignments.length === 0) {
+    if (loadError) {
+      return (
+        <Card><CardContent className="flex flex-col items-center gap-3 pt-6 text-center">
+          <p className="text-sm text-muted-foreground">Your training program couldn't be loaded.</p>
+          <Button variant="outline" size="sm" onClick={() => setLoadAttempt((value) => value + 1)}>
+            <RefreshCw className="mr-2 h-4 w-4" /> Retry
+          </Button>
+        </CardContent></Card>
+      );
+    }
     return (
       <Card>
         <CardContent className="pt-6">
@@ -366,6 +410,19 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
                 {loadingDetails === assignment.program_id ? (
                   <div className="flex justify-center py-4">
                     <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  </div>
+                ) : detailErrors[assignment.program_id] ? (
+                  <div className="flex flex-col items-center gap-2 py-4 text-center">
+                    <p className="text-xs text-muted-foreground">Workouts couldn't be loaded.</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        void toggleProgram(assignment.program_id, true);
+                      }}
+                    >
+                      <RefreshCw className="mr-2 h-3.5 w-3.5" /> Retry
+                    </Button>
                   </div>
                 ) : (phaseDetails[assignment.program_id] || []).length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4">

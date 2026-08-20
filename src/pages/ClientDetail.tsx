@@ -23,6 +23,7 @@ import {
 import MessagesPopup from "@/components/clients/workspace/MessagesPopup";
 import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
 import { getClientHeader, setClientHeader, type ClientHeaderData } from "@/lib/clientHeaderCache";
+import { withRetry } from "@/lib/resilientFetch";
 
 /* Lazy tab bundles — only the tab a coach actually opens is downloaded. */
 const tabLoaders = {
@@ -100,6 +101,7 @@ const ClientDetail = () => {
   const [profile, setProfile] = useState<ClientProfile | null>(cached?.profile ?? null);
   const [loading, setLoading] = useState(!cached);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [programName, setProgramName] = useState<string | null>(cached?.programName ?? null);
   const [programType, setProgramType] = useState<string | null>(cached?.programType ?? null);
@@ -184,18 +186,37 @@ const ClientDetail = () => {
     if (!clientId || !userId) return;
     // Never blank an already-painted header: only show the skeleton on a cold load.
     if (!getClientHeader(clientId)) setLoading(true);
-    const [profileRes, tagsRes, programRes, coachClientRes] = await Promise.all([
-      supabase.from("profiles").select("user_id, full_name, avatar_url, phone").eq("user_id", clientId).maybeSingle(),
-      supabase.from("client_tags").select("tag").eq("client_id", clientId).eq("coach_id", userId),
-      supabase
+    setLoadError(null);
+    const request = <T,>(label: string, run: () => PromiseLike<T>) =>
+      withRetry(async () => await run(), { label, attempts: 2, timeoutMs: 8000 });
+    const [profileResult, tagsResult, programResult, coachClientResult] = await Promise.allSettled([
+      request("client profile", () => supabase.from("profiles").select("user_id, full_name, avatar_url, phone").eq("user_id", clientId).maybeSingle()),
+      request("client tags", () => supabase.from("client_tags").select("tag").eq("client_id", clientId).eq("coach_id", userId)),
+      request("client program header", () => supabase
         .from("client_program_assignments")
         .select("program_id, programs(name)")
         .eq("client_id", clientId)
         .eq("status", "active")
         .limit(1)
-        .maybeSingle(),
-      supabase.from("coach_clients").select("program_type, status, calendar_lookahead_days").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
+        .maybeSingle()),
+      request("coach client header", () => supabase.from("coach_clients").select("program_type, status, calendar_lookahead_days").eq("client_id", clientId).eq("coach_id", userId).maybeSingle()),
     ]);
+    if (profileResult.status === "rejected") {
+      console.error("[ClientDetail] profile load failed:", profileResult.reason);
+      setLoadError("Client details couldn't be loaded.");
+      setLoading(false);
+      return;
+    }
+    const profileRes = profileResult.value;
+    if (profileRes.error) {
+      console.error("[ClientDetail] profile query failed:", profileRes.error);
+      setLoadError("Client details couldn't be loaded.");
+      setLoading(false);
+      return;
+    }
+    const tagsRes = tagsResult.status === "fulfilled" ? tagsResult.value : { data: null };
+    const programRes = programResult.status === "fulfilled" ? programResult.value : { data: null };
+    const coachClientRes = coachClientResult.status === "fulfilled" ? coachClientResult.value : { data: null };
     const nextProfile = (profileRes.data as ClientProfile | null) ?? null;
     const nextTags = (tagsRes.data || []).map((t: any) => t.tag);
     const nextProgramName = (programRes.data as any)?.programs?.name || null;
@@ -256,6 +277,19 @@ const ClientDetail = () => {
           <p className="text-muted-foreground">Client not found.</p>
           <Button variant="outline" className="mt-4" onClick={() => navigate("/clients")}>
             Back to Clients
+          </Button>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (loadError && !profile) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center gap-3 py-20 text-center">
+          <p className="text-muted-foreground">{loadError}</p>
+          <Button variant="outline" onClick={() => void loadClientData()}>
+            Retry
           </Button>
         </div>
       </AppLayout>

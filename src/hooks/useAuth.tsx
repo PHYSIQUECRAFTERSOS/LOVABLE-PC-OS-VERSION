@@ -95,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const activeUserIdRef = useRef<string | null>(null);
   const autoAcceptAttempted = useRef(false);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
+  const queuedSessionKeyRef = useRef<string | null>(null);
   const rolesRef = useRef<AppRole[]>([]);
 
   const setRolesIfChanged = useCallback((nextRoles: AppRole[]) => {
@@ -270,6 +271,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let subscription: { unsubscribe: () => void } | null = null;
 
     const enqueueResolution = (incomingSession: Session | null) => {
+      const sessionKey = incomingSession?.user
+        ? `${incomingSession.user.id}:${incomingSession.access_token}:${incomingSession.expires_at ?? ""}`
+        : "anonymous";
+      if (queuedSessionKeyRef.current === sessionKey) return;
+      queuedSessionKeyRef.current = sessionKey;
       queueRef.current = queueRef.current
         .then(() => resolveSession(incomingSession))
         .catch((error) => {
@@ -278,6 +284,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setLoading(false);
             setRoleLoading(false);
           }
+        })
+        .finally(() => {
+          if (queuedSessionKeyRef.current === sessionKey) queuedSessionKeyRef.current = null;
         });
     };
 
