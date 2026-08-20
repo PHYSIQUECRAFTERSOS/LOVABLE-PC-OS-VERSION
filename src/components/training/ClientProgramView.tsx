@@ -201,6 +201,9 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         fetchWorkoutThumbnails(workoutIds),
       ]);
       const workoutsRes = workoutsResult.status === "fulfilled" ? workoutsResult.value : { data: [] };
+      if (workoutsResult.status === "rejected" || (workoutsRes as any).error) {
+        throw workoutsResult.status === "rejected" ? workoutsResult.reason : (workoutsRes as any).error;
+      }
       const thumbs = thumbsResult.status === "fulfilled" ? thumbsResult.value : new Map();
       const wMap = new Map(((workoutsRes as any).data || []).map((w: any) => [w.id, w.name]));
 
@@ -232,19 +235,21 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     };
 
     if (!phases || phases.length === 0) {
-      const { data: weeks } = await supabase
+      const { data: weeks, error: weeksError } = await supabase
         .from("program_weeks")
         .select("id, week_number, name, phase_id")
         .eq("program_id", programId)
         .order("week_number");
+      if (weeksError) throw weeksError;
 
       if (weeks && weeks.length > 0) {
         const weekIds = weeks.map(w => w.id);
-        const { data: pwRows } = await supabase
+        const { data: pwRows, error: pwError } = await supabase
           .from("program_workouts")
           .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
           .in("week_id", weekIds)
           .order("sort_order");
+        if (pwError) throw pwError;
 
         const fakePhases = weeks.map(w => ({
           id: w.id, name: w.name || `Week ${w.week_number}`, phase_order: w.week_number,
@@ -256,11 +261,12 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         const detail = await buildDetails(fakePhases, annotated);
         setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
       } else {
-        const { data: directWorkouts } = await supabase
+        const { data: directWorkouts, error: directError } = await supabase
           .from("workouts")
           .select("id, name")
           .eq("client_id", userId || "")
           .order("created_at");
+        if (directError) throw directError;
 
         if (directWorkouts && directWorkouts.length > 0) {
           const thumbs = await fetchWorkoutThumbnails(directWorkouts.map(w => w.id));
@@ -285,25 +291,28 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     }
 
     const phaseIds = phases.map(p => p.id);
-    const { data: pwRows } = await supabase
+    const { data: pwRows, error: pwError } = await supabase
       .from("program_workouts")
       .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
       .in("phase_id", phaseIds)
       .order("sort_order");
+    if (pwError) throw pwError;
 
-    const { data: weekRows } = await supabase
+    const { data: weekRows, error: weekError } = await supabase
       .from("program_weeks")
       .select("id, phase_id")
       .in("phase_id", phaseIds);
+    if (weekError) throw weekError;
 
     let weekWorkouts: any[] = [];
     if (weekRows && weekRows.length > 0) {
       const weekIds = weekRows.map(w => w.id);
-      const { data: wwRows } = await supabase
+      const { data: wwRows, error: wwError } = await supabase
         .from("program_workouts")
         .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
         .in("week_id", weekIds)
         .order("sort_order");
+      if (wwError) throw wwError;
       weekWorkouts = wwRows || [];
     }
 
