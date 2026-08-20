@@ -536,59 +536,58 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
 
       // ─── 7-Day Compliance Strip ───
-      const compLogs = compliance7Res.data || [];
-      const dailyTotals: Record<string, { cal: number; p: number; c: number; f: number; hasData: boolean }> = {};
-      last7dates.forEach((d) => { dailyTotals[d] = { cal: 0, p: 0, c: 0, f: 0, hasData: false }; });
-      compLogs.forEach((r) => {
-        if (!dailyTotals[r.logged_at]) return;
-        dailyTotals[r.logged_at].cal += Number(r.calories || 0);
-        dailyTotals[r.logged_at].p += Number(r.protein || 0);
-        dailyTotals[r.logged_at].c += Number(r.carbs || 0);
-        dailyTotals[r.logged_at].f += Number(r.fat || 0);
-        if (Number(r.calories || 0) > 0) dailyTotals[r.logged_at].hasData = true;
-      });
+      if (ok(6)) {
+        const compLogs = compliance7Res.data || [];
+        const dailyTotals: Record<string, { cal: number; p: number; c: number; f: number; hasData: boolean }> = {};
+        last7dates.forEach((d) => { dailyTotals[d] = { cal: 0, p: 0, c: 0, f: 0, hasData: false }; });
+        compLogs.forEach((r: any) => {
+          if (!dailyTotals[r.logged_at]) return;
+          dailyTotals[r.logged_at].cal += Number(r.calories || 0);
+          dailyTotals[r.logged_at].p += Number(r.protein || 0);
+          dailyTotals[r.logged_at].c += Number(r.carbs || 0);
+          dailyTotals[r.logged_at].f += Number(r.fat || 0);
+          if (Number(r.calories || 0) > 0) dailyTotals[r.logged_at].hasData = true;
+        });
 
-      const compDays: ComplianceDay[] = last7dates.map((date) => {
-        const d = new Date(date + "T12:00:00");
-        const dayLabel = d.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 3);
-        const loggedCal = dailyTotals[date].cal;
-        let status: ComplianceDay["status"];
-        if (!calTarget) {
-          status = "no_target";
-        } else {
-          const pct = loggedCal / calTarget;
-          if (pct >= 0.9 && pct <= 1.1) status = "on_target";
-          else if (pct >= 0.7 && pct <= 1.3) status = "close";
-          else status = "missed";
-        }
-        return { date, dayLabel, logged: loggedCal, target: calTarget || null, status };
-      });
-      setCompliance7d(compDays);
+        const compDays: ComplianceDay[] = last7dates.map((date) => {
+          const d = new Date(date + "T12:00:00");
+          const dayLabel = d.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 3);
+          const loggedCal = dailyTotals[date].cal;
+          let status: ComplianceDay["status"];
+          if (!calTarget) {
+            status = "no_target";
+          } else {
+            const pct = loggedCal / calTarget;
+            if (pct >= 0.9 && pct <= 1.1) status = "on_target";
+            else if (pct >= 0.7 && pct <= 1.3) status = "close";
+            else status = "missed";
+          }
+          return { date, dayLabel, logged: loggedCal, target: calTarget || null, status };
+        });
+        setCompliance7d(compDays);
 
-      // ─── 7-Day Macro Averages ───
-      const activeDays = Object.values(dailyTotals).filter((d) => d.hasData);
-      const count = activeDays.length || 1;
-      setMacroAvg({
-        averages: {
-          calories: Math.round(activeDays.reduce((s, d) => s + d.cal, 0) / count),
-          protein: Math.round(activeDays.reduce((s, d) => s + d.p, 0) / count),
-          carbs: Math.round(activeDays.reduce((s, d) => s + d.c, 0) / count),
-          fat: Math.round(activeDays.reduce((s, d) => s + d.f, 0) / count),
-        },
-        targets: {
-          calories: calTarget || null,
-          protein: protTarget || null,
-          carbs: carbTarget || null,
-          fat: fatTarget || null,
-        },
-        daysTracked: activeDays.length,
-      });
+        // ─── 7-Day Macro Averages ───
+        const activeDays = Object.values(dailyTotals).filter((d) => d.hasData);
+        const count = activeDays.length || 1;
+        setMacroAvg({
+          averages: {
+            calories: Math.round(activeDays.reduce((s, d) => s + d.cal, 0) / count),
+            protein: Math.round(activeDays.reduce((s, d) => s + d.p, 0) / count),
+            carbs: Math.round(activeDays.reduce((s, d) => s + d.c, 0) / count),
+            fat: Math.round(activeDays.reduce((s, d) => s + d.f, 0) / count),
+          },
+          targets: {
+            calories: calTarget || null,
+            protein: protTarget || null,
+            carbs: carbTarget || null,
+            fat: fatTarget || null,
+          },
+          daysTracked: activeDays.length,
+        });
 
-      // ─── Calorie Sparkline ───
-      const cSpark: { value: number }[] = last7dates.map((date) => ({
-        value: dailyTotals[date]?.cal || 0,
-      }));
-      setCalSpark(cSpark);
+        // ─── Calorie Sparkline ───
+        setCalSpark(last7dates.map((date) => ({ value: dailyTotals[date]?.cal || 0 })));
+      }
     };
 
     loadExtended();
@@ -599,8 +598,12 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       setTimeout(() => loadExtended(), 1500);
     };
     window.addEventListener("calendar-event-added", handler);
-    return () => window.removeEventListener("calendar-event-added", handler);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("calendar-event-added", handler);
+    };
   }, [clientId, user, selectedDateStr]);
+
 
   /* ─── Load steps data for client ─── */
   useEffect(() => {
