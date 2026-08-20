@@ -245,9 +245,20 @@ export async function primeQuery<T>(
 ): Promise<void> {
   const cached = cache.get(queryKey);
   if (cached && Date.now() - cached.timestamp < staleTime) return;
+  if (inflight.has(queryKey)) return; // a live hook is already fetching this key
   try {
     const controller = new AbortController();
-    const result = await queryFn(controller.signal);
-    cache.set(queryKey, { data: result, timestamp: Date.now() });
+    const promise = (async () => {
+      try {
+        const result = await queryFn(controller.signal);
+        cache.set(queryKey, { data: result, timestamp: Date.now() });
+        return result;
+      } finally {
+        inflight.delete(queryKey);
+      }
+    })();
+    inflight.set(queryKey, promise);
+    await promise;
   } catch { /* best effort */ }
+
 }
