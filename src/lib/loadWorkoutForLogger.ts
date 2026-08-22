@@ -58,6 +58,7 @@ export async function loadWorkoutForLogger(
       videoUrl:
         we.video_override ||
         pickPlayableVideoUrl(we.exercise?.youtube_url, we.exercise?.video_url),
+      videoThumbnail: we.exercise?.youtube_thumbnail || null,
       equipment,
       groupingType: we.grouping_type,
       groupingId: we.grouping_id,

@@ -55,6 +55,7 @@ interface ExerciseLogForm {
   rir?: number;
   notes: string;
   videoUrl?: string | null;
+  videoThumbnail?: string | null;
   equipment?: string | null;
   groupingType?: string | null;
   groupingId?: string | null;
