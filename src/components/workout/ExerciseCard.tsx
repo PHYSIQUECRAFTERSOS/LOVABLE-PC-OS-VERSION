@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Check, Trophy, Plus, MoreVertical, Trash2 } from "lucide-react";
+import { Check, Trophy, Plus, MoreVertical, Trash2, Play } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +51,7 @@ interface ExerciseCardProps {
   rir?: number;
   notes: string;
   videoUrl?: string | null;
+  videoThumbnail?: string | null;
   equipment?: string | null;
   logs: SetLog[];
   previousSets: PreviousSet[];
@@ -242,6 +243,7 @@ const ExerciseCard = ({
   rir,
   notes,
   videoUrl,
+  videoThumbnail,
   equipment,
   logs,
   previousSets,
@@ -272,6 +274,10 @@ const ExerciseCard = ({
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const { convertWeight, weightLabel } = useUnitPreferences();
   const isMobile = useIsMobile();
+
+  // Native video (Rumble mp4 / uploads): thumbnail overlay until first play
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoStarted, setVideoStarted] = useState(false);
 
   // Local string state for weight inputs to preserve trailing decimals (e.g. "105.")
   const [weightStrings, setWeightStrings] = useState<Record<number, string>>({});
@@ -452,13 +458,38 @@ const ExerciseCard = ({
 
       {videoFileSrc && (
         <div className="px-4 pb-2">
-          <video
-            src={videoFileSrc}
-            controls
-            playsInline
-            preload="metadata"
-            className="w-full h-[200px] rounded-lg bg-black object-contain"
-          />
+          <div className="relative">
+            <video
+              ref={videoRef}
+              src={videoFileSrc}
+              poster={videoThumbnail || undefined}
+              controls
+              playsInline
+              preload="metadata"
+              onPlay={() => setVideoStarted(true)}
+              className="w-full h-[200px] rounded-lg bg-black object-contain"
+            />
+            {videoThumbnail && !videoStarted && (
+              <button
+                type="button"
+                aria-label={`Play ${name} video`}
+                className="absolute inset-0 rounded-lg overflow-hidden"
+                onClick={() => void videoRef.current?.play()}
+              >
+                <img
+                  src={videoThumbnail}
+                  alt=""
+                  loading="lazy"
+                  className="w-full h-full object-cover"
+                />
+                <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                  <span className="h-14 w-14 rounded-full bg-primary/90 flex items-center justify-center shadow-lg">
+                    <Play className="h-7 w-7 text-primary-foreground fill-current ml-0.5" />
+                  </span>
+                </span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 

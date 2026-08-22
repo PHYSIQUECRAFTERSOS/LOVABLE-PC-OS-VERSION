@@ -55,6 +55,7 @@ interface ExerciseLogForm {
   rir?: number;
   notes: string;
   videoUrl?: string | null;
+  videoThumbnail?: string | null;
   equipment?: string | null;
   groupingType?: string | null;
   groupingId?: string | null;
@@ -840,6 +841,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       restSeconds: 90,
       notes: "",
       videoUrl: pickPlayableVideoUrl(exercise.youtube_url, exercise.video_url),
+      videoThumbnail: exercise.youtube_thumbnail || null,
       equipment: exercise.equipment || null,
       logs: Array.from({ length: 3 }, (_, idx) => ({
         setNumber: idx + 1,
@@ -885,6 +887,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       id: exercise.id,
       name: exercise.name,
       videoUrl: pickPlayableVideoUrl(exercise.youtube_url, exercise.video_url),
+      videoThumbnail: exercise.youtube_thumbnail || null,
       equipment: exercise.equipment || null,
       // Inherit sets/reps/rest/rir from original; reset logged data to blank
       logs: newEx[switchingExIdx].logs.map(l => ({
@@ -1404,6 +1407,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           rir={exercise.rir}
           notes={exercise.notes}
           videoUrl={exercise.videoUrl}
+          videoThumbnail={exercise.videoThumbnail}
           equipment={exercise.equipment}
           logs={exercise.logs}
           previousSets={previousPerformance[exercise.id] || []}
