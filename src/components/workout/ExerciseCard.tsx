@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Check, Trophy, Plus, MoreVertical, Trash2 } from "lucide-react";
+import { Check, Trophy, Plus, MoreVertical, Trash2, Play } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +51,7 @@ interface ExerciseCardProps {
   rir?: number;
   notes: string;
   videoUrl?: string | null;
+  videoThumbnail?: string | null;
   equipment?: string | null;
   logs: SetLog[];
   previousSets: PreviousSet[];
