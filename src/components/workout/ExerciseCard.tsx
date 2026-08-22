@@ -243,6 +243,7 @@ const ExerciseCard = ({
   rir,
   notes,
   videoUrl,
+  videoThumbnail,
   equipment,
   logs,
   previousSets,
@@ -453,13 +454,38 @@ const ExerciseCard = ({
 
       {videoFileSrc && (
         <div className="px-4 pb-2">
-          <video
-            src={videoFileSrc}
-            controls
-            playsInline
-            preload="metadata"
-            className="w-full h-[200px] rounded-lg bg-black object-contain"
-          />
+          <div className="relative">
+            <video
+              ref={videoRef}
+              src={videoFileSrc}
+              poster={videoThumbnail || undefined}
+              controls
+              playsInline
+              preload="metadata"
+              onPlay={() => setVideoStarted(true)}
+              className="w-full h-[200px] rounded-lg bg-black object-contain"
+            />
+            {videoThumbnail && !videoStarted && (
+              <button
+                type="button"
+                aria-label={`Play ${name} video`}
+                className="absolute inset-0 rounded-lg overflow-hidden"
+                onClick={() => void videoRef.current?.play()}
+              >
+                <img
+                  src={videoThumbnail}
+                  alt=""
+                  loading="lazy"
+                  className="w-full h-full object-cover"
+                />
+                <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                  <span className="h-14 w-14 rounded-full bg-primary/90 flex items-center justify-center shadow-lg">
+                    <Play className="h-7 w-7 text-primary-foreground fill-current ml-0.5" />
+                  </span>
+                </span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 
