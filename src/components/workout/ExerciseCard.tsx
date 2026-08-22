@@ -275,6 +275,10 @@ const ExerciseCard = ({
   const { convertWeight, weightLabel } = useUnitPreferences();
   const isMobile = useIsMobile();
 
+  // Native video (Rumble mp4 / uploads): thumbnail overlay until first play
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoStarted, setVideoStarted] = useState(false);
+
   // Local string state for weight inputs to preserve trailing decimals (e.g. "105.")
   const [weightStrings, setWeightStrings] = useState<Record<number, string>>({});
 
