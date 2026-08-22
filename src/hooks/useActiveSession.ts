@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { invalidateCache } from "@/hooks/useDataFetch";
+import { classifyStaleSession } from "@/lib/sessionRecovery";
 
 export interface ActiveSession {
   id: string;
@@ -164,19 +166,102 @@ export const useActiveSession = () => {
     return () => window.removeEventListener("workout-session-completed", handler);
   }, []);
 
-  // Auto-abandon stale sessions (older than 2h) silently
+  // Auto-resolve stale sessions (no heartbeat for 2h+).
+  //
+  // Sessions with real logged work are RECOVERED to "completed" instead of
+  // being silently abandoned — iOS can suspend the webview before the finish
+  // write lands, and abandoning those sessions made completed workouts show
+  // as unchecked on the dashboard. True orphans (no logged sets) are still
+  // abandoned.
   useEffect(() => {
     if (!userId) return;
     const cleanup = async () => {
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-      await supabase
+      const { data: staleSessions, error } = await supabase
         .from("workout_sessions")
-        .update({ status: "abandoned" } as any)
+        .select("id, workout_id, started_at, last_heartbeat, session_date")
         .eq("client_id", userId)
         .eq("status", "in_progress")
         .lt("started_at", twoHoursAgo);
+
+      if (error) {
+        console.warn("[useActiveSession] stale-session sweep failed:", error);
+        return;
+      }
+      if (!staleSessions || staleSessions.length === 0) return;
+
+      for (const session of staleSessions) {
+        try {
+          const { count } = await supabase
+            .from("exercise_logs")
+            .select("id", { count: "exact", head: true })
+            .eq("session_id", session.id);
+
+          const decision = classifyStaleSession({
+            started_at: session.started_at,
+            last_heartbeat: session.last_heartbeat,
+            loggedSets: count ?? 0,
+          });
+
+          if (decision.action === "abandon") {
+            await supabase
+              .from("workout_sessions")
+              .update({ status: "abandoned" } as any)
+              .eq("id", session.id)
+              .eq("status", "in_progress");
+            continue;
+          }
+
+          // Recovery path: the client did the work — complete the session
+          // and check off the matching calendar event.
+          const completedAt = decision.completedAt ?? new Date().toISOString();
+          const { error: recoverError } = await supabase
+            .from("workout_sessions")
+            .update({
+              status: "completed",
+              completed_at: completedAt,
+              sets_completed: count ?? 0,
+              ...(decision.durationSeconds ? { duration_seconds: decision.durationSeconds } : {}),
+            } as any)
+            .eq("id", session.id)
+            .eq("status", "in_progress");
+          if (recoverError) {
+            console.warn("[useActiveSession] session recovery failed:", recoverError);
+            continue;
+          }
+
+          const todayStr = new Date().toLocaleDateString("en-CA");
+          const { data: openEvents } = await supabase
+            .from("calendar_events")
+            .select("id, event_date")
+            .eq("linked_workout_id", session.workout_id)
+            .eq("event_type", "workout")
+            .eq("is_completed", false)
+            .lte("event_date", todayStr)
+            .or(`user_id.eq.${userId},target_client_id.eq.${userId}`)
+            .order("event_date", { ascending: false })
+            .limit(5);
+
+          if (openEvents && openEvents.length > 0) {
+            const target =
+              openEvents.find((e) => e.event_date === session.session_date) ?? openEvents[0];
+            await supabase
+              .from("calendar_events")
+              .update({ is_completed: true, completed_at: completedAt })
+              .eq("id", target.id);
+          }
+
+          completedSessionIds.current.add(session.id);
+          invalidateCache(`today-actions-${userId}-${todayStr}`);
+          console.info(
+            `[useActiveSession] Recovered stale session ${session.id} — marked completed from ${count ?? 0} logged sets`,
+          );
+        } catch (sessionErr) {
+          console.error("[useActiveSession] cleanup error for session", session.id, sessionErr);
+        }
+      }
     };
-    cleanup();
+    void cleanup();
   }, [userId]);
 
   const dismiss = useCallback(() => setActiveSession(null), []);

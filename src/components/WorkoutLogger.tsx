@@ -33,6 +33,7 @@ import WorkoutSummary from "@/components/workout/WorkoutSummary";
 import ExerciseLibrary from "@/components/training/ExerciseLibrary";
 import { useNavigate } from "react-router-dom";
 import { invalidateCache } from "@/hooks/useDataFetch";
+import { withRetry } from "@/lib/resilientFetch";
 import { saveWorkoutSnapshot, clearWorkoutSnapshot } from "@/lib/workoutSnapshot";
 import { fetchExerciseHistory } from "@/lib/exerciseHistory";
 import { format } from "date-fns";
@@ -1065,11 +1066,21 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         exercise_modifications: exerciseModifications.length > 0 ? exerciseModifications : undefined,
       };
 
-      const { error: sessionError } = await supabase
-        .from("workout_sessions")
-        .update(finishPayload as any)
-        .eq("id", activeSessionId);
-      if (sessionError) {
+      // Critical write: if this fails (iOS suspends the webview, transient
+      // network error), the session stays "in_progress" and the stale sweep
+      // would otherwise strand a finished workout. Retry with backoff.
+      try {
+        await withRetry(
+          async () => {
+            const { error } = await supabase
+              .from("workout_sessions")
+              .update(finishPayload as any)
+              .eq("id", activeSessionId);
+            if (error) throw error;
+          },
+          { label: "finish-workout-session", attempts: 3, timeoutMs: 15000 },
+        );
+      } catch (sessionError) {
         console.error("[WorkoutLogger] Session update error:", sessionError);
         throw sessionError;
       }
