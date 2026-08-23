@@ -176,14 +176,26 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
   useEffect(() => {
     fetchThreads();
 
+    // Filter thread updates to THIS coach's threads server-side. Unfiltered
+    // subscriptions force the realtime server to evaluate every row change
+    // against every connected user.
     const channel = supabase
       .channel("coach-thread-updates")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "thread_messages" }, () => {
         scheduleRefetch();
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "message_threads" }, () => {
-        scheduleRefetch();
-      })
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "message_threads",
+          ...(user?.id ? { filter: `coach_id=eq.${user.id}` } : {}),
+        },
+        () => {
+          scheduleRefetch();
+        }
+      )
       .subscribe();
 
     return () => {

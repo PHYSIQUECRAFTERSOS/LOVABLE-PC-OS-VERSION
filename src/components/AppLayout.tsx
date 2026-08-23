@@ -134,19 +134,32 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       debounceId = setTimeout(() => { debounceId = null; fetchUnread(); }, 500);
     };
 
-    const channel = supabase
-      .channel("unread-badge")
-      .on(
-        "postgres_changes" as any,
-        { event: "*", schema: "public", table: "thread_messages" },
-        scheduleRefetch
-      )
-      .on(
-        "postgres_changes" as any,
-        { event: "UPDATE", schema: "public", table: "message_threads" },
-        scheduleRefetch
-      )
-      .subscribe();
+    // Server-side realtime filters. Without them the realtime server must run
+    // an RLS check for EVERY row change on these tables for EVERY online user
+    // (71+ clients) — a major source of wasted backend resources.
+    // - Messages I sent myself can never change MY unread count → skip them.
+    // - Thread updates only matter for threads where I'm the coach or client.
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    if (user) {
+      const threadFilter =
+        role === "coach" || role === "admin"
+          ? `coach_id=eq.${user.id}`
+          : `client_id=eq.${user.id}`;
+
+      channel = supabase
+        .channel("unread-badge")
+        .on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "thread_messages", filter: `sender_id=neq.${user.id}` },
+          scheduleRefetch
+        )
+        .on(
+          "postgres_changes" as any,
+          { event: "UPDATE", schema: "public", table: "message_threads", filter: threadFilter },
+          scheduleRefetch
+        )
+        .subscribe();
+    }
 
     // Listen for manual "messages-read" events from ThreadChatView
     const onRead = () => scheduleRefetch();
@@ -154,7 +167,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
     return () => {
       if (debounceId) clearTimeout(debounceId);
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
       window.removeEventListener("messages-read", onRead);
     };
   }, [fetchUnread]);
