@@ -1156,6 +1156,25 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
                 .from("calendar_events")
                 .update({ is_completed: true, completed_at: completionTimestamp })
                 .eq("id", target.id);
+            } else {
+              // Fallback: the workout was replaced (new workout id) after the
+              // client launched from stale cached data, so no event matches by
+              // linked_workout_id. If exactly one open workout event exists
+              // today for this client, it is unambiguous — check it off.
+              const { data: dayEvents } = await supabase
+                .from("calendar_events")
+                .select("id")
+                .eq("event_type", "workout")
+                .eq("is_completed", false)
+                .eq("event_date", todayStr)
+                .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
+                .limit(2);
+              if (dayEvents?.length === 1) {
+                await supabase
+                  .from("calendar_events")
+                  .update({ is_completed: true, completed_at: completionTimestamp })
+                  .eq("id", dayEvents[0].id);
+              }
             }
           }
 

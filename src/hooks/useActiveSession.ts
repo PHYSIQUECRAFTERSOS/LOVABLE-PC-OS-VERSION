@@ -249,6 +249,24 @@ export const useActiveSession = () => {
               .from("calendar_events")
               .update({ is_completed: true, completed_at: completedAt })
               .eq("id", target.id);
+          } else if (session.session_date) {
+            // Fallback: workout was replaced (new id) after the client
+            // launched from stale data — check off the single open workout
+            // event on the session's date if unambiguous.
+            const { data: dayEvents } = await supabase
+              .from("calendar_events")
+              .select("id")
+              .eq("event_type", "workout")
+              .eq("is_completed", false)
+              .eq("event_date", session.session_date)
+              .or(`user_id.eq.${userId},target_client_id.eq.${userId}`)
+              .limit(2);
+            if (dayEvents?.length === 1) {
+              await supabase
+                .from("calendar_events")
+                .update({ is_completed: true, completed_at: completedAt })
+                .eq("id", dayEvents[0].id);
+            }
           }
 
           completedSessionIds.current.add(session.id);
