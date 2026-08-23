@@ -211,30 +211,39 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
     };
     window.addEventListener("calendar-event-added", handler);
 
-    // Realtime subscription for instant updates when coach schedules or client drags
-    const channel = supabase
-      .channel(`today-actions-rt-${user?.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "calendar_events",
-        },
-        (payload: any) => {
-          const row = payload.new || payload.old;
-          if (row?.user_id === user?.id || row?.target_client_id === user?.id) {
-            // Invalidate ALL date caches — the event may have moved between dates
-            invalidateCacheByPrefix(cachePrefix);
-            setTimeout(() => refetchRef.current?.(), 300);
-          }
-        }
-      )
-      .subscribe();
+    // Realtime subscription for instant updates when coach schedules or client drags.
+    // Server-side filters: without them the realtime server evaluates this
+    // subscription against EVERY calendar_events change for EVERY online user.
+    // The handler only reacts to rows owned by / targeted at this user, so
+    // filtering server-side keeps behavior identical while removing that load.
+    const onCalendarChange = (payload: any) => {
+      const row = payload.new || payload.old;
+      if (row?.user_id === user?.id || row?.target_client_id === user?.id) {
+        // Invalidate ALL date caches — the event may have moved between dates
+        invalidateCacheByPrefix(cachePrefix);
+        setTimeout(() => refetchRef.current?.(), 300);
+      }
+    };
+
+    const channel = user?.id
+      ? supabase
+          .channel(`today-actions-rt-${user.id}`)
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "calendar_events", filter: `user_id=eq.${user.id}` },
+            onCalendarChange
+          )
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "calendar_events", filter: `target_client_id=eq.${user.id}` },
+            onCalendarChange
+          )
+          .subscribe()
+      : null;
 
     return () => {
       window.removeEventListener("calendar-event-added", handler);
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
     };
   }, [user?.id]);
 
