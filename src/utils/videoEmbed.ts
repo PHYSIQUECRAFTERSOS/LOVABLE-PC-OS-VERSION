@@ -36,10 +36,25 @@ export function isRumblePageUrl(url: string | null | undefined): boolean {
   return isRumbleUrl(url) && !getRumbleEmbedId(url) && RUMBLE_PAGE_RE.test(url);
 }
 
+/**
+ * Stable Rumble playback proxy (see supabase/functions/rumble-video). These
+ * URLs never rot when Rumble rotates CDN hostnames, so they are stored in
+ * place of direct .mp4 / thumbnail URLs.
+ */
+export function isRumbleProxyUrl(url: string | null | undefined): boolean {
+  return !!url && /\/functions\/v1\/rumble-video\?/.test(url);
+}
+
+/** True for the proxy's direct-play variant (renders via <video>). */
+export function isRumbleProxyVideoUrl(url: string | null | undefined): boolean {
+  return isRumbleProxyUrl(url) && /[?&]type=video/.test(url!);
+}
+
 export function detectVideoProvider(url: string | null | undefined): VideoProvider {
   if (!url) return null;
   if (getYouTubeId(url)) return "youtube";
   if (isRumbleUrl(url)) return "rumble";
+  if (isRumbleProxyVideoUrl(url)) return "file";
   if (/\.(mp4|mov|webm|m4v)(\?|$)/i.test(url)) return "file";
   return null;
 }

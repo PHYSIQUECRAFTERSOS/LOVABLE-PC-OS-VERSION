@@ -9,21 +9,19 @@ interface ResolveResult {
   videoFileUrl?: string | null;
 }
 
-/** Pull the highest-quality direct mp4 out of a Rumble embed page. */
-async function fetchRumbleMp4(embedUrl: string): Promise<string | null> {
-  try {
-    const res = await fetch(embedUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
-    if (!res.ok) return null;
-    const html = await res.text();
-    const matches = [...html.matchAll(/"(https:\\?\/\\?\/[^"]+?\.mp4)"/g)].map((m) =>
-      m[1].replace(/\\\//g, "/"),
-    );
-    if (matches.length === 0) return null;
-    // Prefer the last (usually highest) rendition that is unique.
-    return matches[0];
-  } catch {
-    return null;
-  }
+/**
+ * Build stable proxy URLs for a Rumble embed id. Rumble rotates CDN hostnames,
+ * so we never store raw CDN URLs — the rumble-video function re-resolves and
+ * 302-redirects on every play.
+ */
+function rumbleProxyUrls(reqUrl: string, embedUrl: string): { videoFileUrl: string | null; thumbnailUrl: string | null } {
+  const id = embedUrl.match(/rumble\.com\/embed\/([A-Za-z0-9._-]+)/i)?.[1];
+  if (!id) return { videoFileUrl: null, thumbnailUrl: null };
+  const base = new URL(reqUrl).origin;
+  return {
+    videoFileUrl: `${base}/functions/v1/rumble-video?id=${encodeURIComponent(id)}&type=video`,
+    thumbnailUrl: `${base}/functions/v1/rumble-video?id=${encodeURIComponent(id)}&type=thumb`,
+  };
 }
 
 const json = (body: unknown, status = 200) =>
@@ -101,7 +99,10 @@ Deno.serve(async (req) => {
       };
     }
 
-    result.videoFileUrl = await fetchRumbleMp4(result.embedUrl);
+    // Rotation-proof playback + thumbnail URLs via the rumble-video proxy.
+    const proxy = rumbleProxyUrls(req.url, result.embedUrl);
+    result.videoFileUrl = proxy.videoFileUrl;
+    if (proxy.thumbnailUrl) result.thumbnailUrl = proxy.thumbnailUrl;
 
     return json(result);
   } catch (err) {
