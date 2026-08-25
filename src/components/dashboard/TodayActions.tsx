@@ -112,10 +112,21 @@ async function fetchActionsForDate(userId: string, targetDate: string, signal: A
       .abortSignal(signal),
   ]);
 
-  const calRes = calSettled.status === "fulfilled" ? calSettled.value : { data: null };
+  // The calendar events request is the SOURCE OF TRUTH for this card. If it
+  // fails or is aborted (slow network, app resume, timeout) we must throw so
+  // useDataFetch keeps the last good data and surfaces an error/retry state.
+  // Previously a failure silently produced "only Track Nutrition, 0/1", which
+  // was then cached for 60s, written to the localStorage snapshot and primed
+  // into adjacent-day caches — a confidently wrong empty day.
+  if (calSettled.status === "rejected") throw calSettled.reason ?? new Error("Failed to load scheduled events");
+  if (calSettled.value.error) throw calSettled.value.error;
+
+  const calRes = calSettled.value;
+  // Supporting lookups stay best-effort: losing them only affects a checkmark.
   const cardioRes = cardioSettled.status === "fulfilled" ? cardioSettled.value : { data: null };
   const nutritionRes = nutritionSettled.status === "fulfilled" ? nutritionSettled.value : { data: null };
   const sessRes = sessSettled.status === "fulfilled" ? sessSettled.value : { data: null };
+
   const items: ActionItem[] = [];
 
   (calRes.data || []).forEach((event) => {
