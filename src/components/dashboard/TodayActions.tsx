@@ -364,8 +364,12 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
 
   const effectiveActions: ActionItem[] =
     actions.length > 0 || !hasSnapshot ? actions : (snapshot!.items as ActionItem[]);
+  // Only claim "nothing scheduled" after a successful fetch. On failure with no
+  // cached/snapshot data, offer a retry instead of a misleading empty day.
+  const showFailure = failed && effectiveActions.length === 0;
   const completedCount = effectiveActions.filter((a) => a.completed).length;
   const totalCount = effectiveActions.length;
+
 
 
   return (
