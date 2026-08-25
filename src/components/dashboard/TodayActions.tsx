@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, Circle, Dumbbell, Heart, UtensilsCrossed, Footprints, Camera, Activity, ClipboardCheck, Loader2, Sparkles } from "lucide-react";
+import { CheckCircle2, Circle, Dumbbell, Heart, UtensilsCrossed, Footprints, Camera, Activity, ClipboardCheck, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { addDays, format, parseISO } from "date-fns";
 import { useDataFetch, invalidateCache, invalidateCacheByPrefix, primeQuery } from "@/hooks/useDataFetch";
 import { CardSkeleton } from "@/components/ui/data-skeleton";
@@ -112,10 +112,21 @@ async function fetchActionsForDate(userId: string, targetDate: string, signal: A
       .abortSignal(signal),
   ]);
 
-  const calRes = calSettled.status === "fulfilled" ? calSettled.value : { data: null };
+  // The calendar events request is the SOURCE OF TRUTH for this card. If it
+  // fails or is aborted (slow network, app resume, timeout) we must throw so
+  // useDataFetch keeps the last good data and surfaces an error/retry state.
+  // Previously a failure silently produced "only Track Nutrition, 0/1", which
+  // was then cached for 60s, written to the localStorage snapshot and primed
+  // into adjacent-day caches — a confidently wrong empty day.
+  if (calSettled.status === "rejected") throw calSettled.reason ?? new Error("Failed to load scheduled events");
+  if (calSettled.value.error) throw calSettled.value.error;
+
+  const calRes = calSettled.value;
+  // Supporting lookups stay best-effort: losing them only affects a checkmark.
   const cardioRes = cardioSettled.status === "fulfilled" ? cardioSettled.value : { data: null };
   const nutritionRes = nutritionSettled.status === "fulfilled" ? nutritionSettled.value : { data: null };
   const sessRes = sessSettled.status === "fulfilled" ? sessSettled.value : { data: null };
+
   const items: ActionItem[] = [];
 
   (calRes.data || []).forEach((event) => {
@@ -247,13 +258,15 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
     };
   }, [user?.id]);
 
-  const { data: actions = [], loading, refetch } = useDataFetch<ActionItem[]>({
+  const { data: actions = [], loading, error, timedOut, refetch } = useDataFetch<ActionItem[]>({
     queryKey: cacheKey,
     enabled: !!user,
     staleTime: 60 * 1000,
     fallback: [],
     queryFn: (signal) => user ? fetchActionsForDate(user.id, targetDate, signal) : Promise.resolve([]),
   });
+
+  const failed = !!error || timedOut;
 
   useEffect(() => {
     if (!user?.id || loading) return;
@@ -270,14 +283,16 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
 
   // Fire onDataLoaded whenever data updates (including cache hits and refetches).
   // Persist today's actions to the snapshot for instant paint on cold boot.
+  // Never persist a failed fetch — that's how an empty day used to stick around.
   useEffect(() => {
     if (onDataLoaded && actions.length > 0) {
       onDataLoaded(actions);
     }
-    if (isTodayView && user?.id && actions && actions.length >= 0 && !loading) {
+    if (isTodayView && user?.id && actions && !loading && !failed) {
       writeSnapshotSlice(user.id, "todayActions", { items: actions } as TodayActionsSlice);
     }
-  }, [actions, onDataLoaded, isTodayView, user?.id, loading]);
+  }, [actions, onDataLoaded, isTodayView, user?.id, loading, failed]);
+
 
   refetchRef.current = refetch;
 
@@ -349,8 +364,12 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
 
   const effectiveActions: ActionItem[] =
     actions.length > 0 || !hasSnapshot ? actions : (snapshot!.items as ActionItem[]);
+  // Only claim "nothing scheduled" after a successful fetch. On failure with no
+  // cached/snapshot data, offer a retry instead of a misleading empty day.
+  const showFailure = failed && effectiveActions.length === 0;
   const completedCount = effectiveActions.filter((a) => a.completed).length;
   const totalCount = effectiveActions.length;
+
 
 
   return (
@@ -365,9 +384,23 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
           </div>
         </CardHeader>
         <CardContent className="space-y-1">
-          {effectiveActions.length === 0 ? (
+          {showFailure ? (
+            <div className="py-2 space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Couldn't load today's actions. Your schedule is still there — this was a connection issue.
+              </p>
+              <button
+                onClick={() => refetch()}
+                className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Retry
+              </button>
+            </div>
+          ) : effectiveActions.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">No actions scheduled today. Enjoy your rest!</p>
           ) : (
+
             effectiveActions.map((action) => (
 
               <button
