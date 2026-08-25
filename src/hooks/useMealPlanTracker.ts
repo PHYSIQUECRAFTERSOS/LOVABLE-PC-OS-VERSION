@@ -402,6 +402,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
       }
 
       const entries = mealItems.map((item) => ({
+        id: crypto.randomUUID(),
         client_id: user.id,
         food_item_id: item.food_item_id,
         custom_name: item.custom_name,
@@ -424,7 +425,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
       try {
         const result = await supabase
           .from("nutrition_logs")
-          .insert(entries as any)
+          .upsert(entries as any, { onConflict: "id" })
           .select()
           .abortSignal(controller.signal);
         inserted = result.data;
@@ -488,6 +489,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
         const pos = nameToPos.get(item.meal_name);
         const mealType = pos && pos <= 6 ? `meal-${pos}` : mapMealNameToKey(item.meal_name);
         return {
+          id: crypto.randomUUID(),
           client_id: user.id,
           food_item_id: item.food_item_id,
           custom_name: item.custom_name,
@@ -505,7 +507,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
         };
       });
       const { data: inserted, error } = await withRetry(
-        async () => await supabase.from("nutrition_logs").insert(entries as any).select(),
+        async () => await supabase.from("nutrition_logs").upsert(entries as any, { onConflict: "id" }).select(),
         { label: "copy meal plan day", attempts: 2, timeoutMs: 10000 },
       );
       if (error) {
