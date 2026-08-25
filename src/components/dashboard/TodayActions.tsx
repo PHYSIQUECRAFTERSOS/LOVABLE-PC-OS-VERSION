@@ -368,18 +368,19 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
     refetch();
   };
 
-  // Instant paint from snapshot on cold boot; otherwise skeleton.
-  const hasSnapshot = !!snapshot && snapshot.items.length >= 0;
-  if (loading && actions.length === 0 && !hasSnapshot) return <CardSkeleton lines={5} />;
-
-  const baseActions: ActionItem[] = actions.length > 0 || !hasSnapshot ? actions : (snapshot!.items as ActionItem[]);
-  const effectiveActions = baseActions.map((action) => optimisticCompletedIds.has(action.id) ? { ...action, completed: true } : action);
   useEffect(() => {
     setOptimisticCompletedIds((current) => {
       const pending = new Set(Array.from(current).filter((id) => !actions.some((action) => action.id === id && action.completed)));
       return pending.size === current.size ? current : pending;
     });
   }, [actions]);
+
+  // Instant paint from snapshot on cold boot; otherwise skeleton.
+  const hasSnapshot = !!snapshot && snapshot.items.length >= 0;
+  if (loading && actions.length === 0 && !hasSnapshot) return <CardSkeleton lines={5} />;
+
+  const baseActions: ActionItem[] = actions.length > 0 || !hasSnapshot ? actions : (snapshot!.items as ActionItem[]);
+  const effectiveActions = baseActions.map((action) => optimisticCompletedIds.has(action.id) ? { ...action, completed: true } : action);
   // Only claim "nothing scheduled" after a successful fetch. On failure with no
   // cached/snapshot data, offer a retry instead of a misleading empty day.
   const showFailure = failed && effectiveActions.length === 0;
