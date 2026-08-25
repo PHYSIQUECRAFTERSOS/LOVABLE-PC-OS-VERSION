@@ -482,7 +482,8 @@ const Calendar = () => {
         eventId={cardioPopupEvent?.id || ""}
         title={cardioPopupEvent?.title || ""}
         description={cardioPopupEvent?.description}
-        onCompleted={reloadEvents}
+        onCompleted={() => reloadEvents()}
+        onRollback={() => reloadEvents()}
       />
       {/* Workout preview popup — same component used by the Home dashboard */}
       {workoutPopup && (

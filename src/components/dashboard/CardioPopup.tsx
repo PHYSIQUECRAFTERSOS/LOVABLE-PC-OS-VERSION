@@ -90,7 +90,7 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted, 
           .from("calendar_events")
           .update({ is_completed: true, completed_at: completedAt })
           .eq("id", eventId)
-          .eq("target_client_id", user.id)
+          .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
           .eq("is_completed", false)
           .select("id, is_completed");
         if (error) throw error;
@@ -102,7 +102,7 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted, 
           .from("calendar_events")
           .select("id, is_completed")
           .eq("id", eventId)
-          .eq("target_client_id", user.id)
+          .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
           .maybeSingle();
         if (verifyError) throw verifyError;
         if (!verified?.is_completed) throw new Error("Cardio completion was not saved");
