@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, Circle, Dumbbell, Heart, UtensilsCrossed, Footprints, Camera, Activity, ClipboardCheck, Loader2, Sparkles } from "lucide-react";
+import { CheckCircle2, Circle, Dumbbell, Heart, UtensilsCrossed, Footprints, Camera, Activity, ClipboardCheck, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { addDays, format, parseISO } from "date-fns";
 import { useDataFetch, invalidateCache, invalidateCacheByPrefix, primeQuery } from "@/hooks/useDataFetch";
 import { CardSkeleton } from "@/components/ui/data-skeleton";
