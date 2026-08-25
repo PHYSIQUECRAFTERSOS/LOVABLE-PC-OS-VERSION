@@ -258,13 +258,15 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
     };
   }, [user?.id]);
 
-  const { data: actions = [], loading, refetch } = useDataFetch<ActionItem[]>({
+  const { data: actions = [], loading, error, timedOut, refetch } = useDataFetch<ActionItem[]>({
     queryKey: cacheKey,
     enabled: !!user,
     staleTime: 60 * 1000,
     fallback: [],
     queryFn: (signal) => user ? fetchActionsForDate(user.id, targetDate, signal) : Promise.resolve([]),
   });
+
+  const failed = !!error || timedOut;
 
   useEffect(() => {
     if (!user?.id || loading) return;
@@ -281,14 +283,16 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
 
   // Fire onDataLoaded whenever data updates (including cache hits and refetches).
   // Persist today's actions to the snapshot for instant paint on cold boot.
+  // Never persist a failed fetch — that's how an empty day used to stick around.
   useEffect(() => {
     if (onDataLoaded && actions.length > 0) {
       onDataLoaded(actions);
     }
-    if (isTodayView && user?.id && actions && actions.length >= 0 && !loading) {
+    if (isTodayView && user?.id && actions && !loading && !failed) {
       writeSnapshotSlice(user.id, "todayActions", { items: actions } as TodayActionsSlice);
     }
-  }, [actions, onDataLoaded, isTodayView, user?.id, loading]);
+  }, [actions, onDataLoaded, isTodayView, user?.id, loading, failed]);
+
 
   refetchRef.current = refetch;
 
