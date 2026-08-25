@@ -201,6 +201,7 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
   const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string; calendarEventId: string } | null>(null);
   const [cardioPopup, setCardioPopup] = useState<{ eventId: string; title: string; description?: string | null } | null>(null);
   const [photosPopup, setPhotosPopup] = useState<{ eventId: string } | null>(null);
+  const [optimisticCompletedIds, setOptimisticCompletedIds] = useState<Set<string>>(new Set());
 
   // Stable cache key — no refreshKey to avoid race conditions
   const cacheKey = `today-actions-${user?.id}-${targetDate}`;
@@ -347,10 +348,19 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
     workoutLauncher.launch(workoutId, calendarEventId);
   };
 
-  const handleCardioCompleted = () => {
+  const handleCardioCompleted = (eventId: string) => {
+    setOptimisticCompletedIds((current) => new Set(current).add(eventId));
     setCardioPopup(null);
     invalidateCache(cacheKey);
-    refetch();
+  };
+
+  const handleCardioRollback = (eventId: string) => {
+    setOptimisticCompletedIds((current) => {
+      const next = new Set(current);
+      next.delete(eventId);
+      return next;
+    });
+    invalidateCache(cacheKey);
   };
 
   const handlePhotosCompleted = () => {
@@ -362,8 +372,8 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
   const hasSnapshot = !!snapshot && snapshot.items.length >= 0;
   if (loading && actions.length === 0 && !hasSnapshot) return <CardSkeleton lines={5} />;
 
-  const effectiveActions: ActionItem[] =
-    actions.length > 0 || !hasSnapshot ? actions : (snapshot!.items as ActionItem[]);
+  const baseActions: ActionItem[] = actions.length > 0 || !hasSnapshot ? actions : (snapshot!.items as ActionItem[]);
+  const effectiveActions = baseActions.map((action) => optimisticCompletedIds.has(action.id) ? { ...action, completed: true } : action);
   // Only claim "nothing scheduled" after a successful fetch. On failure with no
   // cached/snapshot data, offer a retry instead of a misleading empty day.
   const showFailure = failed && effectiveActions.length === 0;
@@ -472,6 +482,7 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
           title={cardioPopup.title}
           description={cardioPopup.description}
           onCompleted={handleCardioCompleted}
+          onRollback={handleCardioRollback}
         />
       )}
 

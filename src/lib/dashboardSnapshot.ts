@@ -68,12 +68,35 @@ export interface NutritionTargetsSlice {
   dayType: "training_day" | "rest_day";
 }
 
+/** Last successfully loaded food log for a local date. */
+export interface NutritionLogsSlice {
+  items: Array<{
+    id: string;
+    custom_name: string | null;
+    meal_type: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber?: number;
+    sugar?: number;
+    sodium?: number;
+    servings: number;
+    food_item_id: string | null;
+    quantity_display?: number | null;
+    quantity_unit?: string | null;
+  }>;
+  foodNames: Record<string, string>;
+  foodServingInfo: Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }>;
+}
+
 export interface SnapshotSlices {
   macros?: MacrosSlice;
   todayActions?: TodayActionsSlice;
   progressMomentum?: ProgressMomentumSlice;
   progressWidget?: ProgressWidgetSlice;
   nutritionTargets?: NutritionTargetsSlice;
+  nutritionLogs?: NutritionLogsSlice;
 }
 
 export type SliceKey = keyof SnapshotSlices;
@@ -162,12 +185,22 @@ function validNutritionTargets(s: any): s is NutritionTargetsSlice {
   );
 }
 
+function validNutritionLogs(s: any): s is NutritionLogsSlice {
+  return (
+    s && Array.isArray(s.items) &&
+    s.items.every((item: any) => item && isStr(item.id) && isStr(item.meal_type) && isNum(item.calories) && isNum(item.protein) && isNum(item.carbs) && isNum(item.fat)) &&
+    s.foodNames && typeof s.foodNames === "object" &&
+    s.foodServingInfo && typeof s.foodServingInfo === "object"
+  );
+}
+
 const VALIDATORS: Record<SliceKey, (s: any) => boolean> = {
   macros: validMacros,
   todayActions: validTodayActions,
   progressMomentum: validProgressMomentum,
   progressWidget: validProgressWidget,
   nutritionTargets: validNutritionTargets,
+  nutritionLogs: validNutritionLogs,
 };
 
 // ── Envelope read/write ──────────────────────────────────────────────────────
