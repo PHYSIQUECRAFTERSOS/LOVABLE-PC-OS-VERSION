@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useXPAward } from "@/hooks/useXPAward";
 import { XP_VALUES } from "@/utils/rankedXP";
 import { useQueryClient } from "@tanstack/react-query";
+import { withRetry } from "@/lib/resilientFetch";
 
 const CARDIO_ICONS: Record<string, React.ReactNode> = {
   walking: <Footprints className="h-6 w-6 text-foreground" />,
@@ -65,10 +66,11 @@ interface CardioPopupProps {
   eventId: string;
   title: string;
   description?: string | null;
-  onCompleted: () => void;
+  onCompleted: (eventId: string) => void;
+  onRollback: (eventId: string) => void;
 }
 
-const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }: CardioPopupProps) => {
+const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted, onRollback }: CardioPopupProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { triggerXP } = useXPAward();
@@ -76,34 +78,54 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }
   const [completing, setCompleting] = useState(false);
 
   const handleComplete = async () => {
+    if (completing || !user?.id) return;
     setCompleting(true);
+    onCompleted(eventId);
+    onClose();
     try {
-      const { error } = await supabase
-        .from("calendar_events")
-        .update({ is_completed: true, completed_at: new Date().toISOString() })
-        .eq("id", eventId);
+      const completedAt = new Date().toISOString();
+      let shouldAwardXP = false;
+      await withRetry(async () => {
+        const { data, error } = await supabase
+          .from("calendar_events")
+          .update({ is_completed: true, completed_at: completedAt })
+          .eq("id", eventId)
+          .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
+          .eq("is_completed", false)
+          .select("id, is_completed");
+        if (error) throw error;
+        if (data && data.length > 0) {
+          shouldAwardXP = true;
+          return;
+        }
+        const { data: verified, error: verifyError } = await supabase
+          .from("calendar_events")
+          .select("id, is_completed")
+          .eq("id", eventId)
+          .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
+          .maybeSingle();
+        if (verifyError) throw verifyError;
+        if (!verified?.is_completed) throw new Error("Cardio completion was not saved");
+      }, { label: "complete cardio", attempts: 3, timeoutMs: 8000 });
 
-      if (error) throw error;
-
-      // Award Ranked XP (fire-and-forget)
-      if (user?.id) {
-        triggerXP(user.id, "cardio_completed", XP_VALUES.cardio_completed, "Completed cardio: " + title).catch(console.error);
+      // Only the request that changed false → true can award XP. If an earlier
+      // attempt committed but lost its response, verification succeeds without
+      // awarding a duplicate transaction.
+      if (shouldAwardXP) {
+        triggerXP(user.id, "cardio_completed", XP_VALUES.cardio_completed, "Completed cardio: " + title, { relatedEventId: eventId }).catch(console.error);
       }
 
       // Haptic
       if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
 
-      // Close popup immediately, then trigger dashboard refresh
-      onClose();
-      onCompleted();
-
-      // Dispatch event so dashboard ring + TodayActions refetch instantly
-      window.dispatchEvent(new CustomEvent("calendar-event-added"));
       // Invalidate rank/XP queries so the dashboard card updates
       queryClient.invalidateQueries({ queryKey: ["my-rank"] });
       queryClient.invalidateQueries({ queryKey: ["xp-today"] });
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err) {
+      console.error("[CardioPopup] completion failed", err);
+      onRollback(eventId);
+      toast({ title: "Cardio wasn't saved", description: "Your connection dropped. Tap the cardio action to try again.", variant: "destructive" });
+    } finally {
       setCompleting(false);
     }
   };

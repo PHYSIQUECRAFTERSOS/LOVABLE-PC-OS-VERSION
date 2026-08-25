@@ -74,6 +74,8 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const { toast } = useToast();
   const isCoach = role === "coach" || role === "admin";
   const [logs, setLogs] = useState<NutritionLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(true);
+  const [logsError, setLogsError] = useState(false);
   const [targets, setTargets] = useState<Targets>(DEFAULT_TARGETS);
   const [targetsLoaded, setTargetsLoaded] = useState(false);
   const [targetsError, setTargetsError] = useState(false);
@@ -113,6 +115,9 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     getItemsForMealSection,
     getCoachMealNameAtPosition,
     copyMealToTracker,
+    mealPlanLoading,
+    mealPlanError,
+    refetchMealPlan,
   } = useMealPlanTracker(selectedDate);
 
   // Pick the plan matching the active pill, with fallback
@@ -236,64 +241,72 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     const fetchId = latestFetchRef.current + 1;
     latestFetchRef.current = fetchId;
 
-    const { data, error } = await supabase
-      .from("nutrition_logs")
-      .select("*")
-      .eq("client_id", user.id)
-      .eq("logged_at", dateStr)
-      .order("created_at", { ascending: true });
-
-    if (fetchId !== latestFetchRef.current) return;
-
-    if (error) {
-      console.error("[fetchLogs] Query error:", error);
-      // Suppress transient network aborts (Safari mobile tab-switch mid-flight, LTE
-      // hiccups). These show up as "Load failed" / "AbortError" / "Failed to fetch"
-      // and should NOT surface as a red toast — we just keep whatever's already on
-      // screen and try again on the next mount/refetch.
-      const msg = (error.message || "").toLowerCase();
-      const isTransient =
-        msg.includes("load failed") ||
-        msg.includes("failed to fetch") ||
-        msg.includes("networkerror") ||
-        msg.includes("aborted") ||
-        (error as any).name === "AbortError";
-      if (!isTransient) {
-        toast({ title: "Couldn't load food log", description: error.message, variant: "destructive" });
-      }
-      return;
+    const cached = readSnapshotSlice(user.id, "nutritionLogs", dateStr);
+    if (cached) {
+      setLogs(cached.items as NutritionLog[]);
+      setFoodNames(cached.foodNames);
+      setFoodServingInfo(cached.foodServingInfo);
+      setLogsLoading(false);
+    } else {
+      setLogsLoading(true);
     }
+    setLogsError(false);
 
-    const logData = (data as NutritionLog[]) || [];
-    setLogs(logData);
-
-    const foodIds = logData.filter((d) => d.food_item_id).map((d) => d.food_item_id!);
-    if (foodIds.length > 0) {
-      const { data: foods, error: foodsError } = await supabase
-        .from("food_items")
-        .select("id, name, serving_size, serving_unit, serving_label")
-        .in("id", foodIds);
+    try {
+      const { data, error } = await withRetry(async () => {
+        const result = await supabase
+          .from("nutrition_logs")
+          .select("*")
+          .eq("client_id", user.id)
+          .eq("logged_at", dateStr)
+          .order("created_at", { ascending: true });
+        if (result.error) throw result.error;
+        return result;
+      }, { label: "nutrition log", attempts: 3, timeoutMs: 8000 });
 
       if (fetchId !== latestFetchRef.current) return;
 
-      if (foodsError) {
-        console.error("[fetchLogs] Food names query error:", foodsError);
+      if (error) throw error;
+      const logData = (data as NutritionLog[]) || [];
+      setLogs(logData);
+
+      const foodIds = logData.flatMap((d) => d.food_item_id ? [d.food_item_id] : []);
+      let names: Record<string, string> = cached?.foodNames ?? {};
+      let servingInfo: Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }> = cached?.foodServingInfo ?? {};
+      if (foodIds.length > 0) {
+        try {
+          const { data: foods } = await withRetry(async () => {
+            const result = await supabase
+              .from("food_items")
+              .select("id, name, serving_size, serving_unit, serving_label")
+              .in("id", foodIds);
+            if (result.error) throw result.error;
+            return result;
+          }, { label: "nutrition food details", attempts: 2, timeoutMs: 8000 });
+
+          if (fetchId !== latestFetchRef.current) return;
+          names = {};
+          servingInfo = {};
+          (foods || []).forEach((f) => {
+            names[f.id] = f.name;
+            servingInfo[f.id] = { serving_size: f.serving_size, serving_unit: f.serving_unit, serving_label: f.serving_label };
+          });
+        } catch (foodError) {
+          console.warn("[fetchLogs] Food details unavailable; keeping saved log rows", foodError);
+        }
       }
 
-      const names: Record<string, string> = {};
-      const servingInfo: Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }> = {};
-      (foods || []).forEach((f) => {
-        names[f.id] = f.name;
-        servingInfo[f.id] = { serving_size: f.serving_size, serving_unit: f.serving_unit, serving_label: f.serving_label };
-      });
       setFoodNames(names);
       setFoodServingInfo(servingInfo);
-      return;
+      setLogsError(false);
+      writeSnapshotSlice(user.id, "nutritionLogs", { items: logData, foodNames: names, foodServingInfo: servingInfo }, dateStr);
+    } catch (error) {
+      console.error("[fetchLogs] Query error:", error);
+      if (!cached) setLogsError(true);
+    } finally {
+      if (fetchId === latestFetchRef.current) setLogsLoading(false);
     }
-
-    setFoodNames({});
-    setFoodServingInfo({});
-  }, [user, dateStr, toast]);
+  }, [user, dateStr]);
 
   const fetchTargets = useCallback(async () => {
     if (!user) return;
@@ -864,6 +877,24 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
       {/* Meal Sections */}
       <div className="space-y-4">
+        {logsError && logs.length === 0 && (
+          <div className="rounded-lg border border-border bg-card p-4 text-center space-y-2">
+            <p className="text-sm text-muted-foreground">Couldn't refresh your food log. Your saved entries are still safe.</p>
+            <Button variant="outline" size="sm" onClick={() => void fetchLogs()}>Retry</Button>
+          </div>
+        )}
+        {!isCoach && mealPlanError && (
+          <div className="rounded-lg border border-border bg-card p-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">Meal plan unavailable — your plan is still saved.</p>
+            <Button variant="ghost" size="sm" onClick={() => void refetchMealPlan()}>Retry</Button>
+          </div>
+        )}
+        {logsLoading && logs.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-2">Loading your saved foods…</p>
+        )}
+        {!isCoach && mealPlanLoading && !mealPlanError && allMealPlans.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-1">Loading meal plan…</p>
+        )}
         {MEAL_SECTIONS.map(({ key, label, position }) => {
           const items = logs.filter((l) => mapMealNameToKey(l.meal_type) === key);
           const mealTotals = getMealTotals(items);

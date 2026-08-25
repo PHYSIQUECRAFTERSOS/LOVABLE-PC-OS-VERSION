@@ -161,56 +161,68 @@ export function useMealPlanTracker(selectedDate?: Date) {
   const dateStr = selectedDate ? toLocalDateString(selectedDate) : getLocalDateString();
 
   // Fetch ALL active meal plans for this client (exclude archived)
-  const { data: plans } = useQuery({
+  const plansQuery = useQuery({
     queryKey: ["client-all-meal-plans", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("meal_plans")
-        .select("id, name, flexibility_mode, coach_id, updated_at, day_type, day_type_label, sort_order")
-        .eq("client_id", user!.id)
-        .eq("is_template", false)
-        .is("archived_at", null)
-        .order("sort_order");
-
-      return (data || []) as MealPlanData[];
+      if (!user) return [];
+      return withRetry(async () => {
+        const { data, error } = await supabase
+          .from("meal_plans")
+          .select("id, name, flexibility_mode, coach_id, updated_at, day_type, day_type_label, sort_order")
+          .eq("client_id", user.id)
+          .eq("is_template", false)
+          .is("archived_at", null)
+          .order("sort_order");
+        if (error) throw error;
+        return (data || []) as MealPlanData[];
+      }, { label: "meal plans", attempts: 3, timeoutMs: 8000 });
     },
     enabled: !!user,
     staleTime: 30 * 1000,
   });
+  const plans = plansQuery.data;
 
   // Fetch days for ALL plans in one query
   const planIds = plans?.map((p) => p.id) || [];
-  const { data: allDays } = useQuery({
+  const daysQuery = useQuery({
     queryKey: ["meal-plan-days-all", planIds.join(",")],
     queryFn: async () => {
       if (planIds.length === 0) return [];
-      const { data } = await supabase
-        .from("meal_plan_days")
-        .select("*, meal_plan_id")
-        .in("meal_plan_id", planIds)
-        .order("day_order");
-      return (data || []) as (MealPlanDay & { meal_plan_id: string })[];
+      return withRetry(async () => {
+        const { data, error } = await supabase
+          .from("meal_plan_days")
+          .select("*, meal_plan_id")
+          .in("meal_plan_id", planIds)
+          .order("day_order");
+        if (error) throw error;
+        return (data || []) as (MealPlanDay & { meal_plan_id: string })[];
+      }, { label: "meal plan days", attempts: 3, timeoutMs: 8000 });
     },
     enabled: planIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
+  const allDays = daysQuery.data;
 
   // Fetch items for ALL plans in one query
-  const { data: allItems } = useQuery({
+  const itemsQuery = useQuery({
     queryKey: ["meal-plan-items-all", planIds.join(",")],
     queryFn: async () => {
       if (planIds.length === 0) return [];
-      const { data } = await supabase
-        .from("meal_plan_items")
-        .select("*, meal_plan_id")
-        .in("meal_plan_id", planIds)
-        .order("meal_order")
-        .order("item_order");
-      return (data || []) as (MealPlanFood & { meal_plan_id: string })[];
+      return withRetry(async () => {
+        const { data, error } = await supabase
+          .from("meal_plan_items")
+          .select("*, meal_plan_id")
+          .in("meal_plan_id", planIds)
+          .order("meal_order")
+          .order("item_order");
+        if (error) throw error;
+        return (data || []) as (MealPlanFood & { meal_plan_id: string })[];
+      }, { label: "meal plan items", attempts: 3, timeoutMs: 8000 });
     },
     enabled: planIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
+  const allItems = itemsQuery.data;
 
   // Legacy single-plan compat: return first plan
   const plan = plans?.[0] || null;
@@ -390,6 +402,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
       }
 
       const entries = mealItems.map((item) => ({
+        id: crypto.randomUUID(),
         client_id: user.id,
         food_item_id: item.food_item_id,
         custom_name: item.custom_name,
@@ -405,21 +418,13 @@ export function useMealPlanTracker(selectedDate?: Date) {
         quantity_unit: item.serving_unit || "g",
         ...(item.food_item_id && microsMap[item.food_item_id] ? microsMap[item.food_item_id] : {}),
       }));
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 10000);
-      let inserted: Array<{ id: string }> | null = null;
-      let error: { message: string } | null = null;
-      try {
-        const result = await supabase
+      const { data: inserted, error } = await withRetry(
+        async () => await supabase
           .from("nutrition_logs")
-          .insert(entries as any)
-          .select()
-          .abortSignal(controller.signal);
-        inserted = result.data;
-        error = result.error;
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
+          .upsert(entries as any, { onConflict: "id" })
+          .select(),
+        { label: "copy meal to tracker", attempts: 2, timeoutMs: 10000 },
+      );
       if (error) {
         console.error("[copyMealToTracker] Insert error:", error);
         toast({ title: "Error copying meal", description: error.message, variant: "destructive" });
@@ -476,6 +481,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
         const pos = nameToPos.get(item.meal_name);
         const mealType = pos && pos <= 6 ? `meal-${pos}` : mapMealNameToKey(item.meal_name);
         return {
+          id: crypto.randomUUID(),
           client_id: user.id,
           food_item_id: item.food_item_id,
           custom_name: item.custom_name,
@@ -492,7 +498,10 @@ export function useMealPlanTracker(selectedDate?: Date) {
           ...(item.food_item_id && microsMap[item.food_item_id] ? microsMap[item.food_item_id] : {}),
         };
       });
-      const { data: inserted, error } = await supabase.from("nutrition_logs").insert(entries as any).select();
+      const { data: inserted, error } = await withRetry(
+        async () => await supabase.from("nutrition_logs").upsert(entries as any, { onConflict: "id" }).select(),
+        { label: "copy meal plan day", attempts: 2, timeoutMs: 10000 },
+      );
       if (error) {
         console.error("[copyEntireDayToTracker] Insert error:", error);
         toast({ title: "Error copying day", description: error.message, variant: "destructive" });
@@ -520,6 +529,12 @@ export function useMealPlanTracker(selectedDate?: Date) {
     items,
     allDays: allDays || [],
     allItems: allItems || [],
+    mealPlanLoading: plansQuery.isLoading || daysQuery.isLoading || itemsQuery.isLoading,
+    mealPlanError: plansQuery.isError || daysQuery.isError || itemsQuery.isError,
+    refetchMealPlan: async () => {
+      await plansQuery.refetch();
+      await Promise.all([daysQuery.refetch(), itemsQuery.refetch()]);
+    },
     getPlanByDayType,
     getDayByDayType,
     getItemsBySection,
