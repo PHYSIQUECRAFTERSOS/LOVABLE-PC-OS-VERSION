@@ -380,9 +380,23 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
           </div>
         </CardHeader>
         <CardContent className="space-y-1">
-          {effectiveActions.length === 0 ? (
+          {showFailure ? (
+            <div className="py-2 space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Couldn't load today's actions. Your schedule is still there — this was a connection issue.
+              </p>
+              <button
+                onClick={() => refetch()}
+                className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Retry
+              </button>
+            </div>
+          ) : effectiveActions.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">No actions scheduled today. Enjoy your rest!</p>
           ) : (
+
             effectiveActions.map((action) => (
 
               <button
