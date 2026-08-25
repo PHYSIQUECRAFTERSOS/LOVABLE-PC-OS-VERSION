@@ -418,21 +418,13 @@ export function useMealPlanTracker(selectedDate?: Date) {
         quantity_unit: item.serving_unit || "g",
         ...(item.food_item_id && microsMap[item.food_item_id] ? microsMap[item.food_item_id] : {}),
       }));
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 10000);
-      let inserted: Array<{ id: string }> | null = null;
-      let error: { message: string } | null = null;
-      try {
-        const result = await supabase
+      const { data: inserted, error } = await withRetry(
+        async () => await supabase
           .from("nutrition_logs")
           .upsert(entries as any, { onConflict: "id" })
-          .select()
-          .abortSignal(controller.signal);
-        inserted = result.data;
-        error = result.error;
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
+          .select(),
+        { label: "copy meal to tracker", attempts: 2, timeoutMs: 10000 },
+      );
       if (error) {
         console.error("[copyMealToTracker] Insert error:", error);
         toast({ title: "Error copying meal", description: error.message, variant: "destructive" });

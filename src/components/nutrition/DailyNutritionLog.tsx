@@ -268,31 +268,34 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
       if (error) throw error;
       const logData = (data as NutritionLog[]) || [];
+      setLogs(logData);
 
       const foodIds = logData.flatMap((d) => d.food_item_id ? [d.food_item_id] : []);
-      let names: Record<string, string> = {};
-      let servingInfo: Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }> = {};
+      let names: Record<string, string> = cached?.foodNames ?? {};
+      let servingInfo: Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }> = cached?.foodServingInfo ?? {};
       if (foodIds.length > 0) {
-        const { data: foods, error: foodsError } = await withRetry(async () => {
-          const result = await supabase
-            .from("food_items")
-            .select("id, name, serving_size, serving_unit, serving_label")
-            .in("id", foodIds);
-          if (result.error) throw result.error;
-          return result;
-        }, { label: "nutrition food details", attempts: 2, timeoutMs: 8000 });
+        try {
+          const { data: foods } = await withRetry(async () => {
+            const result = await supabase
+              .from("food_items")
+              .select("id, name, serving_size, serving_unit, serving_label")
+              .in("id", foodIds);
+            if (result.error) throw result.error;
+            return result;
+          }, { label: "nutrition food details", attempts: 2, timeoutMs: 8000 });
 
-        if (fetchId !== latestFetchRef.current) return;
-        if (foodsError) throw foodsError;
-        names = {};
-        servingInfo = {};
-        (foods || []).forEach((f) => {
-          names[f.id] = f.name;
-          servingInfo[f.id] = { serving_size: f.serving_size, serving_unit: f.serving_unit, serving_label: f.serving_label };
-        });
+          if (fetchId !== latestFetchRef.current) return;
+          names = {};
+          servingInfo = {};
+          (foods || []).forEach((f) => {
+            names[f.id] = f.name;
+            servingInfo[f.id] = { serving_size: f.serving_size, serving_unit: f.serving_unit, serving_label: f.serving_label };
+          });
+        } catch (foodError) {
+          console.warn("[fetchLogs] Food details unavailable; keeping saved log rows", foodError);
+        }
       }
 
-      setLogs(logData);
       setFoodNames(names);
       setFoodServingInfo(servingInfo);
       setLogsError(false);
