@@ -67,7 +67,7 @@ const PhotoTimeline = () => {
       {photos.map((photo) => (
         <div key={photo.id} className="relative group rounded-lg overflow-hidden border border-border bg-card">
           <img
-            src={signedThumbUrl(photo.url, { width: 400, height: 533, quality: 60 })}
+            src={photo.thumbUrl || photo.url}
             alt={`${photo.pose} pose`}
             className="w-full aspect-[3/4] object-cover"
             loading="lazy"
