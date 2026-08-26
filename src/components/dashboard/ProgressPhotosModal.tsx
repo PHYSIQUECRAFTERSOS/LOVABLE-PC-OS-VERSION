@@ -297,11 +297,17 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
                     )}
                   >
                     <img
-                      src={photo.url}
+                      src={photo.thumbUrl || photo.url}
                       alt={`${photo.pose} pose`}
                       className="w-full aspect-square object-cover"
                       loading="lazy"
+                      decoding="async"
+                      onError={(e) => {
+                        const img = e.currentTarget;
+                        if (img.src !== photo.url) img.src = photo.url;
+                      }}
                     />
+
                     {/* Angle pill */}
                     <span className="absolute bottom-8 left-1.5 text-[9px] font-medium px-1.5 py-0.5 rounded bg-background/60 text-foreground">
                       {mapPoseToAngle(photo.pose)}
