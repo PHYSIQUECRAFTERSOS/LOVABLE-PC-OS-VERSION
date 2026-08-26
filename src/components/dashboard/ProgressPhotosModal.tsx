@@ -7,6 +7,8 @@ import { ArrowLeft, Camera, ArrowLeftRight, X, RotateCcw, Download } from "lucid
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { downloadPhoto, photoFilename } from "@/lib/downloadPhoto";
+import { signStoragePaths, signThumbPaths } from "@/lib/supabaseImage";
+
 
 
 interface Photo {
@@ -15,7 +17,9 @@ interface Photo {
   pose: string;
   photo_date: string;
   url: string;
+  thumbUrl: string;
 }
+
 
 interface ProgressPhotosModalProps {
   open: boolean;
@@ -50,31 +54,51 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
 
   useEffect(() => {
     if (!open || !clientId) return;
+    let cancelled = false;
     setLoading(true);
     const fetchPhotos = async () => {
-      const { data } = await supabase
-        .from("progress_photos")
-        .select("id, storage_path, pose, photo_date")
-        .eq("client_id", clientId)
-        .order("photo_date", { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from("progress_photos")
+          .select("id, storage_path, pose, photo_date")
+          .eq("client_id", clientId)
+          .order("photo_date", { ascending: false });
+        if (error) throw error;
 
-      if (data && data.length > 0) {
-        const enriched = await Promise.all(
-          data.map(async (p: any) => {
-            const { data: urlData } = await supabase.storage
-              .from("progress-photos")
-              .createSignedUrl(p.storage_path, 3600);
-            return { ...p, url: urlData?.signedUrl || "" } as Photo;
-          })
+        if (!data || data.length === 0) {
+          if (!cancelled) setAllPhotos([]);
+          return;
+        }
+
+        const paths = data.map((p: any) => p.storage_path);
+        // Full-size URLs in one batch request; lightweight thumbnails for the grid
+        const [urlMap, thumbMap] = await Promise.all([
+          signStoragePaths(supabase, "progress-photos", paths),
+          signThumbPaths(supabase, "progress-photos", paths, { width: 400, height: 400, quality: 60 }),
+        ]);
+
+        if (cancelled) return;
+        setAllPhotos(
+          data
+            .map((p: any) => {
+              const url = urlMap[p.storage_path] || "";
+              return { ...p, url, thumbUrl: thumbMap[p.storage_path] || "" } as Photo;
+            })
+            .filter((p: Photo) => p.url || p.thumbUrl)
         );
-        setAllPhotos(enriched.filter((p) => p.url));
-      } else {
-        setAllPhotos([]);
+
+      } catch {
+        if (!cancelled) setAllPhotos([]);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     };
     fetchPhotos();
+    return () => {
+      cancelled = true;
+    };
   }, [open, clientId]);
+
 
   const filteredPhotos = useMemo(() => {
     if (angleFilter === "All") return allPhotos;
@@ -274,11 +298,17 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
                     )}
                   >
                     <img
-                      src={photo.url}
+                      src={photo.thumbUrl || photo.url}
                       alt={`${photo.pose} pose`}
                       className="w-full aspect-square object-cover"
                       loading="lazy"
+                      decoding="async"
+                      onError={(e) => {
+                        const img = e.currentTarget;
+                        if (img.src !== photo.url) img.src = photo.url;
+                      }}
                     />
+
                     {/* Angle pill */}
                     <span className="absolute bottom-8 left-1.5 text-[9px] font-medium px-1.5 py-0.5 rounded bg-background/60 text-foreground">
                       {mapPoseToAngle(photo.pose)}

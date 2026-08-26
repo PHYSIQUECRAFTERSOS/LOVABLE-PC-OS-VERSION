@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
 import { ImageIcon, Download } from "lucide-react";
 import { downloadPhoto, photoFilename } from "@/lib/downloadPhoto";
+import { signStoragePaths, signThumbPaths } from "@/lib/supabaseImage";
+
 
 
 interface Photo {
@@ -16,10 +18,11 @@ interface Photo {
 
 const PhotoTimeline = () => {
   const { user } = useAuth();
-  const [photos, setPhotos] = useState<(Photo & { url: string })[]>([]);
+  const [photos, setPhotos] = useState<(Photo & { url: string; thumbUrl: string })[]>([]);
 
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
     const fetch = async () => {
       const { data } = await supabase
         .from("progress_photos")
@@ -29,19 +32,26 @@ const PhotoTimeline = () => {
         .limit(20);
 
       if (data && data.length > 0) {
-        const enriched = await Promise.all(
-          (data as Photo[]).map(async (p) => {
-            const { data: urlData } = await supabase.storage
-              .from("progress-photos")
-              .createSignedUrl(p.storage_path, 3600);
-            return { ...p, url: urlData?.signedUrl || "" };
-          })
+        const paths = (data as Photo[]).map((p) => p.storage_path);
+        const [urlMap, thumbMap] = await Promise.all([
+          signStoragePaths(supabase, "progress-photos", paths),
+          signThumbPaths(supabase, "progress-photos", paths, { width: 400, height: 533, quality: 60 }),
+        ]);
+        if (cancelled) return;
+        setPhotos(
+          (data as Photo[])
+            .map((p) => ({ ...p, url: urlMap[p.storage_path] || "", thumbUrl: thumbMap[p.storage_path] || "" }))
+            .filter((p) => p.url || p.thumbUrl)
         );
-        setPhotos(enriched);
       }
     };
+
     fetch();
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
+
 
   if (photos.length === 0) {
     return (
@@ -57,11 +67,17 @@ const PhotoTimeline = () => {
       {photos.map((photo) => (
         <div key={photo.id} className="relative group rounded-lg overflow-hidden border border-border bg-card">
           <img
-            src={photo.url}
+            src={photo.thumbUrl || photo.url}
             alt={`${photo.pose} pose`}
             className="w-full aspect-[3/4] object-cover"
             loading="lazy"
+            decoding="async"
+            onError={(e) => {
+              const img = e.currentTarget;
+              if (img.src !== photo.url) img.src = photo.url;
+            }}
           />
+
           <button
             type="button"
             aria-label="Download photo"
