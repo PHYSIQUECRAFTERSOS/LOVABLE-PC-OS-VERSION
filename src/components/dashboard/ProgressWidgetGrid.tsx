@@ -99,16 +99,16 @@ const ProgressWidgetGrid = () => {
         .order("created_at", { ascending: false })
         .limit(2);
       if (!data || data.length === 0) return [];
-      const urlMap = await signStoragePaths(
+      const thumbMap = await signThumbPaths(
         supabase,
         "progress-photos",
-        data.map((p) => p.storage_path)
+        data.map((p) => p.storage_path),
+        { width: 120, height: 120, quality: 60 }
       );
-      return data
-        .map((p) => signedThumbUrl(urlMap[p.storage_path], { width: 120, height: 120, quality: 60 }))
-        .filter(Boolean);
+      return data.map((p) => thumbMap[p.storage_path]).filter(Boolean);
     },
   });
+
 
 
   const { data: metricsData, refetch: refetchMetrics } = useDataFetch<HealthMetricsResult>({
