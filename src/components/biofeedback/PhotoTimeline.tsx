@@ -66,11 +66,17 @@ const PhotoTimeline = () => {
       {photos.map((photo) => (
         <div key={photo.id} className="relative group rounded-lg overflow-hidden border border-border bg-card">
           <img
-            src={photo.url}
+            src={signedThumbUrl(photo.url, { width: 400, height: 533, quality: 60 })}
             alt={`${photo.pose} pose`}
             className="w-full aspect-[3/4] object-cover"
             loading="lazy"
+            decoding="async"
+            onError={(e) => {
+              const img = e.currentTarget;
+              if (img.src !== photo.url) img.src = photo.url;
+            }}
           />
+
           <button
             type="button"
             aria-label="Download photo"
