@@ -20,6 +20,7 @@ const PhotoTimeline = () => {
 
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
     const fetch = async () => {
       const { data } = await supabase
         .from("progress_photos")
@@ -29,19 +30,25 @@ const PhotoTimeline = () => {
         .limit(20);
 
       if (data && data.length > 0) {
-        const enriched = await Promise.all(
-          (data as Photo[]).map(async (p) => {
-            const { data: urlData } = await supabase.storage
-              .from("progress-photos")
-              .createSignedUrl(p.storage_path, 3600);
-            return { ...p, url: urlData?.signedUrl || "" };
-          })
+        const urlMap = await signStoragePaths(
+          supabase,
+          "progress-photos",
+          (data as Photo[]).map((p) => p.storage_path)
         );
-        setPhotos(enriched);
+        if (cancelled) return;
+        setPhotos(
+          (data as Photo[])
+            .map((p) => ({ ...p, url: urlMap[p.storage_path] || "" }))
+            .filter((p) => p.url)
+        );
       }
     };
     fetch();
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
+
 
   if (photos.length === 0) {
     return (
