@@ -83,3 +83,34 @@ export async function signStoragePaths(
   });
   return map;
 }
+
+/**
+ * Sign storage paths with a baked-in image transform (private buckets require
+ * the transform to be part of the signature — query params are ignored).
+ * Runs with limited concurrency and returns a path -> thumbnail URL map.
+ */
+export async function signThumbPaths(
+  client: { storage: { from: (b: string) => any } },
+  bucket: string,
+  paths: string[],
+  opts: { width: number; height: number; quality?: number; expiresIn?: number; concurrency?: number }
+): Promise<Record<string, string>> {
+  const map: Record<string, string> = {};
+  const concurrency = opts.concurrency ?? 8;
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < paths.length) {
+      const path = paths[cursor++];
+      try {
+        const { data } = await client.storage.from(bucket).createSignedUrl(path, opts.expiresIn ?? 3600, {
+          transform: { width: opts.width, height: opts.height, resize: "cover", quality: opts.quality ?? 60 },
+        });
+        if (data?.signedUrl) map[path] = data.signedUrl;
+      } catch {
+        /* leave unset — caller falls back to the full-size URL */
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, paths.length) }, worker));
+  return map;
+}
