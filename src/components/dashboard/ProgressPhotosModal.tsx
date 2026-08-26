@@ -70,22 +70,23 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
           return;
         }
 
-        // Single batch signing request instead of one per photo
-        const urlMap = await signStoragePaths(
-          supabase,
-          "progress-photos",
-          data.map((p: any) => p.storage_path)
-        );
+        const paths = data.map((p: any) => p.storage_path);
+        // Full-size URLs in one batch request; lightweight thumbnails for the grid
+        const [urlMap, thumbMap] = await Promise.all([
+          signStoragePaths(supabase, "progress-photos", paths),
+          signThumbPaths(supabase, "progress-photos", paths, { width: 400, height: 400, quality: 60 }),
+        ]);
 
         if (cancelled) return;
         setAllPhotos(
           data
             .map((p: any) => {
               const url = urlMap[p.storage_path] || "";
-              return { ...p, url, thumbUrl: signedThumbUrl(url, { width: 400, height: 400, quality: 60 }) } as Photo;
+              return { ...p, url, thumbUrl: thumbMap[p.storage_path] || "" } as Photo;
             })
-            .filter((p: Photo) => p.url)
+            .filter((p: Photo) => p.url || p.thumbUrl)
         );
+
       } catch {
         if (!cancelled) setAllPhotos([]);
       } finally {
