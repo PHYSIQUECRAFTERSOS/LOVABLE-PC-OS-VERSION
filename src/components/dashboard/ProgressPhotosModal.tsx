@@ -52,31 +52,50 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
 
   useEffect(() => {
     if (!open || !clientId) return;
+    let cancelled = false;
     setLoading(true);
     const fetchPhotos = async () => {
-      const { data } = await supabase
-        .from("progress_photos")
-        .select("id, storage_path, pose, photo_date")
-        .eq("client_id", clientId)
-        .order("photo_date", { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from("progress_photos")
+          .select("id, storage_path, pose, photo_date")
+          .eq("client_id", clientId)
+          .order("photo_date", { ascending: false });
+        if (error) throw error;
 
-      if (data && data.length > 0) {
-        const enriched = await Promise.all(
-          data.map(async (p: any) => {
-            const { data: urlData } = await supabase.storage
-              .from("progress-photos")
-              .createSignedUrl(p.storage_path, 3600);
-            return { ...p, url: urlData?.signedUrl || "" } as Photo;
-          })
+        if (!data || data.length === 0) {
+          if (!cancelled) setAllPhotos([]);
+          return;
+        }
+
+        // Single batch signing request instead of one per photo
+        const urlMap = await signStoragePaths(
+          supabase,
+          "progress-photos",
+          data.map((p: any) => p.storage_path)
         );
-        setAllPhotos(enriched.filter((p) => p.url));
-      } else {
-        setAllPhotos([]);
+
+        if (cancelled) return;
+        setAllPhotos(
+          data
+            .map((p: any) => {
+              const url = urlMap[p.storage_path] || "";
+              return { ...p, url, thumbUrl: signedThumbUrl(url, { width: 400, height: 400, quality: 60 }) } as Photo;
+            })
+            .filter((p: Photo) => p.url)
+        );
+      } catch {
+        if (!cancelled) setAllPhotos([]);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     };
     fetchPhotos();
+    return () => {
+      cancelled = true;
+    };
   }, [open, clientId]);
+
 
   const filteredPhotos = useMemo(() => {
     if (angleFilter === "All") return allPhotos;
