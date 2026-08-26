@@ -97,16 +97,17 @@ const ProgressWidgetGrid = () => {
         .order("created_at", { ascending: false })
         .limit(2);
       if (!data || data.length === 0) return [];
-      const results = await Promise.allSettled(
-        data.map((p) =>
-          supabase.storage.from("progress-photos").createSignedUrl(p.storage_path, 3600)
-        )
+      const urlMap = await signStoragePaths(
+        supabase,
+        "progress-photos",
+        data.map((p) => p.storage_path)
       );
-      return results
-        .map((r) => (r.status === "fulfilled" ? r.value.data?.signedUrl || "" : ""))
+      return data
+        .map((p) => signedThumbUrl(urlMap[p.storage_path], { width: 120, height: 120, quality: 60 }))
         .filter(Boolean);
     },
   });
+
 
   const { data: metricsData, refetch: refetchMetrics } = useDataFetch<HealthMetricsResult>({
     queryKey: `progress-metrics-${uid}-${today}`,
