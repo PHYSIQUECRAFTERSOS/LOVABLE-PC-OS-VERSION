@@ -15,7 +15,9 @@ interface Photo {
   pose: string;
   photo_date: string;
   url: string;
+  thumbUrl: string;
 }
+
 
 interface ProgressPhotosModalProps {
   open: boolean;
