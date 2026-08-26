@@ -18,7 +18,7 @@ interface Photo {
 
 const PhotoTimeline = () => {
   const { user } = useAuth();
-  const [photos, setPhotos] = useState<(Photo & { url: string })[]>([]);
+  const [photos, setPhotos] = useState<(Photo & { url: string; thumbUrl: string })[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -32,19 +32,20 @@ const PhotoTimeline = () => {
         .limit(20);
 
       if (data && data.length > 0) {
-        const urlMap = await signStoragePaths(
-          supabase,
-          "progress-photos",
-          (data as Photo[]).map((p) => p.storage_path)
-        );
+        const paths = (data as Photo[]).map((p) => p.storage_path);
+        const [urlMap, thumbMap] = await Promise.all([
+          signStoragePaths(supabase, "progress-photos", paths),
+          signThumbPaths(supabase, "progress-photos", paths, { width: 400, height: 533, quality: 60 }),
+        ]);
         if (cancelled) return;
         setPhotos(
           (data as Photo[])
-            .map((p) => ({ ...p, url: urlMap[p.storage_path] || "" }))
-            .filter((p) => p.url)
+            .map((p) => ({ ...p, url: urlMap[p.storage_path] || "", thumbUrl: thumbMap[p.storage_path] || "" }))
+            .filter((p) => p.url || p.thumbUrl)
         );
       }
     };
+
     fetch();
     return () => {
       cancelled = true;
