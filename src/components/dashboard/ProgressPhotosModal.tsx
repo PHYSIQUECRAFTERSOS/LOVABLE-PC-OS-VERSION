@@ -7,6 +7,8 @@ import { ArrowLeft, Camera, ArrowLeftRight, X, RotateCcw, Download } from "lucid
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { downloadPhoto, photoFilename } from "@/lib/downloadPhoto";
+import { signedThumbUrl, signStoragePaths } from "@/lib/supabaseImage";
+
 
 
 interface Photo {
