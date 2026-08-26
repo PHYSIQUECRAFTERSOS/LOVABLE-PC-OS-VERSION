@@ -1,6 +1,6 @@
 import { useState, useEffect, forwardRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { signedThumbUrl, signStoragePaths } from "@/lib/supabaseImage";
+import { signThumbPaths } from "@/lib/supabaseImage";
 
 import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { useAuth } from "@/hooks/useAuth";
