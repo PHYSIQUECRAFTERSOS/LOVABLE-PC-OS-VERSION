@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
 import { ImageIcon, Download } from "lucide-react";
 import { downloadPhoto, photoFilename } from "@/lib/downloadPhoto";
-import { signedThumbUrl, signStoragePaths } from "@/lib/supabaseImage";
+import { signStoragePaths, signThumbPaths } from "@/lib/supabaseImage";
 
 
 
