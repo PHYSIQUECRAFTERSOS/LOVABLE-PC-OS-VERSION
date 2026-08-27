@@ -186,6 +186,14 @@ const CheckinSubmissionDashboard = () => {
     () => new Map(reviewerAssignments.map((a) => [a.client_id, a.reviewer_id])),
     [reviewerAssignments]
   );
+  const realtimeClientIds = useMemo(() => {
+    if (!data) return new Set<string>();
+    return new Set([
+      ...data.buckets.flatMap((bucket) => bucket.clients.map((client) => client.clientId)),
+      ...data.notSubmitted.map((client) => client.clientId),
+      ...data.offWeek.map((client) => client.clientId),
+    ]);
+  }, [data]);
 
   const { data, loading } = useDataFetch<CheckinDashboardData>({
     queryKey,
@@ -377,7 +385,7 @@ const CheckinSubmissionDashboard = () => {
     const channel = supabase.channel("checkin-dashboard-realtime")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "checkin_submissions" }, (payload) => {
         const clientId = (payload.new as { client_id?: string })?.client_id;
-        if (!clientId || !data || !data.buckets.some((bucket) => bucket.clients.some((client) => client.clientId === clientId))) return;
+        if (!clientId || !realtimeClientIds.has(clientId)) return;
         if (timer) clearTimeout(timer);
         timer = setTimeout(() => {
           invalidateCache(queryKey);
@@ -386,7 +394,7 @@ const CheckinSubmissionDashboard = () => {
       })
       .subscribe();
     return () => { if (timer) clearTimeout(timer); supabase.removeChannel(channel); };
-  }, [user, queryKey, data]);
+  }, [user, queryKey, realtimeClientIds]);
 
   if (loading && !data?.buckets?.length) return <GridSkeleton cards={3} />;
   if (!data) return null;

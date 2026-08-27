@@ -227,10 +227,11 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
     const scheduleRefresh = () => {
-      // Invalidate ALL date caches for this user so any date strip tap gets fresh data
-      invalidateCacheByPrefix(cachePrefix);
       if (refreshTimer) clearTimeout(refreshTimer);
-      refreshTimer = setTimeout(() => refetchRef.current?.(), 400);
+      // Invalidation already notifies the mounted hook and starts one refetch.
+      // Debounce the invalidation itself so one mutation/realtime burst cannot
+      // produce an immediate request plus another forced request.
+      refreshTimer = setTimeout(() => invalidateCacheByPrefix(cachePrefix), 400);
     };
     window.addEventListener("calendar-event-added", scheduleRefresh);
 

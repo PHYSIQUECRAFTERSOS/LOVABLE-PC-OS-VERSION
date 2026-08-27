@@ -101,6 +101,8 @@ const ThreadChatView = ({
   const userScrolledAwayRef = useRef(false);
   const lastScrollTopRef = useRef<number>(0);
   const lastResizeAtRef = useRef<number>(0);
+  const messagesRef = useRef<Message[]>([]);
+  messagesRef.current = messages;
   const MESSAGE_PAGE_SIZE = 50;
 
   // Auto-grow composer up to ~60vh as the user types (Trainerize-style).
@@ -330,7 +332,7 @@ const ThreadChatView = ({
         "postgres_changes",
         { event: "*", schema: "public", table: "message_reactions" },
         () => {
-          void fetchReactions(messages.map((message) => message.id));
+          void fetchReactions(messagesRef.current.map((message) => message.id));
         }
       )
       .subscribe();
