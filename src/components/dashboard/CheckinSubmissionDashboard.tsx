@@ -115,6 +115,13 @@ interface Reviewer {
   color: string;
 }
 
+interface CheckinProfileRow {
+  user_id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  timezone: string | null;
+}
+
 // ── Component ──
 
 const CheckinSubmissionDashboard = () => {
@@ -234,7 +241,7 @@ const CheckinSubmissionDashboard = () => {
 
       const checkinAssignments = assignmentsRes.data || [];
       const submissions = submissionsRes.data || [];
-      const profiles = profilesRes.data || [];
+      const profiles = (profilesRes.data || []) as CheckinProfileRow[];
       const checkinEvents = checkinEventsRes.data || [];
 
       // Build set of client IDs who have a check-in calendar event this week

@@ -181,8 +181,9 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
     // against every connected user.
     const channel = supabase
       .channel("coach-thread-updates")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "thread_messages" }, () => {
-        scheduleRefetch();
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "thread_messages" }, (payload) => {
+        const threadId = (payload.new as { thread_id?: string })?.thread_id;
+        if (threadId && threads.some((thread) => thread.id === threadId)) scheduleRefetch();
       })
       .on(
         "postgres_changes",
@@ -202,7 +203,7 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
       supabase.removeChannel(channel);
       if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
     };
-  }, [fetchThreads, scheduleRefetch]);
+  }, [fetchThreads, scheduleRefetch, threads]);
 
   useEffect(() => {
     (window as any).__refetchCoachThreads = fetchThreads;
