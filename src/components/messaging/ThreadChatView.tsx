@@ -73,6 +73,8 @@ const ThreadChatView = ({
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -99,6 +101,9 @@ const ThreadChatView = ({
   const userScrolledAwayRef = useRef(false);
   const lastScrollTopRef = useRef<number>(0);
   const lastResizeAtRef = useRef<number>(0);
+  const messagesRef = useRef<Message[]>([]);
+  messagesRef.current = messages;
+  const MESSAGE_PAGE_SIZE = 50;
 
   // Auto-grow composer up to ~60vh as the user types (Trainerize-style).
   useEffect(() => {
@@ -178,6 +183,24 @@ const ThreadChatView = ({
     clearPushBadge();
   };
 
+  const fetchReactions = async (messageIds: string[]) => {
+    if (!messageIds.length) {
+      setReactions({});
+      return;
+    }
+    const { data: reactionData } = await supabase
+      .from("message_reactions")
+      .select("*")
+      .in("message_id", messageIds);
+
+    const grouped: Record<string, Reaction[]> = {};
+    (reactionData as Reaction[] || []).forEach((r) => {
+      if (!grouped[r.message_id]) grouped[r.message_id] = [];
+      grouped[r.message_id].push(r);
+    });
+    setReactions((prev) => ({ ...prev, ...grouped }));
+  };
+
   const fetchMessages = async () => {
     try {
       const data = await withRetry(async () => {
@@ -185,11 +208,16 @@ const ThreadChatView = ({
           .from("thread_messages")
           .select("*")
           .eq("thread_id", threadId)
-          .order("created_at", { ascending: true });
+          .order("created_at", { ascending: false })
+          .limit(MESSAGE_PAGE_SIZE + 1);
         if (error) throw error;
         return data;
       }, { label: "thread-messages" });
-      setMessages((data as unknown as Message[]) || []);
+      const page = (data as unknown as Message[]) || [];
+      setHasOlderMessages(page.length > MESSAGE_PAGE_SIZE);
+      const visible = page.slice(0, MESSAGE_PAGE_SIZE).reverse();
+      setMessages(visible);
+      await fetchReactions(visible.map((message) => message.id));
       setLoadFailed(false);
     } catch (err: any) {
       console.error("[ThreadChatView] fetchMessages failed:", err?.message || err);
@@ -197,34 +225,41 @@ const ThreadChatView = ({
     }
   };
 
-  const fetchReactions = async () => {
-    const { data: msgs } = await supabase
-      .from("thread_messages")
-      .select("id")
-      .eq("thread_id", threadId);
-    if (!msgs?.length) return;
-
-    const msgIds = msgs.map((m) => m.id);
-    const { data: reactionData } = await supabase
-      .from("message_reactions")
-      .select("*")
-      .in("message_id", msgIds);
-
-    const grouped: Record<string, Reaction[]> = {};
-    (reactionData as Reaction[] || []).forEach((r) => {
-      if (!grouped[r.message_id]) grouped[r.message_id] = [];
-      grouped[r.message_id].push(r);
-    });
-    setReactions(grouped);
+  const loadOlderMessages = async () => {
+    const oldest = messages[0]?.created_at;
+    if (!oldest || loadingOlder) return;
+    const container = scrollContainerRef.current;
+    const oldHeight = container?.scrollHeight ?? 0;
+    setLoadingOlder(true);
+    try {
+      const data = await withRetry(async () => {
+        const { data, error } = await supabase
+          .from("thread_messages")
+          .select("*")
+          .eq("thread_id", threadId)
+          .lt("created_at", oldest)
+          .order("created_at", { ascending: false })
+          .limit(MESSAGE_PAGE_SIZE + 1);
+        if (error) throw error;
+        return data;
+      }, { label: "older-thread-messages", attempts: 2 });
+      const page = (data as unknown as Message[]) || [];
+      setHasOlderMessages(page.length > MESSAGE_PAGE_SIZE);
+      const older = page.slice(0, MESSAGE_PAGE_SIZE).reverse();
+      await fetchReactions(older.map((message) => message.id));
+      setMessages((prev) => [...older, ...prev]);
+      requestAnimationFrame(() => {
+        if (container) container.scrollTop = container.scrollHeight - oldHeight;
+      });
+    } catch (error) {
+      console.error("[ThreadChatView] older messages failed:", error);
+    } finally {
+      setLoadingOlder(false);
+    }
   };
 
   useEffect(() => {
-    fetchMessages().then(() => {
-      // Mark that an instant scroll-to-bottom is pending; the useLayoutEffect
-      // below will execute it synchronously after React commits the message DOM,
-      // before the browser paints — so the user never sees the list at top.
-      fetchReactions();
-    });
+    void fetchMessages();
     markThreadSeen();
 
     if (user) {
@@ -297,7 +332,7 @@ const ThreadChatView = ({
         "postgres_changes",
         { event: "*", schema: "public", table: "message_reactions" },
         () => {
-          fetchReactions();
+          void fetchReactions(messagesRef.current.map((message) => message.id));
         }
       )
       .subscribe();
@@ -707,6 +742,13 @@ const ThreadChatView = ({
 
       {/* ── Messages ── */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+        {hasOlderMessages && (
+          <div className="flex justify-center pb-3">
+            <Button variant="ghost" size="sm" onClick={() => void loadOlderMessages()} disabled={loadingOlder}>
+              {loadingOlder ? "Loading…" : "Load earlier messages"}
+            </Button>
+          </div>
+        )}
         {messages.length === 0 && loadFailed && (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
             <p className="text-sm">Couldn't load messages.</p>

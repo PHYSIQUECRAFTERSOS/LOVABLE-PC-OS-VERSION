@@ -45,6 +45,8 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
   // Debounce realtime-triggered refetches so bursts of incoming messages
   // don't cause N repeat scans of every thread.
   const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const threadIdsRef = useRef<Set<string>>(new Set());
+  threadIdsRef.current = new Set(threads.map((thread) => thread.id));
 
   const fetchThreads = useCallback(async () => {
     if (!user) return;
@@ -181,8 +183,9 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
     // against every connected user.
     const channel = supabase
       .channel("coach-thread-updates")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "thread_messages" }, () => {
-        scheduleRefetch();
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "thread_messages" }, (payload) => {
+        const threadId = (payload.new as { thread_id?: string })?.thread_id;
+        if (threadId && threadIdsRef.current.has(threadId)) scheduleRefetch();
       })
       .on(
         "postgres_changes",

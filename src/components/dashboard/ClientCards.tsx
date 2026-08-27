@@ -41,19 +41,27 @@ const ClientCards = () => {
 
       // Fetch profiles + all sessions + weights + checkins in parallel
       const last7Start = format(subDays(new Date(), 6), "yyyy-MM-dd");
+      const historyStart = format(subDays(new Date(), 90), "yyyy-MM-dd");
       const last7Days = Array.from({ length: 7 }, (_, i) => format(subDays(new Date(), 6 - i), "yyyy-MM-dd"));
 
-      const [profilesRes, sessionsRes, weightsRes, checkinsRes] = await Promise.all([
+      const [profilesRes, sessionsRes, weightsRes, checkinsRes] = await Promise.allSettled([
         supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", clientIds).abortSignal(signal),
         supabase.from("workout_sessions").select("client_id, created_at, completed_at").in("client_id", clientIds).gte("created_at", `${last7Start}T00:00:00`).abortSignal(signal),
-        supabase.from("weight_logs").select("client_id, weight, logged_at").in("client_id", clientIds).order("logged_at", { ascending: false }).abortSignal(signal),
-        supabase.from("weekly_checkins").select("client_id, week_date").in("client_id", clientIds).order("week_date", { ascending: false }).abortSignal(signal),
+        supabase.from("weight_logs").select("client_id, weight, logged_at").in("client_id", clientIds).gte("logged_at", historyStart).order("logged_at", { ascending: false }).abortSignal(signal),
+        supabase.from("weekly_checkins").select("client_id, week_date").in("client_id", clientIds).gte("week_date", historyStart).order("week_date", { ascending: false }).abortSignal(signal),
       ]);
+      const rows = (result: PromiseSettledResult<any>, label: string) => {
+        if (result.status === "rejected" || result.value.error) {
+          console.warn(`[ClientCards] ${label} unavailable:`, result.status === "rejected" ? result.reason : result.value.error);
+          return [];
+        }
+        return result.value.data || [];
+      };
 
-      const profiles = profilesRes.data || [];
-      const allSessions = sessionsRes.data || [];
-      const allWeights = weightsRes.data || [];
-      const allCheckins = checkinsRes.data || [];
+      const profiles = rows(profilesRes, "profiles");
+      const allSessions = rows(sessionsRes, "sessions");
+      const allWeights = rows(weightsRes, "weights");
+      const allCheckins = rows(checkinsRes, "check-ins");
 
       return profiles.map((p) => {
         const sessions = allSessions.filter((s) => s.client_id === p.user_id);

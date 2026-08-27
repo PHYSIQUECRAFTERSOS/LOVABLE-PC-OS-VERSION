@@ -9,6 +9,7 @@ import SignedDocumentPreviewDialog, {
   type PreviewDocument,
 } from "@/components/signing/SignedDocumentPreviewDialog";
 import { WAIVER_BODY } from "@/lib/legalDocuments";
+import { signStoragePaths } from "@/lib/supabaseImage";
 
 
 interface Props {
@@ -99,7 +100,8 @@ const OnboardingTab = ({ clientId }: Props) => {
   }, [clientId]);
   const loadAll = async () => {
     setLoading(true);
-    const [profileRes, sigRes, photoRes, nameRes] = await Promise.all([
+    try {
+    const settled = await Promise.allSettled([
       supabase
         .from("onboarding_profiles")
         .select("*")
@@ -122,26 +124,35 @@ const OnboardingTab = ({ clientId }: Props) => {
         .eq("user_id", clientId)
         .maybeSingle(),
     ]);
+    const read = (index: number, label: string) => {
+      const result = settled[index];
+      if (result.status === "rejected" || result.value.error) {
+        console.warn(`[OnboardingTab] ${label} unavailable:`, result.status === "rejected" ? result.reason : result.value.error);
+        return null;
+      }
+      return result.value;
+    };
+    const profileRes = read(0, "profile");
+    const sigRes = read(1, "signatures");
+    const photoRes = read(2, "photos");
+    const nameRes = read(3, "client name");
 
-    setProfile(profileRes.data as OnboardingData | null);
-    setSignatures((sigRes.data as any[]) || []);
-    setClientFullName(((nameRes.data as any)?.full_name as string) || null);
+    setProfile((profileRes?.data as OnboardingData | null) ?? null);
+    setSignatures((sigRes?.data as any[]) || []);
+    setClientFullName(((nameRes?.data as any)?.full_name as string) || null);
 
     // Get signed URLs for photos
-    const photoData = (photoRes.data as any[]) || [];
+    const photoData = (photoRes?.data as any[]) || [];
     if (photoData.length > 0) {
-      const urls = await Promise.all(
-        photoData.map(async (p: any) => {
-          const { data } = await supabase.storage
-            .from("progress-photos")
-            .createSignedUrl(p.storage_path, 3600);
-          return { ...p, signedUrl: data?.signedUrl || null };
-        })
-      );
+      const signed = await signStoragePaths(supabase, "progress-photos", photoData.map((p) => p.storage_path));
+      const urls = photoData.map((p) => ({ ...p, signedUrl: signed[p.storage_path] || null }));
       setPhotos(urls);
+    } else {
+      setPhotos([]);
     }
-
-    setLoading(false);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openSignaturePreview = (sig: SignatureRecord) => {

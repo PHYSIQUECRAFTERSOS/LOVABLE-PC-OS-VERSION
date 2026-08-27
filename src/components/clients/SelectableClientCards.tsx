@@ -184,7 +184,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
       const clientIds = assignments.map((a) => a.client_id);
 
       const [profilesRes, tagsRes] = await Promise.allSettled([
-        supabase.from("profiles").select("*").in("user_id", clientIds),
+        supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", clientIds),
         supabase.from("client_tags").select("client_id, tag").in("client_id", clientIds),
       ]);
 

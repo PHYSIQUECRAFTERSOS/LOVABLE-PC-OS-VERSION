@@ -121,8 +121,19 @@ async function fetchActionsForDate(userId: string, targetDate: string, signal: A
   if (calSettled.status === "rejected") throw calSettled.reason ?? new Error("Failed to load scheduled events");
   if (calSettled.value.error) throw calSettled.value.error;
 
+  // Completion lookups are also part of the truth represented by this card.
+  // Do not turn a transport failure into a persisted "not completed" state.
+  for (const [label, result] of [
+    ["cardio", cardioSettled],
+    ["nutrition", nutritionSettled],
+    ["workout sessions", sessSettled],
+  ] as const) {
+    if (result.status === "rejected") throw result.reason ?? new Error(`Failed to load ${label}`);
+    if (result.value.error) throw result.value.error;
+  }
+
   const calRes = calSettled.value;
-  // Supporting lookups stay best-effort: losing them only affects a checkmark.
+  // All completion lookups are verified above before we derive checkmarks.
   const cardioRes = cardioSettled.status === "fulfilled" ? cardioSettled.value : { data: null };
   const nutritionRes = nutritionSettled.status === "fulfilled" ? nutritionSettled.value : { data: null };
   const sessRes = sessSettled.status === "fulfilled" ? sessSettled.value : { data: null };
@@ -213,15 +224,16 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
   // Listen for FAB-scheduled events and realtime changes to refetch instantly
   useEffect(() => {
     const cachePrefix = `today-actions-${user?.id}-`;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const handler = () => {
-      // Invalidate ALL date caches for this user so any date strip tap gets fresh data
-      invalidateCacheByPrefix(cachePrefix);
-      setTimeout(() => refetchRef.current?.(), 300);
-      setTimeout(() => refetchRef.current?.(), 1000);
-      setTimeout(() => refetchRef.current?.(), 2500);
+    const scheduleRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      // Invalidation already notifies the mounted hook and starts one refetch.
+      // Debounce the invalidation itself so one mutation/realtime burst cannot
+      // produce an immediate request plus another forced request.
+      refreshTimer = setTimeout(() => invalidateCacheByPrefix(cachePrefix), 400);
     };
-    window.addEventListener("calendar-event-added", handler);
+    window.addEventListener("calendar-event-added", scheduleRefresh);
 
     // Realtime subscription for instant updates when coach schedules or client drags.
     // Server-side filters: without them the realtime server evaluates this
@@ -232,8 +244,7 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
       const row = payload.new || payload.old;
       if (row?.user_id === user?.id || row?.target_client_id === user?.id) {
         // Invalidate ALL date caches — the event may have moved between dates
-        invalidateCacheByPrefix(cachePrefix);
-        setTimeout(() => refetchRef.current?.(), 300);
+        scheduleRefresh();
       }
     };
 
@@ -254,7 +265,8 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
       : null;
 
     return () => {
-      window.removeEventListener("calendar-event-added", handler);
+      window.removeEventListener("calendar-event-added", scheduleRefresh);
+      if (refreshTimer) clearTimeout(refreshTimer);
       if (channel) supabase.removeChannel(channel);
     };
   }, [user?.id]);
