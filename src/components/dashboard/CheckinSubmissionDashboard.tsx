@@ -186,15 +186,6 @@ const CheckinSubmissionDashboard = () => {
     () => new Map(reviewerAssignments.map((a) => [a.client_id, a.reviewer_id])),
     [reviewerAssignments]
   );
-  const realtimeClientIds = useMemo(() => {
-    if (!data) return new Set<string>();
-    return new Set([
-      ...data.buckets.flatMap((bucket) => bucket.clients.map((client) => client.clientId)),
-      ...data.notSubmitted.map((client) => client.clientId),
-      ...data.offWeek.map((client) => client.clientId),
-    ]);
-  }, [data]);
-
   const { data, loading } = useDataFetch<CheckinDashboardData>({
     queryKey,
     enabled: !!user,
@@ -352,6 +343,14 @@ const CheckinSubmissionDashboard = () => {
       return { buckets, notSubmitted, offWeek, isPastLastDay };
     },
   });
+  const realtimeClientIds = useMemo(() => {
+    if (!data) return new Set<string>();
+    return new Set([
+      ...data.buckets.flatMap((bucket) => bucket.clients.map((client) => client.clientId)),
+      ...data.notSubmitted.map((client) => client.clientId),
+      ...data.offWeek.map((client) => client.clientId),
+    ]);
+  }, [data]);
 
   // Mark reviewed mutation
   const markReviewed = useMutation({
