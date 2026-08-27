@@ -462,10 +462,11 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
         }
       }
     };
-    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
+    const onVisibilityChange = () => { if (document.visibilityState === "hidden") flush(); };
+    document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pagehide", flush);
     return () => {
-      document.removeEventListener("visibilitychange", flush);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", flush);
     };
   }, [editProgramId, triggerAutoSave, name, description, phases, buildSnapshot, draftKey]);

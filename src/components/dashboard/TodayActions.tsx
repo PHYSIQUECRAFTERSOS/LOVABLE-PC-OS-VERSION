@@ -213,15 +213,15 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
   // Listen for FAB-scheduled events and realtime changes to refetch instantly
   useEffect(() => {
     const cachePrefix = `today-actions-${user?.id}-`;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const handler = () => {
+    const scheduleRefresh = () => {
       // Invalidate ALL date caches for this user so any date strip tap gets fresh data
       invalidateCacheByPrefix(cachePrefix);
-      setTimeout(() => refetchRef.current?.(), 300);
-      setTimeout(() => refetchRef.current?.(), 1000);
-      setTimeout(() => refetchRef.current?.(), 2500);
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => refetchRef.current?.(), 400);
     };
-    window.addEventListener("calendar-event-added", handler);
+    window.addEventListener("calendar-event-added", scheduleRefresh);
 
     // Realtime subscription for instant updates when coach schedules or client drags.
     // Server-side filters: without them the realtime server evaluates this
@@ -232,8 +232,7 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
       const row = payload.new || payload.old;
       if (row?.user_id === user?.id || row?.target_client_id === user?.id) {
         // Invalidate ALL date caches — the event may have moved between dates
-        invalidateCacheByPrefix(cachePrefix);
-        setTimeout(() => refetchRef.current?.(), 300);
+        scheduleRefresh();
       }
     };
 
@@ -254,7 +253,8 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
       : null;
 
     return () => {
-      window.removeEventListener("calendar-event-added", handler);
+      window.removeEventListener("calendar-event-added", scheduleRefresh);
+      if (refreshTimer) clearTimeout(refreshTimer);
       if (channel) supabase.removeChannel(channel);
     };
   }, [user?.id]);

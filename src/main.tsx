@@ -28,13 +28,27 @@ async function clearNativeCache() {
 // The existing updatefound -> activated -> reload flow does the actual swap.
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.ready.then((registration) => {
+    let updateReady = false;
+    const hasActiveWork = () => {
+      if (window.location.pathname === "/training") return true;
+      try {
+        return Object.keys(sessionStorage).some((key) => key.startsWith("program_draft_"));
+      } catch {
+        return false;
+      }
+    };
+    const applyUpdateWhenSafe = () => {
+      if (!updateReady || document.visibilityState !== "visible" || hasActiveWork()) return;
+      window.location.reload();
+    };
     registration.addEventListener("updatefound", () => {
       const newWorker = registration.installing;
       if (!newWorker) return;
 
       newWorker.addEventListener("statechange", () => {
         if (newWorker.state === "activated") {
-          window.location.reload();
+          updateReady = true;
+          applyUpdateWhenSafe();
         }
       });
     });
@@ -76,9 +90,16 @@ if ("serviceWorker" in navigator) {
 
     // User returns to the tab / app.
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") poll();
+      if (document.visibilityState === "visible") {
+        applyUpdateWhenSafe();
+        poll();
+      }
     });
-    window.addEventListener("focus", poll);
+    window.addEventListener("focus", () => {
+      applyUpdateWhenSafe();
+      poll();
+    });
+    window.addEventListener("popstate", applyUpdateWhenSafe);
   });
 }
 

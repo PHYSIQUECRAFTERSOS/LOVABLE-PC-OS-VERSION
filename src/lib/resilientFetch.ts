@@ -68,6 +68,9 @@ export interface RetryOptions {
    *  pending forever — without this the retry ladder never runs and the UI
    *  spins indefinitely. */
   timeoutMs?: number;
+  /** Optional owner signal. Aborting it cancels the retry ladder immediately
+   * instead of allowing a timed-out screen to launch another background try. */
+  signal?: AbortSignal;
 }
 
 class RequestTimeoutError extends Error {
@@ -77,12 +80,30 @@ class RequestTimeoutError extends Error {
   }
 }
 
-export function withTimeout<T>(promise: Promise<T>, ms: number, label = "request"): Promise<T> {
+export function withTimeout<T>(promise: Promise<T>, ms: number, label = "request", signal?: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new RequestTimeoutError(label, ms)), ms);
+    let settled = false;
+    const finish = (cb: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      cb();
+    };
+    const onAbort = () => {
+      const error = new DOMException(`${label} aborted`, "AbortError");
+      Object.assign(error, { __userAbort: true });
+      finish(() => reject(error));
+    };
+    const timer = setTimeout(() => finish(() => reject(new RequestTimeoutError(label, ms))), ms);
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
     promise.then(
-      (v) => { clearTimeout(timer); resolve(v); },
-      (e) => { clearTimeout(timer); reject(e); },
+      (v) => finish(() => resolve(v)),
+      (e) => finish(() => reject(e)),
     );
   });
 }
@@ -95,22 +116,34 @@ export async function withRetry<T>(
     waitForOnline = true,
     label = "request",
     timeoutMs = 12000,
+    signal,
   }: RetryOptions = {},
 ): Promise<T> {
   let lastErr: any;
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
+      if (signal?.aborted) {
+        const error = new DOMException(`${label} aborted`, "AbortError");
+        Object.assign(error, { __userAbort: true });
+        throw error;
+      }
       if (waitForOnline && !navigator.onLine) {
         await waitForOnlineOnce(4000);
       }
-      return await withTimeout(Promise.resolve(fn()), timeoutMs, label);
+      return await withTimeout(Promise.resolve(fn()), timeoutMs, label, signal);
     } catch (err: any) {
       lastErr = err;
       if (attempt === attempts || !isRetryableError(err)) break;
       const delay = baseDelayMs * Math.pow(2, attempt - 1);
       console.warn(`[withRetry] ${label} attempt ${attempt} failed (${err?.message}) — retrying in ${delay}ms`);
-      await new Promise((r) => setTimeout(r, delay));
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, delay);
+        signal?.addEventListener("abort", () => {
+          clearTimeout(timer);
+          reject(Object.assign(new DOMException(`${label} aborted`, "AbortError"), { __userAbort: true }));
+        }, { once: true });
+      });
     }
   }
 
