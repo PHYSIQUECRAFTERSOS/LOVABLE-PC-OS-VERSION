@@ -121,8 +121,19 @@ async function fetchActionsForDate(userId: string, targetDate: string, signal: A
   if (calSettled.status === "rejected") throw calSettled.reason ?? new Error("Failed to load scheduled events");
   if (calSettled.value.error) throw calSettled.value.error;
 
+  // Completion lookups are also part of the truth represented by this card.
+  // Do not turn a transport failure into a persisted "not completed" state.
+  for (const [label, result] of [
+    ["cardio", cardioSettled],
+    ["nutrition", nutritionSettled],
+    ["workout sessions", sessSettled],
+  ] as const) {
+    if (result.status === "rejected") throw result.reason ?? new Error(`Failed to load ${label}`);
+    if (result.value.error) throw result.value.error;
+  }
+
   const calRes = calSettled.value;
-  // Supporting lookups stay best-effort: losing them only affects a checkmark.
+  // All completion lookups are verified above before we derive checkmarks.
   const cardioRes = cardioSettled.status === "fulfilled" ? cardioSettled.value : { data: null };
   const nutritionRes = nutritionSettled.status === "fulfilled" ? nutritionSettled.value : { data: null };
   const sessRes = sessSettled.status === "fulfilled" ? sessSettled.value : { data: null };

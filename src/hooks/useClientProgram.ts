@@ -101,7 +101,7 @@ export function useClientProgram(clientId: string | undefined) {
       // waterfall. Access is checked once inside the function.
       const { data: bundleData, error: bundleError } = await withRetry(
         async () => await supabase.rpc("get_client_program_bundle_fast", { _client_id: clientId }),
-        { label: "client program bundle", timeoutMs: 10000, attempts: 2 },
+        { label: "client program bundle", timeoutMs: 10000, attempts: 1 },
       );
 
       if (bundleError) throw bundleError;
