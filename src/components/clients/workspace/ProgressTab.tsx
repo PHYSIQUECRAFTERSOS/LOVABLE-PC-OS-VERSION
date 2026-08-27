@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import ProgressPhotosModal from "@/components/dashboard/ProgressPhotosModal";
 import { useToast } from "@/hooks/use-toast";
+import { signThumbPaths } from "@/lib/supabaseImage";
 
 interface Photo {
   id: string;
@@ -34,7 +35,8 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const [measRes, photoRes, profileRes] = await Promise.all([
+      try {
+      const settled = await Promise.allSettled([
         supabase
           .from("body_measurements")
           .select("*")
@@ -52,24 +54,28 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
           .eq("user_id", clientId)
           .maybeSingle(),
       ]);
+      const unwrap = (index: number, label: string) => {
+        const result = settled[index];
+        if (result.status === "rejected" || result.value.error) {
+          console.warn(`[ProgressTab] ${label} unavailable:`, result.status === "rejected" ? result.reason : result.value.error);
+          return { data: null };
+        }
+        return result.value;
+      };
+      const measRes = unwrap(0, "measurements");
+      const photoRes = unwrap(1, "photos");
+      const profileRes = unwrap(2, "profile");
       setMeasurements(measRes.data || []);
-      if (profileRes.error) {
-        console.error("[ProgressTab] Failed to load profile:", profileRes.error);
-      }
       setMeasurementsEnabled(profileRes.data?.measurements_enabled === true);
 
       const photoData = (photoRes.data || []) as Photo[];
       // Get signed URLs
-      const enriched = await Promise.all(
-        photoData.map(async (p) => {
-          const { data: urlData } = await supabase.storage
-            .from("progress-photos")
-            .createSignedUrl(p.storage_path, 3600);
-          return { ...p, url: urlData?.signedUrl || "", photo_type: p.pose || "other" };
-        })
-      );
+      const signed = await signThumbPaths(supabase, "progress-photos", photoData.map((p) => p.storage_path), { width: 400, height: 400 });
+      const enriched = photoData.map((p) => ({ ...p, url: signed[p.storage_path] || "", photo_type: p.pose || "other" }));
       setPhotos(enriched);
-      setLoading(false);
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, [clientId]);

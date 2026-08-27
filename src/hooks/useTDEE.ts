@@ -197,13 +197,14 @@ export function useTDEE(targetClientId?: string) {
 
   const calculate = useCallback(async () => {
     const clientId = targetClientId || user?.id;
-    if (!clientId) return;
+    if (!clientId) { setLoading(false); return; }
     setLoading(true);
 
-    const today = format(new Date(), "yyyy-MM-dd");
-    const thirtyDaysAgo = format(subDays(new Date(), 30), "yyyy-MM-dd");
+    try {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const thirtyDaysAgo = format(subDays(new Date(), 30), "yyyy-MM-dd");
 
-    const [weightsRes, logsRes, targetsRes, tdeeHistRes, adjRes, goalRes, cardioRes, sessionsRes, measurementsRes] = await Promise.all([
+    const settled = await Promise.allSettled([
       supabase.from("weight_logs").select("logged_at, weight").eq("client_id", clientId).gte("logged_at", thirtyDaysAgo).order("logged_at", { ascending: true }),
       supabase.from("nutrition_logs").select("logged_at, calories").eq("client_id", clientId).gte("logged_at", thirtyDaysAgo),
       supabase.from("nutrition_targets").select("calories").eq("client_id", clientId).lte("effective_date", today).order("effective_date", { ascending: false }).limit(1),
@@ -215,6 +216,18 @@ export function useTDEE(targetClientId?: string) {
       supabase.from("workout_sessions").select("id").eq("client_id", clientId).gte("started_at", thirtyDaysAgo),
       supabase.from("body_measurements").select("steps, sleep_hours").eq("client_id", clientId).gte("measured_at", thirtyDaysAgo),
     ]);
+    const unwrap = (result: PromiseSettledResult<any>, label: string) => {
+      if (result.status === "rejected" || result.value?.error) {
+        console.warn(`[useTDEE] ${label} unavailable:`, result.status === "rejected" ? result.reason : result.value.error);
+        return { data: [] as any[] };
+      }
+      return { data: result.value.data || [] };
+    };
+    const [weightsRes, logsRes, targetsRes, tdeeHistRes, adjRes, goalRes, cardioRes, sessionsRes, measurementsRes] = [
+      unwrap(settled[0], "weights"), unwrap(settled[1], "nutrition"), unwrap(settled[2], "targets"),
+      unwrap(settled[3], "history"), unwrap(settled[4], "adjustments"), unwrap(settled[5], "goal"),
+      unwrap(settled[6], "cardio"), unwrap(settled[7], "sessions"), unwrap(settled[8], "measurements"),
+    ];
 
     const weights = (weightsRes.data || []) as WeightEntry[];
     const nutritionLogs = (logsRes.data || []) as { logged_at: string; calories: number }[];
@@ -306,7 +319,11 @@ export function useTDEE(targetClientId?: string) {
       phaseContext,
     });
 
-    setLoading(false);
+    } catch (error) {
+      console.error("[useTDEE] calculation failed:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [user, targetClientId]);
 
   useEffect(() => { calculate(); }, [calculate]);

@@ -203,7 +203,7 @@ const CheckinSubmissionDashboard = () => {
 
       const clientIds = assignments.map((a) => a.client_id);
 
-      const [assignmentsRes, submissionsRes, profilesRes, checkinEventsRes] = await Promise.all([
+      const settled = await Promise.allSettled([
         supabase.from("checkin_assignments").select("client_id, recurrence, next_due_date, is_active")
           .in("client_id", clientIds).eq("is_active", true).abortSignal(signal),
         supabase.from("checkin_submissions").select("id, client_id, submitted_at, status, reviewed_at")
@@ -220,6 +220,17 @@ const CheckinSubmissionDashboard = () => {
           .lte("event_date", sundayStr)
           .abortSignal(signal),
       ]);
+      const unwrap = (result: PromiseSettledResult<any>, label: string) => {
+        if (result.status === "rejected" || result.value?.error) {
+          console.warn(`[CheckinDashboard] ${label} unavailable:`, result.status === "rejected" ? result.reason : result.value.error);
+          return { data: [] as any[] };
+        }
+        return { data: result.value.data || [] };
+      };
+      const assignmentsRes = unwrap(settled[0], "assignments");
+      const submissionsRes = unwrap(settled[1], "submissions");
+      const profilesRes = unwrap(settled[2], "profiles");
+      const checkinEventsRes = unwrap(settled[3], "calendar events");
 
       const checkinAssignments = assignmentsRes.data || [];
       const submissions = submissionsRes.data || [];
@@ -355,14 +366,20 @@ const CheckinSubmissionDashboard = () => {
   // Realtime
   useEffect(() => {
     if (!user) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const channel = supabase.channel("checkin-dashboard-realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "checkin_submissions" }, () => {
-        invalidateCache(queryKey);
-        setRealtimeKey((k) => k + 1);
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "checkin_submissions" }, (payload) => {
+        const clientId = (payload.new as { client_id?: string })?.client_id;
+        if (!clientId || !data || !data.buckets.some((bucket) => bucket.clients.some((client) => client.clientId === clientId))) return;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          invalidateCache(queryKey);
+          setRealtimeKey((k) => k + 1);
+        }, 500);
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [user, queryKey]);
+    return () => { if (timer) clearTimeout(timer); supabase.removeChannel(channel); };
+  }, [user, queryKey, data]);
 
   if (loading && !data?.buckets?.length) return <GridSkeleton cards={3} />;
   if (!data) return null;
