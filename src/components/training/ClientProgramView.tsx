@@ -10,6 +10,9 @@ import { fetchWorkoutThumbnailSummary } from "@/lib/workoutExerciseQueries";
 import ExportPdfButton from "@/components/common/ExportPdfButton";
 import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 import { withRetry } from "@/lib/resilientFetch";
+import { derivePhaseDates } from "@/lib/phaseDates";
+import { getLocalDateString } from "@/utils/localDate";
+
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
