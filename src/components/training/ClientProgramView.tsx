@@ -17,6 +17,35 @@ const GOAL_LABELS: Record<string, string> = {
   recomp: "Recomp", muscle_gain: "Muscle Gain",
 };
 
+// Last-good program workouts persisted per user+program. A dropped request on
+// mobile should never wipe a client's training list.
+const detailsCacheKey = (userId: string, programId: string) =>
+  `pc:programDetails:${userId}:${programId}`;
+
+function readDetailsCache(userId: string | undefined, programId: string): any[] | null {
+  if (!userId) return null;
+  try {
+    const raw = localStorage.getItem(detailsCacheKey(userId, programId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.phases) ? parsed.phases : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDetailsCache(userId: string | undefined, programId: string, phases: any[]) {
+  if (!userId) return;
+  try {
+    localStorage.setItem(
+      detailsCacheKey(userId, programId),
+      JSON.stringify({ phases, ts: Date.now() }),
+    );
+  } catch {
+    /* quota / private mode — cache is best-effort */
+  }
+}
+
 interface ClientProgramViewProps {
   onStartWorkout: (workoutId: string) => void;
 }
