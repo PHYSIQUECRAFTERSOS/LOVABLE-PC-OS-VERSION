@@ -217,15 +217,14 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     const assignment = assignments.find(a => a.program_id === programId);
     const currentPhaseId = assignment?.current_phase_id || null;
 
-    const { data: phasesRaw, error: phaseErr } = await withRetry(
-      async () => await supabase
+    const phasesRaw = await q<any[]>(
+      () => supabase
         .from("program_phases")
         .select("id, name, phase_order")
         .eq("program_id", programId)
         .order("phase_order"),
-      { label: "training phases", attempts: 2, timeoutMs: 8000 },
+      "training phases",
     );
-    if (phaseErr) throw phaseErr;
 
     // Restrict to the active phase. Fallback to the first phase if no
     // current_phase_id is set yet (newly-assigned client).
@@ -241,10 +240,13 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       const workoutIds = [...new Set(allPwRows.map(pw => pw.workout_id))];
       const [workoutsResult, thumbsResult] = await Promise.allSettled([
         workoutIds.length > 0
-          ? supabase.from("workouts").select("id, name").in("id", workoutIds)
-          : Promise.resolve({ data: [] }),
+          ? q<any[]>(() => supabase.from("workouts").select("id, name").in("id", workoutIds), "program workouts names")
+          : Promise.resolve([] as any[]),
         fetchWorkoutThumbnails(workoutIds),
       ]);
+      if (workoutsResult.status === "rejected") throw workoutsResult.reason;
+      const workoutsRes = { data: workoutsResult.value } as any;
+
       const workoutsRes = workoutsResult.status === "fulfilled" ? workoutsResult.value : { data: [] };
       if (workoutsResult.status === "rejected" || (workoutsRes as any).error) {
         throw workoutsResult.status === "rejected" ? workoutsResult.reason : (workoutsRes as any).error;
