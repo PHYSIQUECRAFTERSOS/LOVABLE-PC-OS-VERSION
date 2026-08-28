@@ -246,11 +246,6 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       ]);
       if (workoutsResult.status === "rejected") throw workoutsResult.reason;
       const workoutsRes = { data: workoutsResult.value } as any;
-
-      const workoutsRes = workoutsResult.status === "fulfilled" ? workoutsResult.value : { data: [] };
-      if (workoutsResult.status === "rejected" || (workoutsRes as any).error) {
-        throw workoutsResult.status === "rejected" ? workoutsResult.reason : (workoutsRes as any).error;
-      }
       const thumbs = thumbsResult.status === "fulfilled" ? thumbsResult.value : new Map();
       const wMap = new Map(((workoutsRes as any).data || []).map((w: any) => [w.id, w.name]));
 
