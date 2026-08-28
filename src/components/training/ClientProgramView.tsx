@@ -17,6 +17,35 @@ const GOAL_LABELS: Record<string, string> = {
   recomp: "Recomp", muscle_gain: "Muscle Gain",
 };
 
+// Last-good program workouts persisted per user+program. A dropped request on
+// mobile should never wipe a client's training list.
+const detailsCacheKey = (userId: string, programId: string) =>
+  `pc:programDetails:${userId}:${programId}`;
+
+function readDetailsCache(userId: string | undefined, programId: string): any[] | null {
+  if (!userId) return null;
+  try {
+    const raw = localStorage.getItem(detailsCacheKey(userId, programId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.phases) ? parsed.phases : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDetailsCache(userId: string | undefined, programId: string, phases: any[]) {
+  if (!userId) return;
+  try {
+    localStorage.setItem(
+      detailsCacheKey(userId, programId),
+      JSON.stringify({ phases, ts: Date.now() }),
+    );
+  } catch {
+    /* quota / private mode — cache is best-effort */
+  }
+}
+
 interface ClientProgramViewProps {
   onStartWorkout: (workoutId: string) => void;
 }
@@ -151,6 +180,15 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     return fetchWorkoutThumbnailSummary(workoutIds);
   };
 
+  // Every program-detail read goes through the same retry/timeout budget so a
+  // single dropped request on mobile can't dead-end the workout list.
+  const q = <T,>(fn: () => any, label: string): Promise<T> =>
+    withRetry(async () => {
+      const { data, error } = await fn();
+      if (error) throw error;
+      return data as T;
+    }, { label, attempts: 3, timeoutMs: 10000 });
+
   const toggleProgram = async (programId: string, forceReload = false) => {
     if (!session) { console.warn("[ClientProgramView] toggleProgram blocked — no session"); return; }
     if (expandedProgram === programId && !forceReload) {
@@ -160,27 +198,33 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     setExpandedProgram(programId);
     if (phaseDetails[programId] && !forceReload) return;
 
-    setLoadingDetails(programId);
+    // Paint the last-known workouts instantly while we revalidate.
+    const cached = readDetailsCache(userId, programId);
+    if (cached && !phaseDetails[programId]) {
+      setPhaseDetails((prev) => ({ ...prev, [programId]: cached as PhaseDetail[] }));
+    }
+
+    setLoadingDetails(cached ? null : programId);
     setDetailErrors((prev) => {
       const next = { ...prev };
       delete next[programId];
       return next;
     });
 
+
     try {
     // Clients only see their CURRENT phase — never future phases.
     const assignment = assignments.find(a => a.program_id === programId);
     const currentPhaseId = assignment?.current_phase_id || null;
 
-    const { data: phasesRaw, error: phaseErr } = await withRetry(
-      async () => await supabase
+    const phasesRaw = await q<any[]>(
+      () => supabase
         .from("program_phases")
         .select("id, name, phase_order")
         .eq("program_id", programId)
         .order("phase_order"),
-      { label: "training phases", attempts: 2, timeoutMs: 8000 },
+      "training phases",
     );
-    if (phaseErr) throw phaseErr;
 
     // Restrict to the active phase. Fallback to the first phase if no
     // current_phase_id is set yet (newly-assigned client).
@@ -196,14 +240,12 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       const workoutIds = [...new Set(allPwRows.map(pw => pw.workout_id))];
       const [workoutsResult, thumbsResult] = await Promise.allSettled([
         workoutIds.length > 0
-          ? supabase.from("workouts").select("id, name").in("id", workoutIds)
-          : Promise.resolve({ data: [] }),
+          ? q<any[]>(() => supabase.from("workouts").select("id, name").in("id", workoutIds), "program workouts names")
+          : Promise.resolve([] as any[]),
         fetchWorkoutThumbnails(workoutIds),
       ]);
-      const workoutsRes = workoutsResult.status === "fulfilled" ? workoutsResult.value : { data: [] };
-      if (workoutsResult.status === "rejected" || (workoutsRes as any).error) {
-        throw workoutsResult.status === "rejected" ? workoutsResult.reason : (workoutsRes as any).error;
-      }
+      if (workoutsResult.status === "rejected") throw workoutsResult.reason;
+      const workoutsRes = { data: workoutsResult.value } as any;
       const thumbs = thumbsResult.status === "fulfilled" ? thumbsResult.value : new Map();
       const wMap = new Map(((workoutsRes as any).data || []).map((w: any) => [w.id, w.name]));
 
@@ -235,21 +277,25 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     };
 
     if (!phases || phases.length === 0) {
-      const { data: weeks, error: weeksError } = await supabase
-        .from("program_weeks")
-        .select("id, week_number, name, phase_id")
-        .eq("program_id", programId)
-        .order("week_number");
-      if (weeksError) throw weeksError;
+      const weeks = await q<any[]>(
+        () => supabase
+          .from("program_weeks")
+          .select("id, week_number, name, phase_id")
+          .eq("program_id", programId)
+          .order("week_number"),
+        "program weeks",
+      );
 
       if (weeks && weeks.length > 0) {
         const weekIds = weeks.map(w => w.id);
-        const { data: pwRows, error: pwError } = await supabase
-          .from("program_workouts")
-          .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
-          .in("week_id", weekIds)
-          .order("sort_order");
-        if (pwError) throw pwError;
+        const pwRows = await q<any[]>(
+          () => supabase
+            .from("program_workouts")
+            .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
+            .in("week_id", weekIds)
+            .order("sort_order"),
+          "week workouts",
+        );
 
         const fakePhases = weeks.map(w => ({
           id: w.id, name: w.name || `Week ${w.week_number}`, phase_order: w.week_number,
@@ -260,30 +306,36 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
         const detail = await buildDetails(fakePhases, annotated);
         setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
+        writeDetailsCache(userId, programId, detail);
       } else {
-        const { data: directWorkouts, error: directError } = await supabase
-          .from("workouts")
-          .select("id, name")
-          .eq("client_id", userId || "")
-          .order("created_at");
-        if (directError) throw directError;
+        const directWorkouts = await q<any[]>(
+          () => supabase
+            .from("workouts")
+            .select("id, name")
+            .eq("client_id", userId || "")
+            .order("created_at"),
+          "direct workouts",
+        );
 
         if (directWorkouts && directWorkouts.length > 0) {
-          const thumbs = await fetchWorkoutThumbnails(directWorkouts.map(w => w.id));
-          setPhaseDetails(prev => ({
-            ...prev,
-            [programId]: [{
-              id: "direct", name: "Workouts", phase_order: 1,
-              workouts: directWorkouts.map((w, i) => ({
-                id: w.id, workout_id: w.id, day_label: `Day ${i + 1}`,
-                sort_order: i, day_of_week: i, workout_name: w.name,
-                thumbnail_url: thumbs.get(w.id)?.thumbnail || null,
-                exercise_count: thumbs.get(w.id)?.count || 0,
-              })),
-            }],
-          }));
+          const thumbsSettled = await Promise.allSettled([
+            fetchWorkoutThumbnails(directWorkouts.map(w => w.id)),
+          ]);
+          const thumbs = thumbsSettled[0].status === "fulfilled" ? thumbsSettled[0].value : new Map();
+          const detail = [{
+            id: "direct", name: "Workouts", phase_order: 1,
+            workouts: directWorkouts.map((w, i) => ({
+              id: w.id, workout_id: w.id, day_label: `Day ${i + 1}`,
+              sort_order: i, day_of_week: i, workout_name: w.name,
+              thumbnail_url: thumbs.get(w.id)?.thumbnail || null,
+              exercise_count: thumbs.get(w.id)?.count || 0,
+            })),
+          }] as any;
+          setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
+          writeDetailsCache(userId, programId, detail);
         } else {
           setPhaseDetails(prev => ({ ...prev, [programId]: [] }));
+          writeDetailsCache(userId, programId, []);
         }
       }
       setLoadingDetails(null);
@@ -291,29 +343,34 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     }
 
     const phaseIds = phases.map(p => p.id);
-    const { data: pwRows, error: pwError } = await supabase
-      .from("program_workouts")
-      .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
-      .in("phase_id", phaseIds)
-      .order("sort_order");
-    if (pwError) throw pwError;
+    const pwRows = await q<any[]>(
+      () => supabase
+        .from("program_workouts")
+        .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
+        .in("phase_id", phaseIds)
+        .order("sort_order"),
+      "phase workouts",
+    );
 
-    const { data: weekRows, error: weekError } = await supabase
-      .from("program_weeks")
-      .select("id, phase_id")
-      .in("phase_id", phaseIds);
-    if (weekError) throw weekError;
+    const weekRows = await q<any[]>(
+      () => supabase
+        .from("program_weeks")
+        .select("id, phase_id")
+        .in("phase_id", phaseIds),
+      "phase weeks",
+    );
 
     let weekWorkouts: any[] = [];
     if (weekRows && weekRows.length > 0) {
       const weekIds = weekRows.map(w => w.id);
-      const { data: wwRows, error: wwError } = await supabase
-        .from("program_workouts")
-        .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
-        .in("week_id", weekIds)
-        .order("sort_order");
-      if (wwError) throw wwError;
-      weekWorkouts = wwRows || [];
+      weekWorkouts = (await q<any[]>(
+        () => supabase
+          .from("program_workouts")
+          .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
+          .in("week_id", weekIds)
+          .order("sort_order"),
+        "week workouts",
+      )) || [];
     }
 
     const weekToPhase = new Map((weekRows || []).map(w => [w.id, w.phase_id]));
@@ -327,12 +384,20 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
     const detail = await buildDetails(phases, allPwRows);
     setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
+    writeDetailsCache(userId, programId, detail);
     setLoadingDetails(null);
     } catch (err: any) {
       console.error("[ClientProgramView] toggleProgram error:", err);
-      setDetailErrors((prev) => ({ ...prev, [programId]: err?.message || "Workouts could not be loaded." }));
+      // Keep showing the last-good list rather than a dead-end error card.
+      const fallback = readDetailsCache(userId, programId);
+      if (fallback && fallback.length > 0) {
+        setPhaseDetails((prev) => ({ ...prev, [programId]: prev[programId] ?? (fallback as PhaseDetail[]) }));
+      } else {
+        setDetailErrors((prev) => ({ ...prev, [programId]: err?.message || "Workouts could not be loaded." }));
+      }
       setLoadingDetails(null);
     }
+
   };
 
   if (loading) {
