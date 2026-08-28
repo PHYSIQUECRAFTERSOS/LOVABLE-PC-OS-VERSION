@@ -277,21 +277,25 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     };
 
     if (!phases || phases.length === 0) {
-      const { data: weeks, error: weeksError } = await supabase
-        .from("program_weeks")
-        .select("id, week_number, name, phase_id")
-        .eq("program_id", programId)
-        .order("week_number");
-      if (weeksError) throw weeksError;
+      const weeks = await q<any[]>(
+        () => supabase
+          .from("program_weeks")
+          .select("id, week_number, name, phase_id")
+          .eq("program_id", programId)
+          .order("week_number"),
+        "program weeks",
+      );
 
       if (weeks && weeks.length > 0) {
         const weekIds = weeks.map(w => w.id);
-        const { data: pwRows, error: pwError } = await supabase
-          .from("program_workouts")
-          .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
-          .in("week_id", weekIds)
-          .order("sort_order");
-        if (pwError) throw pwError;
+        const pwRows = await q<any[]>(
+          () => supabase
+            .from("program_workouts")
+            .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
+            .in("week_id", weekIds)
+            .order("sort_order"),
+          "week workouts",
+        );
 
         const fakePhases = weeks.map(w => ({
           id: w.id, name: w.name || `Week ${w.week_number}`, phase_order: w.week_number,
@@ -302,30 +306,36 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
         const detail = await buildDetails(fakePhases, annotated);
         setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
+        writeDetailsCache(userId, programId, detail);
       } else {
-        const { data: directWorkouts, error: directError } = await supabase
-          .from("workouts")
-          .select("id, name")
-          .eq("client_id", userId || "")
-          .order("created_at");
-        if (directError) throw directError;
+        const directWorkouts = await q<any[]>(
+          () => supabase
+            .from("workouts")
+            .select("id, name")
+            .eq("client_id", userId || "")
+            .order("created_at"),
+          "direct workouts",
+        );
 
         if (directWorkouts && directWorkouts.length > 0) {
-          const thumbs = await fetchWorkoutThumbnails(directWorkouts.map(w => w.id));
-          setPhaseDetails(prev => ({
-            ...prev,
-            [programId]: [{
-              id: "direct", name: "Workouts", phase_order: 1,
-              workouts: directWorkouts.map((w, i) => ({
-                id: w.id, workout_id: w.id, day_label: `Day ${i + 1}`,
-                sort_order: i, day_of_week: i, workout_name: w.name,
-                thumbnail_url: thumbs.get(w.id)?.thumbnail || null,
-                exercise_count: thumbs.get(w.id)?.count || 0,
-              })),
-            }],
-          }));
+          const thumbsSettled = await Promise.allSettled([
+            fetchWorkoutThumbnails(directWorkouts.map(w => w.id)),
+          ]);
+          const thumbs = thumbsSettled[0].status === "fulfilled" ? thumbsSettled[0].value : new Map();
+          const detail = [{
+            id: "direct", name: "Workouts", phase_order: 1,
+            workouts: directWorkouts.map((w, i) => ({
+              id: w.id, workout_id: w.id, day_label: `Day ${i + 1}`,
+              sort_order: i, day_of_week: i, workout_name: w.name,
+              thumbnail_url: thumbs.get(w.id)?.thumbnail || null,
+              exercise_count: thumbs.get(w.id)?.count || 0,
+            })),
+          }] as any;
+          setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
+          writeDetailsCache(userId, programId, detail);
         } else {
           setPhaseDetails(prev => ({ ...prev, [programId]: [] }));
+          writeDetailsCache(userId, programId, []);
         }
       }
       setLoadingDetails(null);
@@ -333,29 +343,34 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     }
 
     const phaseIds = phases.map(p => p.id);
-    const { data: pwRows, error: pwError } = await supabase
-      .from("program_workouts")
-      .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
-      .in("phase_id", phaseIds)
-      .order("sort_order");
-    if (pwError) throw pwError;
+    const pwRows = await q<any[]>(
+      () => supabase
+        .from("program_workouts")
+        .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
+        .in("phase_id", phaseIds)
+        .order("sort_order"),
+      "phase workouts",
+    );
 
-    const { data: weekRows, error: weekError } = await supabase
-      .from("program_weeks")
-      .select("id, phase_id")
-      .in("phase_id", phaseIds);
-    if (weekError) throw weekError;
+    const weekRows = await q<any[]>(
+      () => supabase
+        .from("program_weeks")
+        .select("id, phase_id")
+        .in("phase_id", phaseIds),
+      "phase weeks",
+    );
 
     let weekWorkouts: any[] = [];
     if (weekRows && weekRows.length > 0) {
       const weekIds = weekRows.map(w => w.id);
-      const { data: wwRows, error: wwError } = await supabase
-        .from("program_workouts")
-        .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
-        .in("week_id", weekIds)
-        .order("sort_order");
-      if (wwError) throw wwError;
-      weekWorkouts = wwRows || [];
+      weekWorkouts = (await q<any[]>(
+        () => supabase
+          .from("program_workouts")
+          .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
+          .in("week_id", weekIds)
+          .order("sort_order"),
+        "week workouts",
+      )) || [];
     }
 
     const weekToPhase = new Map((weekRows || []).map(w => [w.id, w.phase_id]));
@@ -369,12 +384,20 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
     const detail = await buildDetails(phases, allPwRows);
     setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
+    writeDetailsCache(userId, programId, detail);
     setLoadingDetails(null);
     } catch (err: any) {
       console.error("[ClientProgramView] toggleProgram error:", err);
-      setDetailErrors((prev) => ({ ...prev, [programId]: err?.message || "Workouts could not be loaded." }));
+      // Keep showing the last-good list rather than a dead-end error card.
+      const fallback = readDetailsCache(userId, programId);
+      if (fallback && fallback.length > 0) {
+        setPhaseDetails((prev) => ({ ...prev, [programId]: prev[programId] ?? (fallback as PhaseDetail[]) }));
+      } else {
+        setDetailErrors((prev) => ({ ...prev, [programId]: err?.message || "Workouts could not be loaded." }));
+      }
       setLoadingDetails(null);
     }
+
   };
 
   if (loading) {
