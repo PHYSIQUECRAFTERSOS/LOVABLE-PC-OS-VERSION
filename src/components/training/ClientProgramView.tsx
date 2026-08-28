@@ -180,6 +180,15 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     return fetchWorkoutThumbnailSummary(workoutIds);
   };
 
+  // Every program-detail read goes through the same retry/timeout budget so a
+  // single dropped request on mobile can't dead-end the workout list.
+  const q = <T,>(fn: () => any, label: string): Promise<T> =>
+    withRetry(async () => {
+      const { data, error } = await fn();
+      if (error) throw error;
+      return data as T;
+    }, { label, attempts: 3, timeoutMs: 10000 });
+
   const toggleProgram = async (programId: string, forceReload = false) => {
     if (!session) { console.warn("[ClientProgramView] toggleProgram blocked — no session"); return; }
     if (expandedProgram === programId && !forceReload) {
@@ -189,12 +198,19 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     setExpandedProgram(programId);
     if (phaseDetails[programId] && !forceReload) return;
 
-    setLoadingDetails(programId);
+    // Paint the last-known workouts instantly while we revalidate.
+    const cached = readDetailsCache(userId, programId);
+    if (cached && !phaseDetails[programId]) {
+      setPhaseDetails((prev) => ({ ...prev, [programId]: cached as PhaseDetail[] }));
+    }
+
+    setLoadingDetails(cached ? null : programId);
     setDetailErrors((prev) => {
       const next = { ...prev };
       delete next[programId];
       return next;
     });
+
 
     try {
     // Clients only see their CURRENT phase — never future phases.
