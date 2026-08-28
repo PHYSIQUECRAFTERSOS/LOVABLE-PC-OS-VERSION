@@ -10,6 +10,9 @@ import { fetchWorkoutThumbnailSummary } from "@/lib/workoutExerciseQueries";
 import ExportPdfButton from "@/components/common/ExportPdfButton";
 import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 import { withRetry } from "@/lib/resilientFetch";
+import { derivePhaseDates } from "@/lib/phaseDates";
+import { getLocalDateString } from "@/utils/localDate";
+
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
@@ -220,21 +223,34 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     const phasesRaw = await q<any[]>(
       () => supabase
         .from("program_phases")
-        .select("id, name, phase_order")
+        .select("id, name, phase_order, duration_weeks, start_date, end_date")
         .eq("program_id", programId)
         .order("phase_order"),
       "training phases",
     );
 
-    // Restrict to the active phase. Fallback to the first phase if no
-    // current_phase_id is set yet (newly-assigned client).
+    // Restrict to the active phase. The date-derived phase wins over the
+    // denormalized current_phase_id, which often goes stale when a coach adds
+    // a new block. Fallbacks: stored current_phase_id → last started phase →
+    // first phase.
     let phases = phasesRaw || [];
     if (phases.length > 0) {
-      const active = currentPhaseId
-        ? phases.find(p => p.id === currentPhaseId)
-        : phases[0];
-      phases = active ? [active] : [phases[0]];
+      const sorted = [...phases].sort(
+        (a: any, b: any) => (a.phase_order ?? 0) - (b.phase_order ?? 0),
+      );
+      const derived = derivePhaseDates(assignment?.start_date, sorted as any);
+      const today = getLocalDateString();
+      const active =
+        sorted.find((p: any) => derived[p.id]?.isCurrent) ||
+        sorted.find((p: any) => p.id === currentPhaseId) ||
+        [...sorted].reverse().find((p: any) => {
+          const s = derived[p.id]?.start_date;
+          return s ? s <= today : false;
+        }) ||
+        sorted[0];
+      phases = active ? [active] : [sorted[0]];
     }
+
 
     const buildDetails = async (rawPhases: any[], allPwRows: any[]) => {
       const workoutIds = [...new Set(allPwRows.map(pw => pw.workout_id))];

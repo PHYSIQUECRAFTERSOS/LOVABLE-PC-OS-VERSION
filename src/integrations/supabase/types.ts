@@ -8333,6 +8333,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      workout_visible_via_program: {
+        Args: { _user_id: string; _workout_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "coach" | "client" | "manager"
