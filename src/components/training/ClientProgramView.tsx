@@ -223,7 +223,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     const phasesRaw = await q<any[]>(
       () => supabase
         .from("program_phases")
-        .select("id, name, phase_order, duration_weeks, start_date, end_date")
+        .select("id, name, phase_order, duration_weeks, start_date")
         .eq("program_id", programId)
         .order("phase_order"),
       "training phases",
