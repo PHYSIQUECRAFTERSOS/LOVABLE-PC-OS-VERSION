@@ -12,6 +12,7 @@ import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 import { withRetry } from "@/lib/resilientFetch";
 import { derivePhaseDates } from "@/lib/phaseDates";
 import { getLocalDateString } from "@/utils/localDate";
+import { useClientProgram } from "@/hooks/useClientProgram";
 
 
 const GOAL_LABELS: Record<string, string> = {
@@ -89,9 +90,15 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   const { user, session } = useAuth();
   const userId = user?.id;
   const [assignments, setAssignments] = useState<ProgramAssignment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loadAttempt, setLoadAttempt] = useState(0);
+  const {
+    assignment: bundledAssignment,
+    program: bundledProgram,
+    phases: bundledPhases,
+    weeks: bundledWeeks,
+    loading,
+    error: loadError,
+    reload: reloadProgram,
+  } = useClientProgram(userId);
   const [expandedProgram, setExpandedProgram] = useState<string | null>(null);
   const [phaseDetails, setPhaseDetails] = useState<Record<string, PhaseDetail[]>>({});
   const [loadingDetails, setLoadingDetails] = useState<string | null>(null);
@@ -102,95 +109,30 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   const [previewWorkoutName, setPreviewWorkoutName] = useState("");
 
   useEffect(() => {
-    if (!userId || !session) return;
-    const load = async () => {
-      setLoadError(null);
-      if (assignments.length === 0) setLoading(true);
-      try {
-      const { data: cpa, error: cpaErr } = await withRetry(
-        async () => await supabase
-          .from("client_program_assignments")
-          .select("id, program_id, start_date, status, current_phase_id")
-          .eq("client_id", userId)
-          .in("status", ["active", "subscribed"])
-          .order("created_at", { ascending: false }),
-        { label: "training assignments", attempts: 2, timeoutMs: 8000 },
-      );
+    if (!bundledAssignment || !bundledProgram) {
+      if (!loading) setAssignments([]);
+      return;
+    }
 
-      if (cpaErr) throw cpaErr;
-      console.log("[ClientProgramView] assignments:", cpa?.length ?? 0);
-
-      if (!cpa || cpa.length === 0) {
-        const { data: directPrograms, error: directError } = await withRetry(
-          async () => await supabase
-            .from("programs")
-            .select("id, name, description, goal_type")
-            .eq("client_id", userId)
-            .eq("is_template", false)
-            .order("created_at", { ascending: false }),
-          { label: "direct training programs", attempts: 2, timeoutMs: 8000 },
-        );
-        if (directError) throw directError;
-
-        console.log("[ClientProgramView] directPrograms fallback:", directPrograms?.length ?? 0);
-        if (directPrograms && directPrograms.length > 0) {
-          setAssignments(directPrograms.map(p => ({
-            id: p.id, program_id: p.id, start_date: "", status: "active",
-            program: p,
-          })));
-        }
-        setLoading(false);
-        return;
-      }
-
-      const programIds = [...new Set(cpa.map(a => a.program_id))];
-      const { data: programs, error: progErr } = await withRetry(
-        async () => await supabase
-          .from("programs")
-          .select("id, name, description, goal_type")
-          .in("id", programIds),
-        { label: "assigned training programs", attempts: 2, timeoutMs: 8000 },
-      );
-
-      if (progErr) throw progErr;
-      console.log("[ClientProgramView] programs fetched:", programs?.length ?? 0, "for IDs:", programIds);
-
-      const programMap = new Map((programs || []).map(p => [p.id, p]));
-      const merged: ProgramAssignment[] = cpa
-        .filter(a => programMap.has(a.program_id))
-        .map(a => ({ ...a, program: programMap.get(a.program_id)! }));
-
-      const seen = new Set<string>();
-      const deduped = merged.filter(a => {
-        if (seen.has(a.program_id)) return false;
-        seen.add(a.program_id);
-        return true;
-      });
-
-      setAssignments(deduped);
-      setLoading(false);
-      } catch (err: any) {
-        console.error("[ClientProgramView] load error:", err);
-        setLoadError(err?.message || "Training could not be loaded.");
-        setLoading(false);
-      }
-    };
-    load();
-  }, [userId, session, loadAttempt]); // assignments intentionally retained during retries
+    setAssignments([{
+      id: bundledAssignment.id,
+      program_id: bundledAssignment.program_id,
+      start_date: bundledAssignment.start_date || "",
+      status: bundledAssignment.status,
+      current_phase_id: bundledAssignment.current_phase_id,
+      program: {
+        id: bundledProgram.id,
+        name: bundledProgram.name,
+        description: bundledProgram.description,
+        goal_type: bundledProgram.goal_type,
+      },
+    }]);
+  }, [bundledAssignment, bundledProgram, loading]);
 
   // Fetch first exercise thumbnail for each workout
   const fetchWorkoutThumbnails = async (workoutIds: string[]) => {
     return fetchWorkoutThumbnailSummary(workoutIds);
   };
-
-  // Every program-detail read goes through the same retry/timeout budget so a
-  // single dropped request on mobile can't dead-end the workout list.
-  const q = <T,>(fn: () => any, label: string): Promise<T> =>
-    withRetry(async () => {
-      const { data, error } = await fn();
-      if (error) throw error;
-      return data as T;
-    }, { label, attempts: 3, timeoutMs: 10000 });
 
   const toggleProgram = async (programId: string, forceReload = false) => {
     if (!session) { console.warn("[ClientProgramView] toggleProgram blocked — no session"); return; }
@@ -214,194 +156,85 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       return next;
     });
 
-
     try {
-    // Clients only see their CURRENT phase — never future phases.
-    const assignment = assignments.find(a => a.program_id === programId);
-    const currentPhaseId = assignment?.current_phase_id || null;
+      if (forceReload) await reloadProgram();
 
-    const phasesRaw = await q<any[]>(
-      () => supabase
-        .from("program_phases")
-        .select("id, name, phase_order, duration_weeks, start_date")
-        .eq("program_id", programId)
-        .order("phase_order"),
-      "training phases",
-    );
-
-    // Restrict to the active phase. The date-derived phase wins over the
-    // denormalized current_phase_id, which often goes stale when a coach adds
-    // a new block. Fallbacks: stored current_phase_id → last started phase →
-    // first phase.
-    let phases = phasesRaw || [];
-    if (phases.length > 0) {
-      const sorted = [...phases].sort(
-        (a: any, b: any) => (a.phase_order ?? 0) - (b.phase_order ?? 0),
+      const assignment = assignments.find((item) => item.program_id === programId);
+      const sortedPhases = [...bundledPhases].sort(
+        (a, b) => (a.phase_order ?? 0) - (b.phase_order ?? 0),
       );
-      const derived = derivePhaseDates(assignment?.start_date, sorted as any);
+      const derived = derivePhaseDates(assignment?.start_date, sortedPhases as any);
       const today = getLocalDateString();
-      const active =
-        sorted.find((p: any) => derived[p.id]?.isCurrent) ||
-        sorted.find((p: any) => p.id === currentPhaseId) ||
-        [...sorted].reverse().find((p: any) => {
-          const s = derived[p.id]?.start_date;
-          return s ? s <= today : false;
+      const activePhase =
+        sortedPhases.find((phase) => derived[phase.id]?.isCurrent) ||
+        sortedPhases.find((phase) => phase.id === assignment?.current_phase_id) ||
+        [...sortedPhases].reverse().find((phase) => {
+          const startDate = derived[phase.id]?.start_date;
+          return startDate ? startDate <= today : false;
         }) ||
-        sorted[0];
-      phases = active ? [active] : [sorted[0]];
-    }
+        sortedPhases[0];
 
+      const sourceGroups = activePhase
+        ? [{
+            id: activePhase.id,
+            name: activePhase.name,
+            phase_order: activePhase.phase_order,
+            workouts: [
+              ...(activePhase.directWorkouts || []),
+              ...bundledWeeks
+                .filter((week) => week.phase_id === activePhase.id)
+                .flatMap((week) => week.workouts || []),
+            ],
+          }]
+        : bundledWeeks.map((week) => ({
+            id: week.id,
+            name: week.name || `Week ${week.week_number}`,
+            phase_order: week.week_number,
+            workouts: week.workouts || [],
+          }));
 
-    const buildDetails = async (rawPhases: any[], allPwRows: any[]) => {
-      const workoutIds = [...new Set(allPwRows.map(pw => pw.workout_id))];
-      const [workoutsResult, thumbsResult] = await Promise.allSettled([
-        workoutIds.length > 0
-          ? q<any[]>(() => supabase.from("workouts").select("id, name").in("id", workoutIds), "program workouts names")
-          : Promise.resolve([] as any[]),
-        fetchWorkoutThumbnails(workoutIds),
-      ]);
-      if (workoutsResult.status === "rejected") throw workoutsResult.reason;
-      const workoutsRes = { data: workoutsResult.value } as any;
-      const thumbs = thumbsResult.status === "fulfilled" ? thumbsResult.value : new Map();
-      const wMap = new Map(((workoutsRes as any).data || []).map((w: any) => [w.id, w.name]));
-
-      return rawPhases.map(phase => ({
-        ...phase,
-        workouts: allPwRows
-          .filter((pw: any) => {
-            if (pw.phase_id === phase.id) return true;
-            if (pw._resolvedPhaseId === phase.id) return true;
-            return false;
-          })
-          .filter((pw: any, idx: number, arr: any[]) =>
-            arr.findIndex((x: any) => x.workout_id === pw.workout_id) === idx
+      const detail: PhaseDetail[] = sourceGroups.map((group) => ({
+        id: group.id,
+        name: group.name,
+        phase_order: group.phase_order,
+        workouts: group.workouts
+          .filter((workout, index, rows) =>
+            rows.findIndex((candidate) => candidate.workout_id === workout.workout_id) === index
           )
-          .sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
-          .map((pw: any) => ({
-            id: pw.id,
-            workout_id: pw.workout_id,
-            day_label: pw.day_label,
-            sort_order: pw.sort_order,
-            day_of_week: pw.day_of_week,
-            workout_name: wMap.get(pw.workout_id) || "Workout",
-            exclude_from_numbering: pw.exclude_from_numbering || false,
-            custom_tag: pw.custom_tag || null,
-            thumbnail_url: thumbs.get(pw.workout_id)?.thumbnail || null,
-            exercise_count: thumbs.get(pw.workout_id)?.count || 0,
+          .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
+          .map((workout) => ({
+            id: workout.id,
+            workout_id: workout.workout_id,
+            day_label: workout.day_label,
+            sort_order: workout.sort_order ?? null,
+            day_of_week: workout.day_of_week,
+            workout_name: workout.workout_name || "Workout",
+            exclude_from_numbering: workout.exclude_from_numbering || false,
+            custom_tag: workout.custom_tag || null,
+            thumbnail_url: null,
+            exercise_count: 0,
           })),
       }));
-    };
 
-    if (!phases || phases.length === 0) {
-      const weeks = await q<any[]>(
-        () => supabase
-          .from("program_weeks")
-          .select("id, week_number, name, phase_id")
-          .eq("program_id", programId)
-          .order("week_number"),
-        "program weeks",
-      );
-
-      if (weeks && weeks.length > 0) {
-        const weekIds = weeks.map(w => w.id);
-        const pwRows = await q<any[]>(
-          () => supabase
-            .from("program_workouts")
-            .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
-            .in("week_id", weekIds)
-            .order("sort_order"),
-          "week workouts",
-        );
-
-        const fakePhases = weeks.map(w => ({
-          id: w.id, name: w.name || `Week ${w.week_number}`, phase_order: w.week_number,
-        }));
-        const annotated = (pwRows || []).map(pw => ({
-          ...pw, _resolvedPhaseId: pw.week_id, phase_id: pw.week_id,
-        }));
-
-        const detail = await buildDetails(fakePhases, annotated);
-        setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
-        writeDetailsCache(userId, programId, detail);
-      } else {
-        const directWorkouts = await q<any[]>(
-          () => supabase
-            .from("workouts")
-            .select("id, name")
-            .eq("client_id", userId || "")
-            .order("created_at"),
-          "direct workouts",
-        );
-
-        if (directWorkouts && directWorkouts.length > 0) {
-          const thumbsSettled = await Promise.allSettled([
-            fetchWorkoutThumbnails(directWorkouts.map(w => w.id)),
-          ]);
-          const thumbs = thumbsSettled[0].status === "fulfilled" ? thumbsSettled[0].value : new Map();
-          const detail = [{
-            id: "direct", name: "Workouts", phase_order: 1,
-            workouts: directWorkouts.map((w, i) => ({
-              id: w.id, workout_id: w.id, day_label: `Day ${i + 1}`,
-              sort_order: i, day_of_week: i, workout_name: w.name,
-              thumbnail_url: thumbs.get(w.id)?.thumbnail || null,
-              exercise_count: thumbs.get(w.id)?.count || 0,
-            })),
-          }] as any;
-          setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
-          writeDetailsCache(userId, programId, detail);
-        } else {
-          setPhaseDetails(prev => ({ ...prev, [programId]: [] }));
-          writeDetailsCache(userId, programId, []);
-        }
-      }
+      setPhaseDetails((prev) => ({ ...prev, [programId]: detail }));
+      writeDetailsCache(userId, programId, detail);
       setLoadingDetails(null);
-      return;
-    }
 
-    const phaseIds = phases.map(p => p.id);
-    const pwRows = await q<any[]>(
-      () => supabase
-        .from("program_workouts")
-        .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
-        .in("phase_id", phaseIds)
-        .order("sort_order"),
-      "phase workouts",
-    );
-
-    const weekRows = await q<any[]>(
-      () => supabase
-        .from("program_weeks")
-        .select("id, phase_id")
-        .in("phase_id", phaseIds),
-      "phase weeks",
-    );
-
-    let weekWorkouts: any[] = [];
-    if (weekRows && weekRows.length > 0) {
-      const weekIds = weekRows.map(w => w.id);
-      weekWorkouts = (await q<any[]>(
-        () => supabase
-          .from("program_workouts")
-          .select("id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
-          .in("week_id", weekIds)
-          .order("sort_order"),
-        "week workouts",
-      )) || [];
-    }
-
-    const weekToPhase = new Map((weekRows || []).map(w => [w.id, w.phase_id]));
-    const allPwRows = [
-      ...(pwRows || []),
-      ...(weekWorkouts || []).map(ww => ({
-        ...ww,
-        _resolvedPhaseId: weekToPhase.get(ww.week_id),
-      })),
-    ];
-
-    const detail = await buildDetails(phases, allPwRows);
-    setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
-    writeDetailsCache(userId, programId, detail);
-    setLoadingDetails(null);
+      const workoutIds = detail.flatMap((phase) => phase.workouts.map((workout) => workout.workout_id));
+      void fetchWorkoutThumbnails(workoutIds).then((thumbs) => {
+        const enriched = detail.map((phase) => ({
+          ...phase,
+          workouts: phase.workouts.map((workout) => ({
+            ...workout,
+            thumbnail_url: thumbs.get(workout.workout_id)?.thumbnail || null,
+            exercise_count: thumbs.get(workout.workout_id)?.count || 0,
+          })),
+        }));
+        setPhaseDetails((prev) => ({ ...prev, [programId]: enriched }));
+        writeDetailsCache(userId, programId, enriched);
+      }).catch((thumbnailError) => {
+        console.warn("[ClientProgramView] thumbnails unavailable:", thumbnailError);
+      });
     } catch (err: any) {
       console.error("[ClientProgramView] toggleProgram error:", err);
       // Keep showing the last-good list rather than a dead-end error card.
@@ -429,7 +262,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       return (
         <Card><CardContent className="flex flex-col items-center gap-3 pt-6 text-center">
           <p className="text-sm text-muted-foreground">Your training program couldn't be loaded.</p>
-          <Button variant="outline" size="sm" onClick={() => setLoadAttempt((value) => value + 1)}>
+          <Button variant="outline" size="sm" onClick={() => { void reloadProgram(); }}>
             <RefreshCw className="mr-2 h-4 w-4" /> Retry
           </Button>
         </CardContent></Card>
