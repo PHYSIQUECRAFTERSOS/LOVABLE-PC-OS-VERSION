@@ -85,11 +85,9 @@ export function useRankedLeaderboard(tab: string) {
         .in("role", ["admin", "coach", "manager"]);
       const coachIds = new Set((coachRoles || []).map((r: any) => r.user_id));
 
-      // Fetch active client IDs to only show active clients
-      const { data: activeClients } = await db
-        .from("coach_clients")
-        .select("client_id")
-        .eq("status", "active");
+      // Fetch active client IDs (secure RPC so clients can see all members, not just themselves)
+      const { data: activeClients, error: activeErr } = await db.rpc("get_active_ranked_client_ids");
+      if (activeErr) console.error("[ranked] active clients fetch failed", activeErr);
       const activeClientIds = new Set((activeClients || []).map((c: any) => c.client_id));
 
       let q = db.from("ranked_profiles").select("*");
