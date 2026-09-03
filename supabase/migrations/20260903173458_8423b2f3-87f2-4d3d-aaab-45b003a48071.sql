@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.get_active_ranked_client_ids() TO service_role;

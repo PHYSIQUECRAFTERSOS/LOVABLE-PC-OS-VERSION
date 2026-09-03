@@ -8071,6 +8071,12 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_active_ranked_client_ids: {
+        Args: never
+        Returns: {
+          client_id: string
+        }[]
+      }
       get_challenge_leaderboard: {
         Args: { _challenge_id: string }
         Returns: {
