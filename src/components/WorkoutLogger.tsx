@@ -402,19 +402,27 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           const todayStr = getLocalDateString();
           const { data: completedToday } = await supabase
             .from("calendar_events")
-            .select("id")
+            .select("id, completed_at")
             .eq("linked_workout_id", workoutId)
             .eq("event_type", "workout")
             .eq("event_date", todayStr)
             .eq("is_completed", true)
             .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
+            .order("completed_at", { ascending: false })
             .limit(1);
 
-          if (completedToday && completedToday.length > 0) {
-            console.log("[WorkoutLogger] Workout already completed today — skipping session creation");
+          // Only block when the completion literally just happened (a remount
+          // right after finishing). Anything older is a deliberate re-run, so
+          // let the client open the tracker again.
+          const justFinished = completedToday?.[0]?.completed_at
+            ? Date.now() - new Date(completedToday[0].completed_at as string).getTime() < 5 * 60 * 1000
+            : false;
+          if (justFinished) {
+            console.log("[WorkoutLogger] Workout just completed — skipping session creation");
             setAlreadyCompletedToday(true);
             return;
           }
+
 
           // Safe to create a new session.
           const { data, error } = await supabase
@@ -1133,48 +1141,42 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
               .update({ is_completed: true, completed_at: completionTimestamp })
               .eq("id", calendarEventId);
           } else if (workoutId) {
-            // Bug 3 fix: when no explicit calendar_event was passed (ad-hoc
-            // launch from Training tab, banner resume, etc.), prefer events
-            // up to and including today. Among those, mark TODAY's event
-            // first if present; otherwise the most recent missed past event.
-            // Never mark a future event as completed.
+            // No explicit calendar event (ad-hoc launch from the Training tab,
+            // banner resume, etc.). Only ever touch TODAY's event for THIS
+            // workout — never another workout's event and never a past date.
+            // If today has no event for this workout, create a completed one so
+            // the session shows up on the dashboard and calendar with stats.
             const todayStr = new Date().toLocaleDateString("en-CA");
-            const { data: calEvents } = await supabase
+            const { data: todaysEvents } = await supabase
               .from("calendar_events")
-              .select("id, event_date")
+              .select("id, is_completed")
               .eq("linked_workout_id", workoutId)
               .eq("event_type", "workout")
-              .eq("is_completed", false)
-              .lte("event_date", todayStr)
+              .eq("event_date", todayStr)
               .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
-              .order("event_date", { ascending: false })
-              .limit(5);
-            if (calEvents?.length) {
-              const todayEvent = calEvents.find(e => e.event_date === todayStr);
-              const target = todayEvent ?? calEvents[0];
-              await supabase
-                .from("calendar_events")
-                .update({ is_completed: true, completed_at: completionTimestamp })
-                .eq("id", target.id);
-            } else {
-              // Fallback: the workout was replaced (new workout id) after the
-              // client launched from stale cached data, so no event matches by
-              // linked_workout_id. If exactly one open workout event exists
-              // today for this client, it is unambiguous — check it off.
-              const { data: dayEvents } = await supabase
-                .from("calendar_events")
-                .select("id")
-                .eq("event_type", "workout")
-                .eq("is_completed", false)
-                .eq("event_date", todayStr)
-                .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
-                .limit(2);
-              if (dayEvents?.length === 1) {
+              .limit(1);
+
+            const existing = todaysEvents?.[0];
+            if (existing) {
+              if (!existing.is_completed) {
                 await supabase
                   .from("calendar_events")
                   .update({ is_completed: true, completed_at: completionTimestamp })
-                  .eq("id", dayEvents[0].id);
+                  .eq("id", existing.id);
               }
+            } else {
+              await supabase
+                .from("calendar_events")
+                .insert({
+                  user_id: user.id,
+                  target_client_id: user.id,
+                  title: workoutName,
+                  event_type: "workout",
+                  event_date: todayStr,
+                  linked_workout_id: workoutId,
+                  is_completed: true,
+                  completed_at: completionTimestamp,
+                } as any);
             }
           }
 
