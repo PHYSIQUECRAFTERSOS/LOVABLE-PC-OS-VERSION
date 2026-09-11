@@ -402,19 +402,27 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           const todayStr = getLocalDateString();
           const { data: completedToday } = await supabase
             .from("calendar_events")
-            .select("id")
+            .select("id, completed_at")
             .eq("linked_workout_id", workoutId)
             .eq("event_type", "workout")
             .eq("event_date", todayStr)
             .eq("is_completed", true)
             .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
+            .order("completed_at", { ascending: false })
             .limit(1);
 
-          if (completedToday && completedToday.length > 0) {
-            console.log("[WorkoutLogger] Workout already completed today — skipping session creation");
+          // Only block when the completion literally just happened (a remount
+          // right after finishing). Anything older is a deliberate re-run, so
+          // let the client open the tracker again.
+          const justFinished = completedToday?.[0]?.completed_at
+            ? Date.now() - new Date(completedToday[0].completed_at as string).getTime() < 5 * 60 * 1000
+            : false;
+          if (justFinished) {
+            console.log("[WorkoutLogger] Workout just completed — skipping session creation");
             setAlreadyCompletedToday(true);
             return;
           }
+
 
           // Safe to create a new session.
           const { data, error } = await supabase
