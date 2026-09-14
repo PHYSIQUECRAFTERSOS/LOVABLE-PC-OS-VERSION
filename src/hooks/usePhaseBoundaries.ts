@@ -114,9 +114,18 @@ export const usePhaseBoundaries = (
     (ymd: string | null | undefined): ResolvedPhase | null => {
       const list = effectivePhases;
       if (!ymd || list.length === 0) return list[0] ?? null;
-      const hit = list.find(
+      // A coach can explicitly start a new phase on the same date the
+      // preceding phase's duration-derived range ends. In that overlap, the
+      // newer phase must win rather than the first (older) matching phase.
+      const matches = list.filter(
         (p) => p.start_date && p.end_date && ymd >= p.start_date && ymd <= p.end_date
       );
+      const hit = matches.reduce<ResolvedPhase | null>((latest, phase) => {
+        if (!latest) return phase;
+        if ((phase.start_date || "") > (latest.start_date || "")) return phase;
+        if (phase.start_date === latest.start_date && phase.phase_order > latest.phase_order) return phase;
+        return latest;
+      }, null);
       if (hit) return hit;
       const first = list[0];
       if (first?.start_date && ymd < first.start_date) return first;

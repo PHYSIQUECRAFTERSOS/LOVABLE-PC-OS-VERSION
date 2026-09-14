@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
 import { useAuth } from "@/hooks/useAuth";
@@ -114,6 +114,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   // Schedule dialog
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState<Date | null>(null);
+  const workoutRequestRef = useRef(0);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [scheduleTitle, setScheduleTitle] = useState("");
   const [saving, setSaving] = useState(false);
@@ -383,6 +384,10 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const [activePhaseLabel, setActivePhaseLabel] = useState<string | null>(null);
 
   const loadClientWorkouts = async (forDate?: Date | null) => {
+    const requestId = ++workoutRequestRef.current;
+    setSelectedWorkoutId("");
+    setClientWorkouts([]);
+
     // Resolve which phase the chosen scheduling date belongs to.
     // Falls back to today's phase, then to current_phase_id, then to first phase.
     // Guarantees the dropdown always shows workouts even before usePhaseBoundaries
@@ -397,7 +402,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
     // Fallback: hit the DB directly so we never end up with an empty dropdown.
     if (!phaseId) {
-      const { data: assignment } = await supabase
+      const { data: assignment, error: assignmentError } = await supabase
         .from("client_program_assignments")
         .select("program_id, current_phase_id")
         .eq("client_id", clientId)
@@ -406,26 +411,41 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         .limit(1)
         .maybeSingle();
 
+      if (requestId !== workoutRequestRef.current) return;
+      if (assignmentError) {
+        console.error("[CalendarTab] assignment load failed:", assignmentError);
+        setActivePhaseLabel(null);
+        return;
+      }
+
       if (assignment?.program_id) {
         // Prefer the date-aware phase from a fresh phase fetch.
-        const { data: rawPhases } = await supabase
+        const { data: rawPhases, error: phasesError } = await supabase
           .from("program_phases")
           .select("id, name, phase_order, duration_weeks, start_date")
           .eq("program_id", assignment.program_id)
           .order("phase_order", { ascending: true });
 
-        const { data: prog } = await supabase
+        const { data: prog, error: programError } = await supabase
           .from("programs")
           .select("start_date")
           .eq("id", assignment.program_id)
           .maybeSingle();
 
+        if (requestId !== workoutRequestRef.current) return;
+        if (phasesError || programError) {
+          console.error("[CalendarTab] phase resolution failed:", phasesError || programError);
+          setActivePhaseLabel(null);
+          return;
+        }
+
         const derived = derivePhaseDates(prog?.start_date, (rawPhases as any[]) || []);
         const sorted = ((rawPhases as any[]) || []).slice().sort((a, b) => a.phase_order - b.phase_order);
-        const hit = sorted.find((p) => {
+        const matchingPhases = sorted.filter((p) => {
           const d = derived[p.id];
           return d?.start_date && d?.end_date && ymd >= d.start_date && ymd <= d.end_date;
         });
+        const hit = matchingPhases[matchingPhases.length - 1];
         const last = sorted[sorted.length - 1];
         const first = sorted[0];
         const fallbackPhase =
@@ -442,6 +462,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       }
     }
 
+    if (requestId !== workoutRequestRef.current) return;
     setActivePhaseLabel(phaseName);
 
     if (!phaseId) {
@@ -449,11 +470,18 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       return;
     }
 
-    const { data: pws } = await supabase
+    const { data: pws, error: workoutsError } = await supabase
       .from("program_workouts")
       .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
       .eq("phase_id", phaseId)
       .order("sort_order", { ascending: true });
+
+    if (requestId !== workoutRequestRef.current) return;
+    if (workoutsError) {
+      console.error("[CalendarTab] workout load failed:", workoutsError);
+      toast({ title: "Workouts couldn't be loaded", description: "Please try selecting the date again.", variant: "destructive" });
+      return;
+    }
 
     // Show workouts verbatim using the coach-authored name and order them by
     // the "Day N" prefix embedded in that name (Trainerize-style).
@@ -574,7 +602,6 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     setCardioTargetType("none");
     setCardioTargetValue("");
     setCardioNotes("");
-    loadClientWorkouts();
     setShowSchedule(true);
   };
 
