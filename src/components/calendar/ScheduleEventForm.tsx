@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import { format, addDays, addWeeks, addMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,6 +71,7 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
   const [targetClientId, setTargetClientId] = useState("");
   const [linkedWorkoutId, setLinkedWorkoutId] = useState("");
   const [notes, setNotes] = useState("");
+  const workoutRequestRef = useRef(0);
 
   useEffect(() => {
     if (selectedDate) {
@@ -113,8 +114,11 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
     if (!isCoach || !user) return;
 
     const loadWorkouts = async () => {
+      const requestId = ++workoutRequestRef.current;
+      setLinkedWorkoutId("");
+      setWorkouts([]);
+
       if (!targetClientId || targetClientId === "none") {
-        setWorkouts([]);
         setActivePhaseLabel(null);
         return;
       }
@@ -122,18 +126,25 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
       const ymd = eventDate || new Date().toLocaleDateString("en-CA");
       const resolved = resolvePhaseForDate(ymd);
       const phaseId = resolved?.id ?? null;
+      if (requestId !== workoutRequestRef.current) return;
       setActivePhaseLabel(resolved?.name ?? null);
 
       if (!phaseId) {
-        setWorkouts([]);
         return;
       }
 
-      const { data: pwRows } = await supabase
+      const { data: pwRows, error } = await supabase
         .from("program_workouts")
         .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(id, name)")
         .eq("phase_id", phaseId)
         .order("sort_order", { ascending: true });
+
+      if (requestId !== workoutRequestRef.current) return;
+      if (error) {
+        console.error("[ScheduleEventForm] workout load failed:", error);
+        toast({ title: "Workouts couldn't be loaded", description: "Please try selecting the date again.", variant: "destructive" });
+        return;
+      }
 
       const normalized = (pwRows || []).map((pw: any) => ({
         id: pw.workout_id,
@@ -166,7 +177,7 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
 
 
     loadWorkouts();
-  }, [isCoach, user, targetClientId, eventDate, programPhases.length, resolvePhaseForDate]);
+  }, [isCoach, user, targetClientId, eventDate, programPhases.length, resolvePhaseForDate, toast]);
 
 
   const resetForm = () => {
