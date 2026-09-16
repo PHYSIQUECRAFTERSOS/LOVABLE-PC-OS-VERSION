@@ -8,6 +8,7 @@ import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { downloadPhoto, photoFilename } from "@/lib/downloadPhoto";
 import { signStoragePaths, signThumbPaths } from "@/lib/supabaseImage";
+import { parseLocalDate } from "@/utils/localDate";
 
 
 
@@ -149,7 +150,7 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <span className="text-sm font-medium text-foreground truncate flex-1">
-                {format(new Date(photo.photo_date), "MMM d, yyyy")} — {mapPoseToAngle(photo.pose)}
+                {format(parseLocalDate(photo.photo_date), "MMM d, yyyy")} — {mapPoseToAngle(photo.pose)}
               </span>
               <Button
                 variant="ghost"
@@ -189,7 +190,7 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
 
   // Compare view
   if (compareMode && compareStep === "view" && beforePhoto && afterPhoto) {
-    const daysDiff = differenceInDays(new Date(afterPhoto.photo_date), new Date(beforePhoto.photo_date));
+    const daysDiff = differenceInDays(parseLocalDate(afterPhoto.photo_date), parseLocalDate(beforePhoto.photo_date));
     return (
       <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
         <DialogContent className="max-w-lg max-h-[95vh] p-0 overflow-hidden">
@@ -216,7 +217,7 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
                     className="w-full aspect-[3/4] object-cover rounded-lg"
                   />
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    {format(new Date(photo.photo_date), "MMM d, yyyy")} · {mapPoseToAngle(photo.pose)}
+                    {format(parseLocalDate(photo.photo_date), "MMM d, yyyy")} · {mapPoseToAngle(photo.pose)}
                   </p>
                 </div>
               ))}
@@ -337,7 +338,7 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
 
                     {/* Date */}
                     <p className="text-[10px] text-muted-foreground py-1 text-center bg-card">
-                      {format(new Date(photo.photo_date), "MMM d, yyyy")}
+                      {format(parseLocalDate(photo.photo_date), "MMM d, yyyy")}
                     </p>
                     {/* Selection label */}
                     {isSelectedBefore && (

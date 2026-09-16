@@ -12,6 +12,16 @@ export function getLocalDateString(): string {
 }
 
 /**
+ * Parses a stored calendar day ("YYYY-MM-DD") into a Date anchored at local noon.
+ * Prevents the day from shifting backwards for users behind UTC (new Date("2026-09-15")
+ * is midnight UTC → Sep 14 in PST). Use for any date-only column (photo_date, log_date).
+ */
+export function parseLocalDate(ymd: string): Date {
+  if (!ymd) return new Date(NaN);
+  return ymd.length === 10 ? new Date(`${ymd}T12:00:00`) : new Date(ymd);
+}
+
+/**
  * Returns a specific Date object formatted as YYYY-MM-DD in local time.
  */
 export function toLocalDateString(date: Date): string {

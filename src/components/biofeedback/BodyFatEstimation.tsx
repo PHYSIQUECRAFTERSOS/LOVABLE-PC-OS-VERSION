@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
+import { parseLocalDate } from "@/utils/localDate";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart, ReferenceLine,
 } from "recharts";
@@ -332,7 +333,7 @@ const BodyFatEstimation = () => {
                 />
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/70 to-transparent px-1.5 py-1">
                   <p className="text-[10px] text-foreground capitalize">{photo.pose.replace("-", " ")}</p>
-                  <p className="text-[9px] text-foreground/70">{format(new Date(photo.photo_date), "MMM d")}</p>
+                  <p className="text-[9px] text-foreground/70">{format(parseLocalDate(photo.photo_date), "MMM d")}</p>
                 </div>
                 {selectedPhotoIds.includes(photo.id) && (
                   <div className="absolute top-1 right-1">

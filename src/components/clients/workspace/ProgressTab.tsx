@@ -11,11 +11,13 @@ import { cn } from "@/lib/utils";
 import ProgressPhotosModal from "@/components/dashboard/ProgressPhotosModal";
 import { useToast } from "@/hooks/use-toast";
 import { signThumbPaths } from "@/lib/supabaseImage";
+import { parseLocalDate } from "@/utils/localDate";
 
 interface Photo {
   id: string;
   storage_path: string;
   created_at: string;
+  photo_date?: string;
   photo_type?: string;
   pose?: string;
   url?: string;
@@ -45,7 +47,7 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
           .limit(5),
         supabase
           .from("progress_photos")
-          .select("id, storage_path, created_at, pose")
+          .select("id, storage_path, created_at, photo_date, pose")
           .eq("client_id", clientId)
           .order("created_at", { ascending: false }),
         supabase
@@ -207,7 +209,7 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
                   />
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/70 to-transparent px-1.5 py-1">
                     <p className="text-[10px] text-foreground/80">
-                      {format(new Date(photo.created_at), "MMM d, yyyy")}
+                      {format(photo.photo_date ? parseLocalDate(photo.photo_date) : new Date(photo.created_at), "MMM d, yyyy")}
                     </p>
                   </div>
                 </button>
