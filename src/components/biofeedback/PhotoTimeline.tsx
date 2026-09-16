@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { ImageIcon, Download } from "lucide-react";
 import { downloadPhoto, photoFilename } from "@/lib/downloadPhoto";
 import { signStoragePaths, signThumbPaths } from "@/lib/supabaseImage";
+import { parseLocalDate } from "@/utils/localDate";
 
 
 
@@ -88,7 +89,7 @@ const PhotoTimeline = () => {
           </button>
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/70 to-transparent px-2 py-2">
             <p className="text-xs font-medium text-foreground capitalize">{photo.pose.replace("-", " ")}</p>
-            <p className="text-[10px] text-foreground/70">{format(new Date(photo.photo_date), "MMM d, yyyy")}</p>
+            <p className="text-[10px] text-foreground/70">{format(parseLocalDate(photo.photo_date), "MMM d, yyyy")}</p>
           </div>
         </div>
       ))}

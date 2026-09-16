@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, startOfWeek, getWeek } from "date-fns";
 import { ImageIcon, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { parseLocalDate } from "@/utils/localDate";
 
 interface Photo {
   id: string;
@@ -65,7 +66,7 @@ const PhotoComparisonSlider = () => {
     const groups: Map<string, WeekGroup> = new Map();
 
     photos.forEach((photo) => {
-      const photoDate = new Date(photo.photo_date);
+      const photoDate = parseLocalDate(photo.photo_date);
       const week = getWeek(photoDate);
       const year = photoDate.getFullYear();
       const key = `${year}-W${week}`;
@@ -187,7 +188,7 @@ const PhotoComparisonSlider = () => {
                       </div>
                       <div className="px-4 pb-4">
                         <p className="text-xs text-muted-foreground">
-                          {format(new Date(photo.photo_date), "PPP")}
+                          {format(parseLocalDate(photo.photo_date), "PPP")}
                         </p>
                       </div>
                     </div>
@@ -319,7 +320,7 @@ const PhotoComparisonSlider = () => {
                   </div>
                   {photo && (
                     <p className="text-[10px] text-muted-foreground text-center">
-                      {format(new Date(photo.photo_date), "MMM d, yyyy")}
+                      {format(parseLocalDate(photo.photo_date), "MMM d, yyyy")}
                     </p>
                   )}
                 </div>
