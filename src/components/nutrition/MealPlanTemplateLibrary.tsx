@@ -73,6 +73,18 @@ interface ItemPreview {
   day_id: string;
 }
 
+/** Shows "3 unit" / "125g" exactly as the coach entered it. */
+function formatPreviewQty(item: ItemPreview): string {
+  const unit = (item.serving_unit || "g").trim();
+  const ss = Number(item.serving_size) || 0;
+  const grams = Number(item.gram_amount) || 0;
+  if (unit.toLowerCase() !== "g" && ss > 0) {
+    const count = Math.round((grams / ss) * 10) / 10;
+    return `${count} ${unit}`;
+  }
+  return `${Math.round(grams * 10) / 10}g`;
+}
+
 const MealPlanTemplateLibrary = () => {
   const { user } = useAuth();
   const { toast } = useToast();
