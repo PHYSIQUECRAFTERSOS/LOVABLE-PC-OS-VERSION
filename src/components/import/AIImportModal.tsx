@@ -756,12 +756,12 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
                 name: food.name,
                 created_by: user.id,
                 is_verified: false,
-                serving_size: qtyValue,
+                serving_size: isMassUnit ? qtyValue : 1,
                 serving_unit: qtyUnit,
-                calories: pdfCal,
-                protein: pdfP,
-                carbs: pdfC,
-                fat: pdfF,
+                calories: isMassUnit ? pdfCal : pdfCal / qtyValue,
+                protein: isMassUnit ? pdfP : pdfP / qtyValue,
+                carbs: isMassUnit ? pdfC : pdfC / qtyValue,
+                fat: isMassUnit ? pdfF : pdfF / qtyValue,
               } as any)
               .select("id")
               .single();
@@ -780,7 +780,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
             meal_type: mealType,
             gram_amount: qtyValue,
             servings: qtyValue,
-            serving_size: qtyValue,
+            serving_size: isMassUnit ? qtyValue : 1,
             serving_unit: qtyUnit,
             calories: pdfCal,
             protein: pdfP,
