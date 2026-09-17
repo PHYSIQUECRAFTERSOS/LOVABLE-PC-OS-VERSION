@@ -268,8 +268,8 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                 note: noteByKey.get(`${day.id}::${mealOrder}`) || "",
                 foods: groupItems.map((item: any) => {
                   const fi = item.food_items as any;
-                  const ss = Math.max(fi?.serving_size || item.serving_size || 100, 1);
-                  const unit = fi?.serving_unit || item.serving_unit || "g";
+                  const ss = Math.max(Number(item.serving_size) || fi?.serving_size || 100, 1);
+                  const unit = item.serving_unit || fi?.serving_unit || "g";
                   const ga = item.gram_amount || ss;
                   return {
                     id: uid(),
@@ -387,8 +387,8 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
               note: noteByKey.get(`${day.id}::${mealOrder}`) || "",
               foods: groupItems.map((item: any) => {
                 const fi = item.food_items as any;
-                const ss = Math.max(fi?.serving_size || item.serving_size || 100, 1);
-                const unit = fi?.serving_unit || item.serving_unit || "g";
+                const ss = Math.max(Number(item.serving_size) || fi?.serving_size || 100, 1);
+                const unit = item.serving_unit || fi?.serving_unit || "g";
                 const ga = item.gram_amount || ss;
                 return {
                   id: uid(),
