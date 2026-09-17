@@ -62,6 +62,8 @@ interface ItemPreview {
   meal_name: string;
   custom_name: string | null;
   gram_amount: number | null;
+  serving_unit: string | null;
+  serving_size: number | null;
   calories: number | null;
   protein: number | null;
   carbs: number | null;
@@ -349,7 +351,7 @@ const MealPlanTemplateLibrary = () => {
 
     const { data: items } = await supabase
       .from("meal_plan_items")
-      .select("meal_name, custom_name, gram_amount, calories, protein, carbs, fat, meal_order, item_order, day_id")
+      .select("meal_name, custom_name, gram_amount, serving_unit, serving_size, calories, protein, carbs, fat, meal_order, item_order, day_id")
       .eq("meal_plan_id", template.id)
       .order("meal_order")
       .order("item_order");
@@ -398,7 +400,7 @@ const MealPlanTemplateLibrary = () => {
         if (newDay) {
           const { data: items } = await supabase
             .from("meal_plan_items")
-            .select("food_item_id, custom_name, meal_name, meal_type, gram_amount, servings, calories, protein, carbs, fat, item_order, meal_order, note")
+            .select("food_item_id, custom_name, meal_name, meal_type, gram_amount, servings, serving_unit, serving_size, calories, protein, carbs, fat, item_order, meal_order, note")
             .eq("meal_plan_id", template.id)
             .eq("day_id", day.id);
 
@@ -763,7 +765,7 @@ const MealPlanTemplateLibrary = () => {
                             <div key={idx} className="flex items-center justify-between px-3 py-1.5">
                               <span className="text-xs text-foreground">{item.custom_name || "Food"}</span>
                               <span className="text-[10px] text-muted-foreground">
-                                {item.gram_amount}g · {item.calories}cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                                {formatPreviewQty(item)} · {item.calories}cal · {item.protein}P · {item.carbs}C · {item.fat}F
                               </span>
                             </div>
                           ))}
