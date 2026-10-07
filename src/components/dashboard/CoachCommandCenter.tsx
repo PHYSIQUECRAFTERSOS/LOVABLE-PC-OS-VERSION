@@ -50,14 +50,25 @@ const CONGRATS_MESSAGES = [
   "Great work with your workout yesterday 🔥 lets keep that momentum going !",
 ];
 
-// Rotates to a new variation each day so congrats messages feel personal
-const getTodaysCongratsMessage = () => {
+const CHECKIN_MESSAGES = [
+  "Saw you missed your workout yesterday, what happened there?",
+  "What happened to yesterday's workout ? Shows it is missed",
+  "Noticed that you missed your workout yesterday, what happened?",
+  "Saw you missed your workout yesterday, let's go make sure we get back on track here. Here to hold you to a higher standard 💯",
+  "Everything ok here? saw you missed your workout yesterday",
+];
+
+// Rotates to a new variation each day so messages feel personal
+const getDailyMessage = (messages: string[]) => {
   const now = new Date();
   const dayOfYear = Math.floor(
     (now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000
   );
-  return CONGRATS_MESSAGES[dayOfYear % CONGRATS_MESSAGES.length];
+  return messages[dayOfYear % messages.length];
 };
+
+const getTodaysCongratsMessage = () => getDailyMessage(CONGRATS_MESSAGES);
+const getTodaysCheckinMessage = () => getDailyMessage(CHECKIN_MESSAGES);
 
 interface ClientProfile {
   user_id: string;
@@ -803,7 +814,7 @@ const CoachCommandCenter = () => {
                     size="sm"
                     variant="ghost"
                     className="h-7 px-2 text-xs text-destructive hover:text-destructive/80"
-                    onClick={() => setQuickMsgClient({ id: client.clientId, name: client.clientName, avatar: client.avatarUrl, prefill: "" })}
+                    onClick={() => setQuickMsgClient({ id: client.clientId, name: client.clientName, avatar: client.avatarUrl, prefill: getTodaysCheckinMessage() })}
                   >
                     <MessageSquare className="h-3.5 w-3.5 mr-1" />
                     Check In
