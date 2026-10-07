@@ -109,7 +109,36 @@ const QuickMessageDialog = ({
     return () => { supabase.removeChannel(channel); };
   }, [threadId, open]);
 
+  const initialScrollDoneRef = useRef(false);
+
+  // Reset scroll tracking whenever the dialog is reopened for a client
   useEffect(() => {
+    if (open) initialScrollDoneRef.current = false;
+  }, [open, clientId]);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    if (!initialScrollDoneRef.current) {
+      // First load: jump straight to the newest message. The list may still be
+      // laying out, so re-scroll a few times to beat late layout shifts.
+      initialScrollDoneRef.current = true;
+      const scrollNow = () => {
+        const scroller = bottomRef.current?.parentElement;
+        if (scroller) scroller.scrollTop = scroller.scrollHeight;
+      };
+      scrollNow();
+      const t1 = setTimeout(scrollNow, 50);
+      const t2 = setTimeout(scrollNow, 200);
+      const t3 = setTimeout(scrollNow, 500);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
+    }
+
+    // Subsequent new messages: smooth scroll is fine
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
