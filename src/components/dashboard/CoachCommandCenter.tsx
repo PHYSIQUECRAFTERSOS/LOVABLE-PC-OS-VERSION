@@ -42,6 +42,23 @@ import {
 
 // ── Types ──
 
+const CONGRATS_MESSAGES = [
+  "great work getting in your workout yesterday and pushing yourself by the way 💪 Keep it up!",
+  "Great work hitting your workout yesterday here 👌 Keep it up",
+  "saw you crushed your workout yesterday once again 💯 How did that go?",
+  "I see you crushed your workout yesterday 🙏 keep it up! Love seeing that",
+  "Great work with your workout yesterday 🔥 lets keep that momentum going !",
+];
+
+// Rotates to a new variation each day so congrats messages feel personal
+const getTodaysCongratsMessage = () => {
+  const now = new Date();
+  const dayOfYear = Math.floor(
+    (now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000
+  );
+  return CONGRATS_MESSAGES[dayOfYear % CONGRATS_MESSAGES.length];
+};
+
 interface ClientProfile {
   user_id: string;
   full_name: string;
@@ -747,7 +764,7 @@ const CoachCommandCenter = () => {
                     size="sm"
                     variant="ghost"
                     className="h-7 px-2 text-xs text-success hover:text-success"
-                    onClick={() => setQuickMsgClient({ id: client.clientId, name: client.clientName, avatar: client.avatarUrl, prefill: `Great work on "${client.workoutTitle}" yesterday! 💪` })}
+                    onClick={() => setQuickMsgClient({ id: client.clientId, name: client.clientName, avatar: client.avatarUrl, prefill: getTodaysCongratsMessage() })}
                   >
                     <MessageSquare className="h-3.5 w-3.5 mr-1" />
                     Congrats
