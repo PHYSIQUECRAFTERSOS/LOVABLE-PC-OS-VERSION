@@ -155,13 +155,16 @@ const QuickMessageDialog = ({
 
     if (existingThread) {
       setThreadId(existingThread.id);
-      const { data } = await supabase
+      const { data, error: msgErr } = await supabase
         .from("thread_messages")
         .select("*")
         .eq("thread_id", existingThread.id)
-        .order("created_at", { ascending: true })
+        .order("created_at", { ascending: false })
         .limit(30);
-      setMessages((data as Message[]) || []);
+      if (msgErr) {
+        toast({ title: "Error", description: "Could not load messages", variant: "destructive" });
+      }
+      setMessages(((data as Message[]) || []).slice().reverse());
 
       await supabase
         .from("message_threads")
