@@ -123,8 +123,10 @@ const QuickMessageDialog = ({
       // First load: jump straight to the newest message. The list may still be
       // laying out, so re-scroll a few times to beat late layout shifts.
       initialScrollDoneRef.current = true;
-      const scrollNow = () =>
-        bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+      const scrollNow = () => {
+        const scroller = bottomRef.current?.parentElement;
+        if (scroller) scroller.scrollTop = scroller.scrollHeight;
+      };
       scrollNow();
       const t1 = setTimeout(scrollNow, 50);
       const t2 = setTimeout(scrollNow, 200);
