@@ -24,7 +24,7 @@ describe("phase deadlines", () => {
     expect(isOverdue(run("2026-10-12"))).toBe(true);
   });
   it("a genuine future phase still counts as queued", () => {
-    const withFuture = [...phases, { id: "p4", program_id: "x", name: "Phase 4", phase_order: 4, duration_weeks: 8, start_date: "2026-10-11" }];
+    const withFuture = [...phases, { id: "p4", program_id: "x", name: "Phase 4", phase_order: 4, duration_weeks: 8, start_date: "2099-01-01" }];
     expect(run("2026-10-08", withFuture).next?.id).toBe("p4");
   });
   it("client with no program has state none", () => {
