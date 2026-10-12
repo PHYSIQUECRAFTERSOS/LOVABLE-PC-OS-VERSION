@@ -135,6 +135,8 @@ interface PhaseDeadlineClient {
   daysLeft: number;
   /** "overdue" | "due" — drives bucketing without relying on daysLeft sign. */
   kind: "overdue" | "due";
+  /** Active client with no training program at all. */
+  noProgram?: boolean;
 }
 
 interface PhaseDeadlineSummary {
@@ -530,26 +532,30 @@ const CoachCommandCenter = () => {
         .in("client_id", clientIds)
         .in("status", ["active", "subscribed"]);
 
-      if (programAssignments?.length) {
-        const programIds = [...new Set(programAssignments.map((a) => a.program_id))];
-        const [phasesRes, programsRes] = await Promise.allSettled([
-          supabase
-            .from("program_phases")
-            .select("id, program_id, phase_order, duration_weeks, name")
-            .in("program_id", programIds)
-            .order("phase_order", { ascending: true }),
-          supabase
-            .from("programs")
-            .select("id, start_date")
-            .in("id", programIds),
-        ]);
+      {
+        const programIds = [...new Set((programAssignments || []).map((a) => a.program_id))];
+        const [phasesRes, programsRes] = programIds.length
+          ? await Promise.allSettled([
+              supabase
+                .from("program_phases")
+                .select("id, program_id, phase_order, duration_weeks, name, start_date")
+                .in("program_id", programIds)
+                .order("phase_order", { ascending: true }),
+              supabase
+                .from("programs")
+                .select("id, start_date")
+                .in("id", programIds),
+            ])
+          : [null, null];
 
-        const allPhases = (phasesRes.status === "fulfilled" ? phasesRes.value.data : null) || [];
-        const allPrograms = (programsRes.status === "fulfilled" ? programsRes.value.data : null) || [];
+        const allPhases = (phasesRes?.status === "fulfilled" ? phasesRes.value.data : null) || [];
+        const allPrograms = (programsRes?.status === "fulfilled" ? programsRes.value.data : null) || [];
+        // If phase/program lookups failed, don't falsely flag everyone as "no program".
+        const lookupFailed = programIds.length > 0 && (phasesRes?.status !== "fulfilled" || programsRes?.status !== "fulfilled");
 
         const statuses = computeClientPhaseStatuses(
           clientIds,
-          programAssignments as any,
+          (programAssignments || []) as any,
           allPrograms as any,
           allPhases as any,
         );
@@ -563,6 +569,19 @@ const CoachCommandCenter = () => {
             clientName: profile?.full_name || "Client",
             avatarUrl: profile?.avatar_url,
           };
+
+          if (status.state === "none") {
+            if (lookupFailed) continue;
+            phaseDeadlines.push({
+              ...baseRow,
+              phaseName: "No program assigned",
+              endDate: "",
+              daysLeft: -100000,
+              kind: "overdue",
+              noProgram: true,
+            });
+            continue;
+          }
 
           if (isOverdue(status)) {
             const ended = status.mostRecentEnded || status.current;
@@ -866,10 +885,12 @@ const CoachCommandCenter = () => {
                       <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-foreground truncate">{client.clientName}</p>
-                        <p className="text-xs text-foreground/80 font-medium">{client.phaseName} · ended {client.endDate}</p>
+                        <p className="text-xs text-destructive font-medium">
+                          {client.noProgram ? "No program assigned" : `${client.phaseName} · ended ${client.endDate}`}
+                        </p>
                       </div>
                       <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-destructive/20 text-destructive">
-                        {Math.abs(client.daysLeft)}d overdue
+                        {client.noProgram ? "No program" : `${Math.abs(client.daysLeft)}d overdue`}
                       </span>
                     </div>
                   ))}
