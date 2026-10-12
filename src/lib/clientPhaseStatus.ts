@@ -153,22 +153,22 @@ export function computeClientPhaseStatuses(
       }
     }
 
-    if (current) {
-      const after = sorted
-        .filter((p) => p.phase_order > current!.phase_order)
+    // A phase only counts as "queued next" when it genuinely lies in the
+    // future: starts after the reference phase ends and hasn't ended yet.
+    // Old finished phases listed later in the program must NOT count.
+    const findRealNext = (afterEnd: string): ResolvedPhase | null =>
+      sorted
         .map(toResolved)
         .filter((r): r is ResolvedPhase => !!r)
-        .sort((a, b) => a.start_date.localeCompare(b.start_date));
-      next = after[0] || null;
+        .filter((r) => r.start_date > afterEnd && r.end_date >= today)
+        .sort((a, b) => a.start_date.localeCompare(b.start_date))[0] || null;
+
+    if (current) {
+      next = findRealNext(current.end_date);
     } else if (upcoming) {
       // Program not yet started — the upcoming phase is the "current".
       current = upcoming;
-      const after = sorted
-        .filter((p) => p.phase_order > upcoming!.phase_order)
-        .map(toResolved)
-        .filter((r): r is ResolvedPhase => !!r)
-        .sort((a, b) => a.start_date.localeCompare(b.start_date));
-      next = after[0] || null;
+      next = findRealNext(upcoming.end_date);
     }
 
     const daysLeft = current ? diffDays(today, current.end_date) : null;
