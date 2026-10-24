@@ -1,3 +1,4 @@
+import { parseLocalDate } from "@/utils/localDate";
 import { CalendarEvent } from "./CalendarGrid";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Flame, CheckCircle2, XCircle, TrendingUp } from "lucide-react";
@@ -30,7 +31,7 @@ const ComplianceStreak = ({ events }: ComplianceStreakProps) => {
   }
 
   const totalCompleted = actionableEvents.filter((e) => e.is_completed).length;
-  const totalDue = actionableEvents.filter((e) => !isAfter(new Date(e.event_date), today)).length;
+  const totalDue = actionableEvents.filter((e) => !isAfter(parseLocalDate(e.event_date), today)).length;
   const overallPct = totalDue > 0 ? Math.round((totalCompleted / totalDue) * 100) : 0;
 
   return (
