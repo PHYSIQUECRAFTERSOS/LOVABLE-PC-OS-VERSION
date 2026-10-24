@@ -1,3 +1,4 @@
+import { parseLocalDate } from "@/utils/localDate";
 import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -402,7 +403,7 @@ const EventDetailModal = ({
         <div className="sticky top-0 z-10 bg-background border-b border-border px-5 pt-5 pb-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium text-muted-foreground">
-              {format(new Date(event.event_date), "d MMM yyyy")}
+              {format(parseLocalDate(event.event_date), "d MMM yyyy")}
             </span>
             <div className="flex items-center gap-1">
               {/* Three-dot menu for completed workouts */}
@@ -505,7 +506,7 @@ const EventDetailModal = ({
           {(event.event_time || !isWorkout) && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="h-4 w-4" />
-              <span>{format(new Date(event.event_date), "EEEE, MMMM d, yyyy")}</span>
+              <span>{format(parseLocalDate(event.event_date), "EEEE, MMMM d, yyyy")}</span>
               {event.event_time && (
                 <span className="text-foreground font-medium">
                   {event.event_time.slice(0, 5)}

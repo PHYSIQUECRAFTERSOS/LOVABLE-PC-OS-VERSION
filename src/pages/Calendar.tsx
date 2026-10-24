@@ -1,3 +1,4 @@
+import { parseLocalDate } from "@/utils/localDate";
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { addWeeks, subWeeks, addMonths, subMonths, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, addDays, isSameDay } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -457,7 +458,7 @@ const Calendar = () => {
                         <div className={`h-2 w-2 rounded-full shrink-0 ${e.event_type === "workout" ? "bg-warn" : e.event_type === "cardio" ? "bg-success" : e.event_type === "checkin" ? "bg-purple-500" : e.event_type === "rest" ? "bg-muted-foreground" : "bg-primary"}`} />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium truncate">{e.title}</p>
-                          <p className="text-[10px] text-muted-foreground">{format(new Date(e.event_date), "EEE, MMM d")}{e.event_time && ` • ${e.event_time.slice(0, 5)}`}</p>
+                          <p className="text-[10px] text-muted-foreground">{format(parseLocalDate(e.event_date), "EEE, MMM d")}{e.event_time && ` • ${e.event_time.slice(0, 5)}`}</p>
                         </div>
                       </button>
                     ))}
