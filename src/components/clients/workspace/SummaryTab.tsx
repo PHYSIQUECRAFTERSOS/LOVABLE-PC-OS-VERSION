@@ -1,3 +1,4 @@
+import { isWorkoutEventDone } from "@/lib/workoutCompletionMatch";
 import { useState, useEffect, forwardRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -452,7 +453,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             .eq("client_id", clientId).in("logged_at", last7dates),
           // Completion cross-reference, fetched in the same wave instead of as a
           // follow-up round-trip after the batch resolves.
-          supabase.from("workout_sessions").select("workout_id")
+          supabase.from("workout_sessions").select("workout_id, completed_at, session_date")
             .eq("client_id", clientId).eq("status", "completed")
             .gte("created_at", `${format(subDays(new Date(), 30), "yyyy-MM-dd")}T00:00:00`),
         ]);
@@ -472,12 +473,10 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       // Cross-reference workout actions with workout_sessions to fix completion status
       if (ok(0)) {
         const rawActions = (actionsRes.data || []) as CalendarAction[];
-        const completedWorkoutIds = new Set(
-          (completedSessionsRes.data || []).map((s: any) => s.workout_id).filter(Boolean),
-        );
+        const completedSessions = completedSessionsRes.data || [];
         setActions(
           rawActions.map((a) =>
-            a.event_type === "workout" && a.linked_workout_id && completedWorkoutIds.has(a.linked_workout_id)
+            a.event_type === "workout" && isWorkoutEventDone({ ...a, event_date: a.event_date || selectedDateStr }, completedSessions)
               ? { ...a, is_completed: true }
               : a,
           ),
