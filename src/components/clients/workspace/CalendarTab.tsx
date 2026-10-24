@@ -515,7 +515,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const monthEvents = events.filter(e => {
-    const d = new Date(e.event_date);
+    const d = new Date(e.event_date + "T12:00:00");
     return d >= monthStart && d <= monthEnd && e.is_completed;
   });
   const monthSessions = sessions.filter(s => {
