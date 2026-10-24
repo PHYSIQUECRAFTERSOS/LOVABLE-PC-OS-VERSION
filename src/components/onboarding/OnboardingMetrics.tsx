@@ -70,8 +70,10 @@ const OnboardingMetrics = ({ data, updateField, validationErrors = {} }: Props) 
     const mm = month.padStart(2, "0");
     const dd = day.padStart(2, "0");
     const iso = `${year}-${mm}-${dd}`;
-    const dt = new Date(`${iso}T00:00:00`);
-    if (isNaN(dt.getTime()) || dt.getUTCMonth() + 1 !== Number(mm) || dt.getUTCDate() !== Number(dd)) {
+    // Validate in local time only — mixing local parsing with UTC getters
+    // rejected every date for users east of UTC (e.g. Australia).
+    const dt = new Date(Number(year), Number(mm) - 1, Number(dd), 12);
+    if (isNaN(dt.getTime()) || dt.getMonth() + 1 !== Number(mm) || dt.getDate() !== Number(dd)) {
       updateField("date_of_birth", null);
       return;
     }
