@@ -24,7 +24,7 @@ const tiers: PricingTier[] = [
       "Custom meal plan",
       "Custom supplement plan",
     ],
-    stripeUrl: "https://buy.stripe.com/PLACEHOLDER_MONTHLY",
+    stripeUrl: "/auth",
     popular: true,
     price: "$499.99 USD/month",
   },
@@ -37,7 +37,7 @@ const tiers: PricingTier[] = [
       "Custom meal plan",
       "Custom supplement plan",
     ],
-    stripeUrl: "https://buy.stripe.com/PLACEHOLDER_BIWEEKLY",
+    stripeUrl: "/auth",
     price: "$399.00 USD/month",
   },
 ];
@@ -112,8 +112,6 @@ const Pricing = () => {
 
                 <a
                   href={tier.stripeUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="mt-6 block"
                 >
                   <Button className="w-full gap-2 font-semibold" size="lg">
@@ -137,7 +135,7 @@ const Pricing = () => {
             <Link to="/terms-of-service" className="underline hover:text-foreground">Terms of Service</Link>
             {" "}and{" "}
             <Link to="/privacy-policy" className="underline hover:text-foreground">Privacy Policy</Link>.
-            {" "}For questions or cancellations, contact{" "}
+            {" "}How to cancel: on iPhone, open Settings → your name → Subscriptions → Physique Crafters → Cancel. Otherwise, message your coach in the app or email{" "}
             <a href="mailto:kevinwu@physiquecrafter.com" className="underline hover:text-foreground">
               kevinwu@physiquecrafter.com
             </a>.

@@ -254,6 +254,12 @@ const OnboardingWaiver = ({ data, updateField, validationErrors }: Props) => {
           {validationErrors.waiver_signed && (
             <p className="text-xs text-destructive">{validationErrors.waiver_signed}</p>
           )}
+          <p className="text-[11px] text-muted-foreground">
+            See also our{" "}
+            <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">Terms of Service</a>
+            {" "}and{" "}
+            <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">Privacy Policy</a>.
+          </p>
         </div>
       )}
     </div>

@@ -61,6 +61,8 @@ const OnboardingMetrics = ({ data, updateField, validationErrors = {} }: Props) 
     }
   }, [data.date_of_birth]);
 
+  const [underage, setUnderage] = useState(false);
+
   const updateDob = (year: string, month: string, day: string) => {
     setDobParts({ y: year, m: month, d: day });
     if (!year || !month || !day) {
@@ -77,16 +79,24 @@ const OnboardingMetrics = ({ data, updateField, validationErrors = {} }: Props) 
       updateField("date_of_birth", null);
       return;
     }
-    updateField("date_of_birth", iso);
     const today = new Date();
     let age = today.getFullYear() - Number(year);
     const mDiff = today.getMonth() + 1 - Number(mm);
     if (mDiff < 0 || (mDiff === 0 && today.getDate() < Number(dd))) age--;
+    // Adults-only: never store a birthday under 18.
+    if (age < 18) {
+      updateField("date_of_birth", null);
+      updateField("age", null);
+      setUnderage(true);
+      return;
+    }
+    setUnderage(false);
+    updateField("date_of_birth", iso);
     if (age > 0 && age < 120) updateField("age", age);
   };
 
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 90 }, (_, i) => currentYear - 13 - i);
+  const years = Array.from({ length: 90 }, (_, i) => currentYear - 18 - i);
   const months = [
     { v: "1", l: "Jan" }, { v: "2", l: "Feb" }, { v: "3", l: "Mar" }, { v: "4", l: "Apr" },
     { v: "5", l: "May" }, { v: "6", l: "Jun" }, { v: "7", l: "Jul" }, { v: "8", l: "Aug" },
@@ -161,6 +171,9 @@ const OnboardingMetrics = ({ data, updateField, validationErrors = {} }: Props) 
             </SelectContent>
           </Select>
         </div>
+        {underage && (
+          <p className="text-xs text-destructive">Physique Crafters is for adults 18+.</p>
+        )}
         {validationErrors.date_of_birth && (
           <p className="text-xs text-destructive">{validationErrors.date_of_birth}</p>
         )}
