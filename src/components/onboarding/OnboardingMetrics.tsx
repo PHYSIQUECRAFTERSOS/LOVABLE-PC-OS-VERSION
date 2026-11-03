@@ -171,6 +171,9 @@ const OnboardingMetrics = ({ data, updateField, validationErrors = {} }: Props) 
             </SelectContent>
           </Select>
         </div>
+        {underage && (
+          <p className="text-xs text-destructive">Physique Crafters is for adults 18+.</p>
+        )}
         {validationErrors.date_of_birth && (
           <p className="text-xs text-destructive">{validationErrors.date_of_birth}</p>
         )}
