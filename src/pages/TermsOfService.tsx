@@ -139,9 +139,16 @@ const TermsOfService = () => {
         </section>
 
         <section className="space-y-3">
+          <h2 className="text-primary font-display text-base font-semibold">Copyright &amp; Content Reports</h2>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            If you believe content posted in the app infringes your copyright or breaks these terms, use the Report option on the post or email support@physiquecrafters.com with a link to the content, a description of the work, your contact details, and a statement that you are the owner or authorized to act for them. We review reports promptly and remove infringing content.
+          </p>
+        </section>
+
+        <section className="space-y-3">
           <h2 className="text-primary font-display text-base font-semibold">13. Contact</h2>
           <p className="text-sm text-foreground/80 leading-relaxed">
-            For questions about these terms, contact: support@physiquecrafters.com
+            For questions about these terms, contact: support@physiquecrafters.com. Mailing address: Physique Crafters, Newark, DE 19713, USA.
           </p>
         </section>
       </div>

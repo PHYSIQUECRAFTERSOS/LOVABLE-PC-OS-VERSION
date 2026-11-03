@@ -121,6 +121,13 @@ const Auth = () => {
             </div>
           </form>
 
+          <p className="mt-4 text-center text-[11px] text-muted-foreground">
+            By signing in you agree to our{" "}
+            <Link to="/terms-of-service" className="underline hover:text-primary">Terms of Service</Link>
+            {" "}and{" "}
+            <Link to="/privacy-policy" className="underline hover:text-primary">Privacy Policy</Link>.
+          </p>
+
           <div className="mt-6 flex items-center gap-2 rounded-md border border-border bg-secondary/50 p-3">
             <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
             <p className="text-[11px] text-muted-foreground leading-tight">
