@@ -12,7 +12,7 @@ interface VoiceMessageRecorderProps {
   onRecordingStateChange?: (isRecording: boolean) => void;
 }
 
-const MAX_DURATION = 120; // 2 minutes max
+const MAX_DURATION = 300; // 5 minutes max
 
 const VoiceMessageRecorder = ({ threadId, onSent, onRecordingStateChange }: VoiceMessageRecorderProps) => {
   const { user } = useAuth();
