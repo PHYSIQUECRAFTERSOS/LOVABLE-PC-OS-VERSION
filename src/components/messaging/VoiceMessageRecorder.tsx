@@ -53,7 +53,22 @@ const VoiceMessageRecorder = ({ threadId, onSent, onRecordingStateChange }: Voic
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Turn off browser "voice call" processing (echo cancel, noise
+      // suppression, auto gain) — it muddies quality mics.
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: 1,
+            sampleRate: 48000,
+          },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       streamRef.current = stream;
 
       // Use webm if supported, fallback to mp4
@@ -63,7 +78,10 @@ const VoiceMessageRecorder = ({ threadId, onSent, onRecordingStateChange }: Voic
           ? "audio/mp4"
           : "";
 
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const recorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType, audioBitsPerSecond: 128000 } : { audioBitsPerSecond: 128000 }
+      );
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
 

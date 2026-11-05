@@ -2,9 +2,9 @@
 // No wasm, no CDN — uses Web Audio API only. Output plays everywhere
 // (iOS Safari, WKWebView, Chrome, Firefox, Android).
 //
-// Voice-optimized: mono, 16 kHz, 16-bit PCM (~32 KB/s → ~2 MB per 2-min note).
+// Mono, 44.1 kHz, 16-bit PCM (~88 KB/s → ~10 MB per 2-min note) for clear voice.
 
-const TARGET_SAMPLE_RATE = 16000;
+const TARGET_SAMPLE_RATE = 44100;
 
 async function decodeBlob(input: Blob): Promise<AudioBuffer> {
   const arrayBuffer = await input.arrayBuffer();
@@ -76,7 +76,7 @@ function encodeWav(samples: Float32Array, sampleRate: number): Blob {
 
 /**
  * Encode an arbitrary audio Blob (webm/opus, ogg, mp4, etc.) to a mono 16-bit
- * 16 kHz WAV blob. WAV plays natively on every browser and on iOS WKWebView.
+ * 44.1 kHz WAV blob. WAV plays natively on every browser and on iOS WKWebView.
  */
 export async function encodeToWav(input: Blob): Promise<Blob> {
   const decoded = await decodeBlob(input);
