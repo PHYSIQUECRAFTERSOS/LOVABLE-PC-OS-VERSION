@@ -121,7 +121,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   } = useMealPlanTracker(selectedDate);
 
   // Pick the plan matching the active pill, with fallback
-  const dayTypeKey = activePlanDayType || (dayType === "training_day" ? "training" : "rest");
+  const dayTypeKey = dayType === "training_day" ? "training" : "rest";
   const resolvedPlanData = useMemo(() => {
     const match = getPlanByDayType(dayTypeKey);
     if (match.plan) return match;
@@ -846,7 +846,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       </div>
 
       {/* Plan Pill Navigation (only if 2+ plans) */}
-      {showPillNav && !isCoach && (
+      {false && showPillNav && !isCoach && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {availablePlanPills.map(plan => {
             const isActive = activePlanDayType === plan.day_type;
